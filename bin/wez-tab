@@ -1,6 +1,13 @@
 #!/bin/bash
 # wez-tab — color-code the current WezTerm tab
 # Dual-mode: source for shell function + completions, execute to set tab color.
+#
+# macOS compatibility notes (bash 3.2 + BSD tools):
+#   - No associative arrays (local -A) — use delimited strings or case functions
+#   - No grep -P (PCRE) — use sed -n 's/.../' for field extraction
+#   - No [[ with regex =~ capturing groups — use case/sed instead
+#   - local -a (indexed arrays) is fine in bash 3.2
+#   - printf '\033[...' in format string is POSIX and works everywhere
 
 WEZTAB_SELF="${BASH_SOURCE[0]:-$0}"
 WEZTAB_SELF="$(cd "$(dirname "$WEZTAB_SELF")" && pwd)/$(basename "$WEZTAB_SELF")"
@@ -46,7 +53,7 @@ _weztab_describe_action() {
     *ActivateTabRelative\(1\)*)   echo "Next tab" ;;
     *ActivateTabRelative\(-1\)*)  echo "Previous tab" ;;
     *ActivateTab\(*)
-      local n; n="$(echo "$action" | grep -oP 'ActivateTab\(\K[0-9]+')"
+      local n; n="$(echo "$action" | sed -n 's/.*ActivateTab(\([0-9]*\)).*/\1/p')"
       echo "Go to tab $((n + 1))" ;;
     *SpawnTab*)                   echo "New tab" ;;
     *SplitHorizontal*)            echo "Split pane right" ;;
@@ -117,6 +124,18 @@ _weztab_find_wezterm() {
   fi
 }
 
+_weztab_cat_color() {
+  case "$1" in
+    Navigation)  echo "\033[36m" ;;
+    Tabs)        echo "\033[33m" ;;
+    Panes)       echo "\033[32m" ;;
+    Copy/Paste)  echo "\033[35m" ;;
+    Scroll)      echo "\033[34m" ;;
+    Window)      echo "\033[31m" ;;
+    *)           echo "\033[37m" ;;
+  esac
+}
+
 _weztab_show_keys() {
   local wezterm_bin
   wezterm_bin="$(_weztab_find_wezterm)"
@@ -134,17 +153,17 @@ _weztab_show_keys() {
   os_name="$(uname -s)"
 
   # Track seen shortcuts to deduplicate case variants (SHIFT+CTRL+t vs SHIFT+CTRL+T)
-  local -A seen_shortcuts
+  local _seen_shortcuts="|"
 
   # Parse wezterm show-keys --lua output
   # Lines look like: { key = 'Tab', mods = 'CTRL', action = act.ActivateTabRelative(1) },
   "$wezterm_bin" show-keys --lua 2>/dev/null | while IFS= read -r line; do
     local key mods action
-    key="$(echo "$line" | grep -oP "key\s*=\s*['\"]?\K[^'\"}, ]+" | head -1 || true)"
+    key="$(echo "$line" | sed -n "s/.*key *= *['\"\`]*\([^'\"\`, }]*\).*/\1/p" | head -1)"
     [ -z "$key" ] && continue
 
-    mods="$(echo "$line" | grep -oP "mods\s*=\s*['\"]?\K[^'\"}, ]+" | head -1 || true)"
-    action="$(echo "$line" | grep -oP "action\s*=\s*\K.*" || true)"
+    mods="$(echo "$line" | sed -n "s/.*mods *= *['\"\`]*\([^'\"\`, }]*\).*/\1/p" | head -1)"
+    action="$(echo "$line" | sed -n 's/.*action *= *//p')"
     action="${action%,}"
     action="${action% }"
     [ -z "$action" ] && continue
@@ -176,8 +195,8 @@ _weztab_show_keys() {
     # Deduplicate case variants (keep first seen)
     local shortcut_lower
     shortcut_lower="$(echo "$shortcut" | tr '[:upper:]' '[:lower:]')"
-    [ -n "${seen_shortcuts[$shortcut_lower]:-}" ] && continue
-    seen_shortcuts[$shortcut_lower]=1
+    case "$_seen_shortcuts" in *"|${shortcut_lower}|"*) continue ;; esac
+    _seen_shortcuts="${_seen_shortcuts}${shortcut_lower}|"
 
     # Check if custom
     local star=" "
@@ -194,16 +213,6 @@ _weztab_show_keys() {
 
   # Category display order and colors
   local -a categories=("Navigation" "Tabs" "Panes" "Copy/Paste" "Scroll" "Window" "Other")
-  local -A cat_colors
-  cat_colors=(
-    [Navigation]="\033[36m"
-    [Tabs]="\033[33m"
-    [Panes]="\033[32m"
-    ["Copy/Paste"]="\033[35m"
-    [Scroll]="\033[34m"
-    [Window]="\033[31m"
-    [Other]="\033[37m"
-  )
   local reset="\033[0m"
   local bold="\033[1m"
   local dim="\033[2m"
@@ -213,7 +222,8 @@ _weztab_show_keys() {
     entries="$(grep "^${cat}	" "$tmpfile" || true)"
     [ -z "$entries" ] && continue
 
-    local color="${cat_colors[$cat]:-\033[37m}"
+    local color
+    color="$(_weztab_cat_color "$cat")"
     printf "\n${bold}${color}── %s ──${reset}\n" "$cat"
     printf "${dim}  %-28s %s${reset}\n" "Shortcut" "Action"
 
