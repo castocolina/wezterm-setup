@@ -61,7 +61,7 @@ wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_wid
       { Background = { Color = bg } },
       { Foreground = { Color = '#50fa7b' } },
       { Attribute = { Intensity = 'Bold' } },
-      { Text = '● ' },
+      { Text = ' ●-> ' },
       { Foreground = { Color = '#ffffff' } },
       { Text = label },
       { Attribute = { Intensity = 'Normal' } },

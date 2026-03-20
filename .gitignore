@@ -1,1 +1,9 @@
-.zshrc-snippet
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+*.bak

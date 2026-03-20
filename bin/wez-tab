@@ -1,0 +1,496 @@
+#!/bin/bash
+# wez-tab — color-code the current WezTerm tab
+# Dual-mode: source for shell function + completions, execute to set tab color.
+
+WEZTAB_SELF="${BASH_SOURCE[0]:-$0}"
+WEZTAB_SELF="$(cd "$(dirname "$WEZTAB_SELF")" && pwd)/$(basename "$WEZTAB_SELF")"
+
+WEZTAB_COLORS="red orange yellow green teal cyan blue navy purple pink"
+WEZTAB_SUBCOMMANDS="keys help"
+
+# --- Custom keybindings defined in wezterm.lua (marked with ★) ---
+_weztab_custom_keys() {
+  cat <<'CUSTOM'
+ALT LeftArrow
+ALT RightArrow
+ALT |
+ALT -
+CTRL SHIFT z
+CTRL SHIFT w
+CTRL Tab
+CTRL SHIFT Tab
+CUSTOM
+}
+
+_weztab_is_custom() {
+  local mods="$1" key="$2"
+  local customs
+  customs="$(_weztab_custom_keys)"
+  while IFS= read -r line; do
+    if [ "$line" = "$mods $key" ]; then
+      echo "yes"
+      return
+    fi
+  done <<< "$customs"
+}
+
+# Format modifier names for display
+_weztab_fmt_mods() {
+  echo "$1" | sed 's/ /+/g'
+}
+
+# Map action strings to human-readable descriptions
+_weztab_describe_action() {
+  local action="$1"
+  case "$action" in
+    *ActivateTabRelative\(1\)*)   echo "Next tab" ;;
+    *ActivateTabRelative\(-1\)*)  echo "Previous tab" ;;
+    *ActivateTab\(*)
+      local n; n="$(echo "$action" | grep -oP 'ActivateTab\(\K[0-9]+')"
+      echo "Go to tab $((n + 1))" ;;
+    *SpawnTab*)                   echo "New tab" ;;
+    *SplitHorizontal*)            echo "Split pane right" ;;
+    *SplitVertical*)              echo "Split pane down" ;;
+    *TogglePaneZoomState*)        echo "Toggle pane zoom" ;;
+    *CloseCurrentPane*)           echo "Close pane" ;;
+    *ActivatePaneDirection*Up*)   echo "Focus pane up" ;;
+    *ActivatePaneDirection*Down*) echo "Focus pane down" ;;
+    *ActivatePaneDirection*Left*) echo "Focus pane left" ;;
+    *ActivatePaneDirection*Right*) echo "Focus pane right" ;;
+    *AdjustPaneSize*)             echo "Resize pane" ;;
+    *Copy*ClipboardAndPrimarySelection*) echo "Copy selection" ;;
+    *Copy*)                       echo "Copy" ;;
+    *Paste*Clipboard*)            echo "Paste from clipboard" ;;
+    *Paste*)                      echo "Paste" ;;
+    *Search*CurrentSelectionOrEmptyString*) echo "Search" ;;
+    *Search*)                     echo "Search" ;;
+    *SendKey*key*b*ALT*)           echo "Move word left" ;;
+    *SendKey*key*f*ALT*)           echo "Move word right" ;;
+    *ReloadConfiguration*)        echo "Reload config" ;;
+    *ShowDebugOverlay*)           echo "Debug overlay" ;;
+    *ToggleFullScreen*)           echo "Toggle fullscreen" ;;
+    *DecreaseFontSize*)           echo "Decrease font size" ;;
+    *IncreaseFontSize*)           echo "Increase font size" ;;
+    *ResetFontSize*)              echo "Reset font size" ;;
+    *ScrollByPage\(-1\)*)         echo "Scroll page up" ;;
+    *ScrollByPage\(1\)*)          echo "Scroll page down" ;;
+    *ScrollToTop*)                echo "Scroll to top" ;;
+    *ScrollToBottom*)             echo "Scroll to bottom" ;;
+    *ClearScrollback*)            echo "Clear scrollback" ;;
+    *QuickSelect*)                echo "Quick select mode" ;;
+    *ActivateCopyMode*)           echo "Copy mode" ;;
+    *ShowLauncher*)               echo "Show launcher" ;;
+    *ShowTabNavigator*)           echo "Show tab navigator" ;;
+    *Hide*)                       echo "Hide window" ;;
+    *SpawnWindow*)                echo "New window" ;;
+    *ActivateCommandPalette*)     echo "Command palette" ;;
+    *CloseCurrentTab*)            echo "Close tab" ;;
+    *MoveTabRelative\(1\)*)       echo "Move tab right" ;;
+    *MoveTabRelative\(-1\)*)      echo "Move tab left" ;;
+    *Nop*)                        echo "(disabled)" ;;
+    *Multiple*)                   echo "Multiple actions" ;;
+    *)                            echo "$action" ;;
+  esac
+}
+
+# Categorize an action into a group
+_weztab_categorize() {
+  local action="$1"
+  case "$action" in
+    *ActivateTab*|*SpawnTab*|*MoveTab*) echo "Tabs" ;;
+    *Split*|*Pane*|*pane*)              echo "Panes" ;;
+    *Copy*|*Paste*|*Search*|*Select*|*CopyMode*) echo "Copy/Paste" ;;
+    *Scroll*|*Clear*)                   echo "Scroll" ;;
+    *Font*|*FullScreen*|*Reload*|*Debug*|*Launcher*|*Navigator*) echo "Window" ;;
+    *SendKey*|*word*)                   echo "Navigation" ;;
+    *)                                  echo "Other" ;;
+  esac
+}
+
+_weztab_show_keys() {
+  if ! command -v wezterm >/dev/null 2>&1; then
+    echo "Error: wezterm not found in PATH" >&2
+    exit 1
+  fi
+
+  local tmpfile
+  tmpfile="$(mktemp)"
+  trap 'rm -f "'"$tmpfile"'"' EXIT
+
+  # Detect platform — skip SUPER bindings on Linux (macOS-only)
+  local os_name
+  os_name="$(uname -s)"
+
+  # Track seen shortcuts to deduplicate case variants (SHIFT+CTRL+t vs SHIFT+CTRL+T)
+  local -A seen_shortcuts
+
+  # Parse wezterm show-keys --lua output
+  # Lines look like: { key = 'Tab', mods = 'CTRL', action = act.ActivateTabRelative(1) },
+  wezterm show-keys --lua 2>/dev/null | while IFS= read -r line; do
+    local key mods action
+    key="$(echo "$line" | grep -oP "key\s*=\s*['\"]?\K[^'\"}, ]+" | head -1 || true)"
+    [ -z "$key" ] && continue
+
+    mods="$(echo "$line" | grep -oP "mods\s*=\s*['\"]?\K[^'\"}, ]+" | head -1 || true)"
+    action="$(echo "$line" | grep -oP "action\s*=\s*\K.*" || true)"
+    action="${action%,}"
+    action="${action% }"
+    [ -z "$action" ] && continue
+
+    # Skip NONE modifier keys (copy mode / internal bindings)
+    [ "${mods:-}" = "NONE" ] && continue
+
+    # Skip SUPER bindings on Linux (macOS-only)
+    [ "$os_name" = "Linux" ] && [[ "${mods:-}" == *SUPER* ]] && continue
+
+    # Skip CopyMode actions (internal vim-like mode, not regular bindings)
+    [[ "$action" == *CopyMode* ]] && continue
+
+    # Skip phys: keys (physical key references)
+    [[ "$key" == phys:* ]] && continue
+
+    # Format mods: 'CTRL|SHIFT' → 'CTRL SHIFT'
+    local fmt_mods
+    fmt_mods="$(echo "${mods:-}" | tr '|' ' ')"
+
+    # Build shortcut display
+    local shortcut
+    if [ -n "$fmt_mods" ]; then
+      shortcut="$(_weztab_fmt_mods "$fmt_mods")+$key"
+    else
+      shortcut="$key"
+    fi
+
+    # Deduplicate case variants (keep first seen)
+    local shortcut_lower
+    shortcut_lower="$(echo "$shortcut" | tr '[:upper:]' '[:lower:]')"
+    [ -n "${seen_shortcuts[$shortcut_lower]:-}" ] && continue
+    seen_shortcuts[$shortcut_lower]=1
+
+    # Check if custom
+    local star=" "
+    if [ -n "$(_weztab_is_custom "$fmt_mods" "$key")" ]; then
+      star="★"
+    fi
+
+    local desc category
+    desc="$(_weztab_describe_action "$action")"
+    category="$(_weztab_categorize "$action")"
+
+    printf '%s\t%s\t%s\t%s\n' "$category" "$star" "$shortcut" "$desc"
+  done | sort -t$'\t' -k1,1 -k2,2r -k3,3 > "$tmpfile"
+
+  # Category display order and colors
+  local -a categories=("Navigation" "Tabs" "Panes" "Copy/Paste" "Scroll" "Window" "Other")
+  local -A cat_colors
+  cat_colors=(
+    [Navigation]="\033[36m"
+    [Tabs]="\033[33m"
+    [Panes]="\033[32m"
+    ["Copy/Paste"]="\033[35m"
+    [Scroll]="\033[34m"
+    [Window]="\033[31m"
+    [Other]="\033[37m"
+  )
+  local reset="\033[0m"
+  local bold="\033[1m"
+  local dim="\033[2m"
+
+  for cat in "${categories[@]}"; do
+    local entries
+    entries="$(grep "^${cat}	" "$tmpfile" || true)"
+    [ -z "$entries" ] && continue
+
+    local color="${cat_colors[$cat]:-\033[37m}"
+    printf "\n${bold}${color}── %s ──${reset}\n" "$cat"
+    printf "${dim}  %-28s %s${reset}\n" "Shortcut" "Action"
+
+    echo "$entries" | while IFS=$'\t' read -r _ star shortcut desc; do
+      if [ "$star" = "★" ]; then
+        printf "  ${color}★ %-26s${reset} %s\n" "$shortcut" "$desc"
+      else
+        printf "    %-26s %s\n" "$shortcut" "$desc"
+      fi
+    done
+  done
+
+  echo ""
+  printf "${dim}  ★ = custom keybinding (from wezterm.lua)${reset}\n"
+  echo ""
+}
+
+_weztab_icon() {
+  local name
+  name="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$name" in
+    # Languages/Runtimes
+    node)     echo "💚" ;;
+    python)   echo "🐍" ;;
+    rust)     echo "🦀" ;;
+    go)       echo "🐹" ;;
+    # DevOps/Infra
+    docker)   echo "🐳" ;;
+    k8s)      echo "☸️" ;;
+    server)   echo "🖥️" ;;
+    db)       echo "🗄️" ;;
+    ssh)      echo "🔐" ;;
+    deploy)   echo "🚀" ;;
+    monitor)  echo "📊" ;;
+    cloud)    echo "☁️" ;;
+    network)  echo "🌐" ;;
+    # Dev workflow
+    git)      echo "🔀" ;;
+    build)    echo "🔨" ;;
+    test)     echo "🧪" ;;
+    debug)    echo "🐛" ;;
+    edit)     echo "✏️" ;;
+    log)      echo "📋" ;;
+    shell)    echo "🐚" ;;
+    config)   echo "⚙️" ;;
+    search)   echo "🔍" ;;
+    clean)    echo "🧹" ;;
+    tools)    echo "🔧" ;;
+    # Data/Transfer
+    api)      echo "📡" ;;
+    data)     echo "📦" ;;
+    download) echo "⬇️" ;;
+    upload)   echo "⬆️" ;;
+    sync)     echo "🔄" ;;
+    # Concepts
+    security) echo "🔒" ;;
+    docs)     echo "📝" ;;
+    ai)       echo "🧠" ;;
+    fire)     echo "🔥" ;;
+    alert)    echo "⚠️" ;;
+    # Communication/Misc
+    mail)     echo "📧" ;;
+    chat)     echo "💬" ;;
+    home)     echo "🏠" ;;
+    music)    echo "🎵" ;;
+    game)     echo "🎮" ;;
+    *)        return 1 ;;
+  esac
+}
+
+# --- Section B: Sourced mode ---
+_weztab_is_sourced=false
+if [ -n "${ZSH_EVAL_CONTEXT:-}" ]; then
+  case "$ZSH_EVAL_CONTEXT" in
+    *:file:*|*:file) _weztab_is_sourced=true ;;
+  esac
+elif [ -n "${BASH_SOURCE[0]:-}" ]; then
+  if [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    _weztab_is_sourced=true
+  fi
+fi
+
+if [ "$_weztab_is_sourced" = true ]; then
+  export WEZTAB_LOADED=1
+
+  wez-tab() {
+    command bash "$WEZTAB_SELF" "$@"
+  }
+
+  # Bash completions
+  if [ -n "${BASH_VERSION:-}" ]; then
+    _weztab_completions() {
+      local cur="${COMP_WORDS[COMP_CWORD]}"
+      local prev="${COMP_WORDS[COMP_CWORD-1]}"
+      case "$COMP_CWORD" in
+        1)
+          COMPREPLY=( $(compgen -W "$WEZTAB_COLORS $WEZTAB_SUBCOMMANDS" -- "$cur") )
+          ;;
+        2)
+          COMPREPLY=( $(compgen -W "node python rust go docker k8s server db ssh deploy monitor cloud network git build test debug edit log shell config search clean tools api data download upload sync security docs ai fire alert mail chat home music game" -- "$cur") )
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+    }
+    complete -F _weztab_completions wez-tab
+  fi
+
+  # Zsh completions
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    _weztab_zsh_completions() {
+      local -a colors icons
+      colors=( ${=WEZTAB_COLORS} ${=WEZTAB_SUBCOMMANDS} )
+      icons=( node python rust go docker k8s server db ssh deploy monitor cloud network git build test debug edit log shell config search clean tools api data download upload sync security docs ai fire alert mail chat home music game )
+      case "$CURRENT" in
+        2)
+          _describe 'color' colors
+          ;;
+        3)
+          _describe 'icon' icons
+          ;;
+        *)
+          _message 'title text'
+          ;;
+      esac
+    }
+    compdef _weztab_zsh_completions wez-tab
+  fi
+
+  unset _weztab_is_sourced
+  return 0
+fi
+unset _weztab_is_sourced
+
+# --- Section C: Executed mode ---
+(
+set -euo pipefail
+
+_weztab_usage() {
+  cat <<'USAGE'
+Usage: wez-tab <color> [icon] [title...]
+       wez-tab <command>
+
+Set the current WezTerm tab's color and optional title/icon.
+
+Commands:
+  keys              Show all keybindings, categorized and color-coded
+  help              Show this help message
+
+Options:
+  --help, -h        Same as 'help'
+
+Colors:
+  red   orange   yellow   green   teal
+  cyan  blue     navy     purple  pink
+
+Icons (optional second argument):
+  Languages:    node 💚    python 🐍   rust 🦀    go 🐹
+  DevOps:       docker 🐳  k8s ☸️      server 🖥️  db 🗄️
+                ssh 🔐     deploy 🚀   monitor 📊 cloud ☁️
+                network 🌐
+  Workflow:     git 🔀     build 🔨    test 🧪    debug 🐛
+                edit ✏️    log 📋      shell 🐚   config ⚙️
+                search 🔍  clean 🧹    tools 🔧
+  Data:         api 📡     data 📦     download ⬇️ upload ⬆️
+                sync 🔄
+  Concepts:     security 🔒 docs 📝    ai 🧠      fire 🔥
+                alert ⚠️
+  Misc:         mail 📧    chat 💬     home 🏠    music 🎵
+                game 🎮
+
+  If the second argument doesn't match an icon name, it's treated as
+  part of the title text.
+
+Examples:
+  wez-tab blue docker "compose up"   → 🐳 compose up (blue tab)
+  wez-tab red "my task"              → my task (red tab, no icon)
+  wez-tab green git rebase            → 🔀 rebase (green tab)
+
+Keybindings:
+  Alt+|                Split pane right
+  Alt+-                Split pane down
+  Ctrl+Shift+Arrow     Navigate panes
+  Ctrl+Shift+Z         Toggle pane zoom
+  Ctrl+Shift+W         Close pane
+  Ctrl+Tab / Shift     Next/previous tab
+  Alt+Left/Right       Jump between words
+
+  Full list: wezterm show-keys --lua
+
+USAGE
+
+  # Autocomplete warning — WEZTAB_LOADED is exported in sourced mode (Section B)
+  if [ -z "${WEZTAB_LOADED:-}" ]; then
+    cat <<'WARN'
+Note: Autocomplete is not active. To enable tab completion, add this
+to your ~/.zshrc or ~/.bashrc:
+
+  [[ -f ~/.local/bin/wez-tab ]] && source ~/.local/bin/wez-tab
+
+WARN
+  fi
+
+  cat <<'REFS'
+See also:
+  wezterm --help        General WezTerm help
+  wezterm cli --help    CLI subcommand help
+REFS
+}
+
+# Handle subcommands and flags
+case "${1:-}" in
+  --help|-h|help|"")
+    _weztab_usage
+    exit 0
+    ;;
+  keys)
+    _weztab_show_keys
+    exit 0
+    ;;
+esac
+
+color="$1"
+shift
+
+# Validate color
+_weztab_valid_color=false
+for c in $WEZTAB_COLORS; do
+  if [ "$c" = "$color" ]; then
+    _weztab_valid_color=true
+    break
+  fi
+done
+if [ "$_weztab_valid_color" = false ]; then
+  echo "Error: Unknown color '$color'" >&2
+  echo "Valid colors: $WEZTAB_COLORS" >&2
+  exit 1
+fi
+
+# Process icon and title
+icon=""
+title=""
+if [ $# -gt 0 ]; then
+  candidate="$1"
+  if icon_char="$(_weztab_icon "$candidate")"; then
+    icon="$icon_char"
+    shift
+  fi
+fi
+title="$*"
+
+# Build full title
+full_title=""
+if [ -n "$icon" ] && [ -n "$title" ]; then
+  full_title="$icon $title"
+elif [ -n "$icon" ]; then
+  full_title="$icon"
+elif [ -n "$title" ]; then
+  full_title="$title"
+fi
+
+# Set color on current tab via OSC 1337 user var
+printf '\033]1337;SetUserVar=%s=%s\007' WEZTERM_TAB_COLOR "$(echo -n "$color" | base64)"
+
+# Set per-pane background color via OSC 11 (each pane is its own terminal)
+case "$color" in
+  red)    _bg_hex='#1f1617' ;;
+  orange) _bg_hex='#1f1916' ;;
+  yellow) _bg_hex='#1c1c16' ;;
+  green)  _bg_hex='#161c17' ;;
+  teal)   _bg_hex='#151b1a' ;;
+  cyan)   _bg_hex='#161c1c' ;;
+  blue)   _bg_hex='#161a1f' ;;
+  navy)   _bg_hex='#14151c' ;;
+  purple) _bg_hex='#1a161f' ;;
+  pink)   _bg_hex='#1f1619' ;;
+esac
+printf '\033]11;%s\033\\' "$_bg_hex"
+
+# Set title on current tab if provided
+if [ -n "$full_title" ]; then
+  printf '\033]1337;SetUserVar=%s=%s\007' WEZTERM_TAB_TITLE "$(echo -n "$full_title" | base64)"
+fi
+
+# Confirmation
+if [ -n "$full_title" ]; then
+  echo "Set $color tab: $full_title"
+else
+  echo "Set $color tab"
+fi
+)
