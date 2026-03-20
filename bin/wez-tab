@@ -107,9 +107,21 @@ _weztab_categorize() {
   esac
 }
 
+_weztab_find_wezterm() {
+  if command -v wezterm >/dev/null 2>&1; then
+    echo "wezterm"
+  elif [ -x "/Applications/WezTerm.app/Contents/MacOS/wezterm" ]; then
+    echo "/Applications/WezTerm.app/Contents/MacOS/wezterm"
+  elif [ -x "/Applications/WezTerm-nightly.app/Contents/MacOS/wezterm" ]; then
+    echo "/Applications/WezTerm-nightly.app/Contents/MacOS/wezterm"
+  fi
+}
+
 _weztab_show_keys() {
-  if ! command -v wezterm >/dev/null 2>&1; then
-    echo "Error: wezterm not found in PATH" >&2
+  local wezterm_bin
+  wezterm_bin="$(_weztab_find_wezterm)"
+  if [ -z "$wezterm_bin" ]; then
+    echo "Error: wezterm not found in PATH or /Applications/WezTerm{,-nightly}.app" >&2
     exit 1
   fi
 
@@ -126,7 +138,7 @@ _weztab_show_keys() {
 
   # Parse wezterm show-keys --lua output
   # Lines look like: { key = 'Tab', mods = 'CTRL', action = act.ActivateTabRelative(1) },
-  wezterm show-keys --lua 2>/dev/null | while IFS= read -r line; do
+  "$wezterm_bin" show-keys --lua 2>/dev/null | while IFS= read -r line; do
     local key mods action
     key="$(echo "$line" | grep -oP "key\s*=\s*['\"]?\K[^'\"}, ]+" | head -1 || true)"
     [ -z "$key" ] && continue

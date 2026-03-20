@@ -59,6 +59,22 @@ install() {
     echo "  ✓ PATH   → added ~/.local/bin to $rc"
   fi
 
+  # macOS: ensure WezTerm CLI is in PATH
+  if [ "$(uname -s)" = "Darwin" ] && ! command -v wezterm >/dev/null 2>&1; then
+    local wezterm_macos_dir=""
+    if [ -d "/Applications/WezTerm.app/Contents/MacOS" ]; then
+      wezterm_macos_dir="/Applications/WezTerm.app/Contents/MacOS"
+    elif [ -d "/Applications/WezTerm-nightly.app/Contents/MacOS" ]; then
+      wezterm_macos_dir="/Applications/WezTerm-nightly.app/Contents/MacOS"
+    fi
+    if [ -n "$wezterm_macos_dir" ]; then
+      echo "export PATH=\"$wezterm_macos_dir:\$PATH\"" >> "$rc"
+      echo "  ✓ PATH   → added WezTerm CLI to $rc"
+    fi
+  elif [ "$(uname -s)" = "Darwin" ]; then
+    echo "  ✓ PATH   → wezterm already in PATH"
+  fi
+
   echo ""
   echo "Done! Restart your shell or run: source $rc"
 }
@@ -84,6 +100,7 @@ uninstall() {
   if [ -f "$rc" ]; then
     sed -i '/# WezTerm tab color\/autocomplete support/d' "$rc"
     sed -i '/source ~\/\.local\/bin\/wez-tab/d' "$rc"
+    sed -i '\|/Applications/WezTerm.*\.app/Contents/MacOS|d' "$rc"
     echo "  ✓ removed wez-tab lines from $rc"
   fi
 
