@@ -3,3 +3,6 @@
 tmp/
 # Hypothesis scratch — not part of the distributable
 .tmp/
+
+# Build output — produced by tools/build.sh, never committed
+dist/

@@ -1,0 +1,141 @@
+-- cli/spec.lua
+--
+-- SINGLE SOURCE OF TRUTH for the `wez` command tree (D-16).
+--
+-- This module builds and returns the argparse parser that the CLI entry point
+-- (cli/wez.lua), the completion generator (`wez completions` / `wez __complete`,
+-- Plan 07), and `wez keys` (Plan 05) all read. Registering the COMPLETE Phase 1
+-- subcommand surface here means downstream plans implement only their own
+-- cli/commands/<name>.lua module WITHOUT editing this file (interface-first).
+--
+-- Phase 1 surface registered below:
+--   version                                          (Plan 01 - implemented)
+--   doctor                                           (Plan 06)
+--   keys           --json                            (Plan 05)
+--   install-state  --force --restore --skip          (Plan 04)
+--   uninstall-state --keep-config --keep-backup --keep-cli (Plan 06)
+--   completions    <shell>                           (Plan 07)
+--   __complete     <context>   (hidden)              (Plan 07)
+--
+-- The top-level `pane`/`tab`/`scene` namespaces (Phases 2-5, see README) are left
+-- intentionally OPEN here: we do not register their internals, but the flat
+-- subcommand layout does not paint them into a corner.
+--
+-- Security (T-01-02): the entry point dispatches by looking up the chosen command
+-- name against the closed set registered here (allow-list). Never build a require
+-- path directly from raw user input.
+
+-- Resolve the vendored argparse relative to THIS file, so the module works both
+-- from source (any CWD) and from inside the luastatic bundle (relative module
+-- names per .planning/decisions/cli-language.md standalone-binary constraint).
+local M = {}
+
+-- The version string. The build/installer can stamp this; version.lua reads the
+-- same constant so the spec and the command never drift.
+M.VERSION = "0.1.0"
+
+-- Category tags consumed by the completion generator (D-16) and `wez keys`.
+-- Each registered subcommand MUST appear here.
+local CATEGORIES = {
+  ["version"] = "diagnostics",
+  ["doctor"] = "diagnostics",
+  ["keys"] = "diagnostics",
+  ["install-state"] = "install",
+  ["uninstall-state"] = "install",
+  ["completions"] = "shell",
+  ["__complete"] = "internal",
+}
+
+-- The ordered, canonical Phase 1 subcommand list (the closed allow-list).
+local SUBCOMMANDS = {
+  "version",
+  "doctor",
+  "keys",
+  "install-state",
+  "uninstall-state",
+  "completions",
+  "__complete",
+}
+
+-- Build a fresh argparse parser registering the full Phase 1 command tree.
+-- Returns the configured parser. Callers parse process `arg` against it.
+function M.build_parser()
+  -- Require the vendored argparse by its in-tree module path so it resolves both
+  -- from source (`./?.lua` -> cli/vendor/argparse.lua) and inside the luastatic
+  -- bundle (module name cli.vendor.argparse). Fall back to the bare name in case
+  -- a bundler flattened the vendored dir.
+  local ok, argparse = pcall(require, "cli.vendor.argparse")
+  if not ok then
+    argparse = require("argparse")
+  end
+
+  local parser = argparse("wez", "wezterm-setup companion CLI")
+
+  -- Record the chosen subcommand name into result.command so the dispatcher can
+  -- look it up against the allow-list (SUBCOMMANDS) without guessing.
+  parser:command_target("command")
+
+  -- A bare `wez` (or `wez --version`) is valid: print usage / version instead of
+  -- erroring on a missing command. The entry point (cli/wez.lua) decides what to
+  -- do when result.command is nil.
+  parser:require_command(false)
+
+  -- Top-level --version: a plain flag (NOT argparse:add_version, which exits on
+  -- parse). Keeping it a flag lets the entry point observe `result.version` and
+  -- route to the version command, and lets tests parse `--version` to a table.
+  parser:flag("--version", "Print the wez version and exit")
+
+  -- version ---------------------------------------------------------------
+  parser:command("version", "Print the wez version")
+
+  -- doctor (Plan 06) ------------------------------------------------------
+  parser:command("doctor", "Diagnose install state and config health")
+
+  -- keys (Plan 05) --------------------------------------------------------
+  local keys = parser:command("keys", "List active keybindings by category")
+  keys:flag("--json", "Emit machine-readable JSON")
+
+  -- install-state (Plan 04) ----------------------------------------------
+  local install_state = parser:command("install-state", "Inspect / drive install state")
+  install_state:flag("--force", "Overwrite an existing managed block")
+  install_state:flag("--restore", "Restore the timestamped backup")
+  install_state:flag("--skip", "Leave the existing block untouched")
+
+  -- uninstall-state (Plan 06) --------------------------------------------
+  local uninstall_state = parser:command("uninstall-state", "Inspect / drive uninstall state")
+  uninstall_state:flag("--keep-config", "Preserve ~/.config/wezterm/wezterm-setup/")
+  uninstall_state:flag("--keep-backup", "Preserve wezterm.lua.bak.* backups")
+  uninstall_state:flag("--keep-cli", "Preserve the wez binary")
+
+  -- completions (Plan 07) ------------------------------------------------
+  local completions = parser:command("completions", "Generate shell completions from this spec")
+  completions:argument("shell", "Target shell (bash|zsh)"):args("?")
+
+  -- __complete (hidden, Plan 07) -----------------------------------------
+  -- Internal hook the shell completion functions call for dynamic values.
+  local complete = parser:command("__complete", "Internal completion hook")
+  complete._hidden = true
+  complete:argument("context", "Completion context"):args("?")
+
+  return parser
+end
+
+-- The closed allow-list of registered subcommand names (a fresh copy each call).
+function M.subcommand_names()
+  local out = {}
+  for i, n in ipairs(SUBCOMMANDS) do
+    out[i] = n
+  end
+  return out
+end
+
+-- name -> category map (a fresh copy each call).
+function M.categories()
+  local out = {}
+  for k, v in pairs(CATEGORIES) do
+    out[k] = v
+  end
+  return out
+end
+
+return M
