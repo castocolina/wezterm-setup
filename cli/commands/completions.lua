@@ -133,6 +133,16 @@ local function gen_zsh(tree)
       w("          ;;")
     end
   end
+  -- Nested dispatch for `pane` (its dynamic values come from `wez __complete`).
+  -- pane has no top-level flags, so the generic flag loop emits no `pane)` arm —
+  -- this is the single nested command in Phase 2.
+  w("        pane)")
+  w("          case $line[2] in")
+  w("            color) compadd ${(f)\"$(wez __complete pane-colors 2>/dev/null)\"} ;;")
+  w("            title) compadd ${(f)\"$(wez __complete pane-icons 2>/dev/null)\"} ;;")
+  w("            *) compadd color title ;;")
+  w("          esac")
+  w("          ;;")
   w("        *) ;;")
   w("      esac")
   w("      ;;")
@@ -188,6 +198,15 @@ local function gen_bash(tree)
       w("      ;;")
     end
   end
+  -- Nested dispatch for `pane` (dynamic values via `wez __complete`).
+  w("    pane)")
+  w("      local sub=\"${COMP_WORDS[2]}\"")
+  w("      case \"$sub\" in")
+  w("        color) COMPREPLY=( $(compgen -W \"$(wez __complete pane-colors 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
+  w("        title) COMPREPLY=( $(compgen -W \"$(wez __complete pane-icons 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
+  w("        *) COMPREPLY=( $(compgen -W \"color title\" -- \"$cur\") ); return 0 ;;")
+  w("      esac")
+  w("      ;;")
   w("    *) ;;")
   w("  esac")
   w("}")

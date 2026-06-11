@@ -26,6 +26,7 @@ local M = {}
 
 local keybindings = require("keybindings")
 local cwd = require("cwd")
+local format_tab_title = require("format-tab-title")
 
 -- Resolve our declarative action spec (from keybindings.lua) into a real
 -- wezterm.action. Pure data in -> wezterm action out. When the `wezterm`
@@ -113,6 +114,11 @@ function M.apply(config)
 
   -- 4. Apply cwd behavior (no-op augment; inheritance is WezTerm default).
   cwd.apply(config)
+
+  -- 5. Register the tab-bar renderer that surfaces pane/tab identity
+  --    (format-tab-title event reads WEZTERM_TAB_COLOR / WEZTERM_TAB_TITLE
+  --    user vars set by `wez pane color`/`title`). AUGMENT (D-17).
+  format_tab_title.apply(config)
 
   -- Return the SAME object we received (augment, never replace).
   return config

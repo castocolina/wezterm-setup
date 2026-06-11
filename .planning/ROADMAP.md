@@ -10,7 +10,7 @@
 
 - [x] **Phase 0: Spikes & Alignment** - Lock open engineering decisions before building begins
 - [x] **Phase 1: Foundation** - Install/uninstall, CWD, clear keybinding, curated bindings, doctor, keys (completed 2026-06-10)
-- [ ] **Phase 2: Pane Identity** - Per-pane background color and title via `wez pane`
+- [x] **Phase 2: Pane Identity** - Per-pane background color and title via `wez pane` (completed 2026-06-11)
 - [ ] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven)
 - [ ] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes
 - [ ] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
@@ -144,7 +144,7 @@
 |-------|----------------|--------|-----------|
 | 0. Spikes & Alignment | 4/4 | Complete | 2026-06-07 |
 | 1. Foundation | 7/7 | Complete    | 2026-06-10 |
-| 2. Pane Identity | 0/? | Not started | - |
+| 2. Pane Identity | 5/5 | Complete | 2026-06-11 |
 | 3. Tab Identity | 0/? | Not started | - |
 | 4. Ad-hoc Scenes | 0/? | Not started | - |
 | 5. Named Scenes | 0/? | Not started | - |
@@ -171,10 +171,10 @@
 | DIAG-03 | Phase 1 | Done (01-05) |
 | DIAG-04 | Phase 1 | Done (01-05) |
 | DIAG-05 | Phase 1 | Done (01-07, Linux; macOS deferred D-18) |
-| PANE-01 | Phase 2 | Pending |
-| PANE-02 | Phase 2 | Pending |
-| PANE-03 | Phase 2 | Pending |
-| PANE-04 | Phase 2 | Pending |
+| PANE-01 | Phase 2 | Done (02-02, 02-03; Linux, macOS deferred D-18) |
+| PANE-02 | Phase 2 | Done (02-03) |
+| PANE-03 | Phase 2 | Done (02-04) |
+| PANE-04 | Phase 2 | Done (02-02, 02-04, 02-05) |
 | TAB-01 | Phase 3 | Pending |
 | TAB-02 | Phase 3 | Pending |
 | TAB-03 | Phase 3 | Pending |

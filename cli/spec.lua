@@ -43,6 +43,7 @@ local CATEGORIES = {
   ["install-state"] = "install",
   ["uninstall-state"] = "install",
   ["completions"] = "shell",
+  ["pane"] = "identity",
   ["__complete"] = "internal",
 }
 
@@ -54,6 +55,7 @@ local SUBCOMMANDS = {
   "install-state",
   "uninstall-state",
   "completions",
+  "pane",
   "__complete",
 }
 
@@ -110,6 +112,18 @@ function M.build_parser()
   -- completions (Plan 07) ------------------------------------------------
   local completions = parser:command("completions", "Generate shell completions from this spec")
   completions:argument("shell", "Target shell (bash|zsh)"):args("?")
+
+  -- pane (Phase 2: Pane Identity) -----------------------------------------
+  -- `wez pane color <value> [--opacity]` / `wez pane color reset`.
+  -- The nested subcommand name lands in result.pane_cmd; the top-level
+  -- result.command stays "pane" so the dispatcher routes to cli/commands/pane.lua.
+  local pane = parser:command("pane", "Pane identity: color and title")
+  pane:command_target("pane_cmd")
+  local pane_color = pane:command("color", "Set or reset this pane's background and tab accent color")
+  pane_color:argument("value", "Color name, hex (#rgb / #rrggbb / #rrggbbaa), or 'reset'")
+  pane_color:flag("--opacity", "Apply the color's alpha as pane opacity if supported")
+  local pane_title = pane:command("title", "Set or clear this pane's custom tab title")
+  pane_title:argument("words", "Title text, or an icon name + text, or empty / 'reset' to clear"):args("*")
 
   -- __complete (hidden, Plan 07) -----------------------------------------
   -- Internal hook the shell completion functions call for dynamic values.

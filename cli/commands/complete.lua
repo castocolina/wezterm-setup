@@ -21,6 +21,9 @@
 -- still exit 0 — the hook must never become an error surface mid-expansion.
 
 local spec = require("cli.spec")
+-- The canonical color/icon tables live in the command module (single source of
+-- truth, D-16) — completion derives candidates from them, never a second copy.
+local pane = require("cli.commands.pane")
 
 local M = {}
 
@@ -44,8 +47,26 @@ end
 -- The closed context dispatch. Each entry returns a list of candidate tokens.
 -- Future phases add entries here (colors, scene names, ...) without touching the
 -- generated shell scripts.
+-- `wez pane color <Tab>` candidates: the curated palette + the `reset` value.
+local function pane_colors()
+  local out = {}
+  for _, n in ipairs(pane.COLOR_NAMES) do out[#out + 1] = n end
+  out[#out + 1] = "reset"
+  return out
+end
+
+-- `wez pane title <Tab>` candidates: the icon-name shortcut keys (sorted, stable).
+local function pane_icons()
+  local out = {}
+  for name in pairs(pane.ICONS) do out[#out + 1] = name end
+  table.sort(out)
+  return out
+end
+
 local CONTEXTS = {
   subcommands = visible_subcommands,
+  ["pane-colors"] = pane_colors,
+  ["pane-icons"] = pane_icons,
 }
 
 -- run(args): print newline-separated candidates for args.context. Unknown context
