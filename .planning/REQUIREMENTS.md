@@ -39,11 +39,11 @@
 
 ### Tab Identity
 
-- [ ] **TAB-01**: `wez tab color <name>` sets the tab accent color, visible on both focused and unfocused tab
-- [ ] **TAB-02**: Tab accent color persists when the active pane switches within the tab
-- [ ] **TAB-03**: `wez tab color <name> --title "<text>"` sets both color and title in one command
-- [ ] **TAB-04**: Pane-level color takes priority over tab-level color when both are set
-- [ ] **TAB-05**: The active tab is visually distinct from inactive tabs regardless of accent color
+- [x] **TAB-01**: `wez tab color <name>` sets the tab accent color, visible on both focused and unfocused tab
+- [x] **TAB-02**: Tab accent color persists when the active pane switches within the tab
+- [x] **TAB-03**: `wez tab color <name> --title "<text>"` sets both color and title in one command
+- [x] **TAB-04**: Pane-level color takes priority over tab-level color when both are set
+- [x] **TAB-05**: The active tab is visually distinct from inactive tabs regardless of accent color
 
 ### Scenes
 
@@ -99,11 +99,11 @@
 | PANE-02 | Phase 2 | Pending |
 | PANE-03 | Phase 2 | Pending |
 | PANE-04 | Phase 2 | Pending |
-| TAB-01 | Phase 3 | Pending |
-| TAB-02 | Phase 3 | Pending |
-| TAB-03 | Phase 3 | Pending |
-| TAB-04 | Phase 3 | Pending |
-| TAB-05 | Phase 3 | Pending |
+| TAB-01 | Phase 3 | Complete |
+| TAB-02 | Phase 3 | Complete |
+| TAB-03 | Phase 3 | Complete |
+| TAB-04 | Phase 3 | Complete |
+| TAB-05 | Phase 3 | Complete |
 | SCEN-01 | Phase 4 | Pending |
 | SCEN-02 | Phase 4 | Pending |
 | SCEN-03 | Phase 5 | Pending |
@@ -112,6 +112,7 @@
 | SCEN-06 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 31 total
 - Mapped to phases: 31
 - Unmapped: 0 ✓

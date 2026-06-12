@@ -52,6 +52,30 @@ function M.resolve_profile(color_name)
   return M.DEFAULT_PROFILE
 end
 
+--- Parse a stored `tab.tab_title` of the form "<color>:<title>" into (color, title).
+-- Locked encoding (tab-title-format.md): split on the FIRST ":". Left is the color
+-- (may be empty -> nil), right is the title (may be empty -> nil, may itself contain
+-- ":"). A no-colon NON-EMPTY token is the color name with no title (bare-token-is-a-
+-- color rule); resolve_profile maps an unknown color to the default downstream.
+-- Pure: no `wezterm` dependency, unit-testable under plain lua5.4.
+-- INVARIANT: this logic MUST stay in lockstep with the CLI-side parser
+-- `M.parse_stored` in cli/commands/tab.lua (separate Lua bundle, same encoding) —
+-- change both together.
+function M.parse_tab_title(tab_title)
+  if not tab_title or tab_title == "" then
+    return nil, nil
+  end
+  local pos = tab_title:find(":", 1, true)
+  if not pos then
+    return tab_title, nil
+  end
+  local color = tab_title:sub(1, pos - 1)
+  local title = tab_title:sub(pos + 1)
+  if color == "" then color = nil end
+  if title == "" then title = nil end
+  return color, title
+end
+
 --- Build the tab label string: "<n>: <title> ", 1-based index, right-truncated
 -- to max_width-4 (byte-based fallback; the live handler additionally applies
 -- wezterm.truncate_right for proper column width).
@@ -65,7 +89,7 @@ function M.format_label(index, title, max_width)
 end
 
 --- Build the WezTerm format-runs table for a tab segment.
--- Active: navy/profile bg, green indicator, bold, white label.
+-- Active: profile bg, green indicator, bold, white label.
 -- Inactive: profile bg + profile fg, no indicator.
 function M.build_runs(is_active, profile, label)
   if is_active then
@@ -97,11 +121,16 @@ function M.apply(config)
 
   wezterm.on("format-tab-title", function(tab, _tabs, _panes, _cfg, _hover, max_width)
     local uv = (tab.active_pane and tab.active_pane.user_vars) or {}
-    local profile = M.resolve_profile(uv.WEZTERM_TAB_COLOR)
+    local tabColor, tabTitle = M.parse_tab_title(tab.tab_title)
 
+    -- accent: pane WEZTERM_TAB_COLOR > tab-prefix color > default (TAB-04)
+    local accent_color = (uv.WEZTERM_TAB_COLOR ~= "" and uv.WEZTERM_TAB_COLOR) or tabColor
+    local profile = M.resolve_profile(accent_color)
+
+    -- title: pane WEZTERM_TAB_TITLE > tab-prefix title > active_pane.title > ""
     local title = uv.WEZTERM_TAB_TITLE
     if not title or title == "" then
-      title = tab.tab_title
+      title = tabTitle
       if not title or title == "" then
         title = tab.active_pane and tab.active_pane.title or ""
       end

@@ -44,6 +44,7 @@ local CATEGORIES = {
   ["uninstall-state"] = "install",
   ["completions"] = "shell",
   ["pane"] = "identity",
+  ["tab"] = "identity",
   ["__complete"] = "internal",
 }
 
@@ -56,6 +57,7 @@ local SUBCOMMANDS = {
   "uninstall-state",
   "completions",
   "pane",
+  "tab",
   "__complete",
 }
 
@@ -124,6 +126,23 @@ function M.build_parser()
   pane_color:flag("--opacity", "Apply the color's alpha as pane opacity if supported")
   local pane_title = pane:command("title", "Set or clear this pane's custom tab title")
   pane_title:argument("words", "Title text, or an icon name + text, or empty / 'reset' to clear"):args("*")
+
+  -- tab (Phase 3: Tab Identity) -------------------------------------------
+  -- `wez tab color <value>` / `wez tab color reset`. The nested subcommand name
+  -- lands in result.tab_cmd; result.command stays "tab" so the dispatcher routes
+  -- to cli/commands/tab.lua. The `title` subcommand + `--title` flag land in 03-03.
+  local tab = parser:command("tab", "Tab identity: accent color and title")
+  tab:command_target("tab_cmd")
+  local tab_color = tab:command("color", "Set or reset this tab's accent color")
+  tab_color:argument("value", "Color name, hex (#rgb / #rrggbb), or 'reset'")
+  -- --title takes a value (the title text), so it is an option, not a boolean
+  -- flag — `wez tab color blue --title api` must land "api" in result.title.
+  -- Asymmetry by design: the combined --title is a single string (tab.lua splits
+  -- it via resolve_title_str), whereas standalone `tab title` below takes pre-split
+  -- argv words (args("*"), resolved via resolve_title).
+  tab_color:option("--title", "Also set the tab title (icon name + text allowed)")
+  local tab_title = tab:command("title", "Set or clear this tab's title")
+  tab_title:argument("words", "Title text, an icon name + text, or empty / 'reset' to clear"):args("*")
 
   -- __complete (hidden, Plan 07) -----------------------------------------
   -- Internal hook the shell completion functions call for dynamic values.

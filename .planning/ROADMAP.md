@@ -11,7 +11,7 @@
 - [x] **Phase 0: Spikes & Alignment** - Lock open engineering decisions before building begins
 - [x] **Phase 1: Foundation** - Install/uninstall, CWD, clear keybinding, curated bindings, doctor, keys (completed 2026-06-10)
 - [x] **Phase 2: Pane Identity** - Per-pane background color and title via `wez pane` (completed 2026-06-11)
-- [ ] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven)
+- [x] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven) (completed 2026-06-12)
 - [ ] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes
 - [ ] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
 
@@ -145,7 +145,7 @@
 | 0. Spikes & Alignment | 4/4 | Complete | 2026-06-07 |
 | 1. Foundation | 7/7 | Complete    | 2026-06-10 |
 | 2. Pane Identity | 5/5 | Complete | 2026-06-11 |
-| 3. Tab Identity | 0/? | Not started | - |
+| 3. Tab Identity | 4/4 | Complete    | 2026-06-12 |
 | 4. Ad-hoc Scenes | 0/? | Not started | - |
 | 5. Named Scenes | 0/? | Not started | - |
 

@@ -27,6 +27,10 @@
 
 local M = {}
 
+-- Icon-name title resolution now lives in the shared cli/lib/title.lua (D-03),
+-- consumed by both `wez pane title` and `wez tab title`.
+local title = require("cli.lib.title")
+
 -- The curated palette (D-01). Order matters for the error message + completion.
 M.COLOR_NAMES = { "red", "orange", "yellow", "green", "teal", "cyan", "blue", "navy", "purple", "pink" }
 
@@ -160,37 +164,11 @@ function M.run_color(args)
   return 0
 end
 
--- Icon-name shortcut map (D-04): a leading token matching one of these names is
--- replaced by its glyph; the rest of the input is the title text.
-M.ICONS = {
-  node = "💚", python = "🐍", rust = "🦀", go = "🐹",
-  docker = "🐳", k8s = "☸️", server = "🖥️", db = "🗄️", ssh = "🔐", deploy = "🚀",
-  git = "🔀", build = "🔨", test = "🧪", debug = "🐛", edit = "✏️", log = "📋",
-  shell = "🐚", config = "⚙️", search = "🔍", ai = "🧠", fire = "🔥", alert = "⚠️",
-}
-
---- Resolve the positional words after `title` into the final title string.
--- First token is an icon name -> glyph + (optional) rest; "reset"/empty -> "".
--- Otherwise the words join verbatim (original case preserved).
-function M.resolve_title(words)
-  words = words or {}
-  if #words == 0 then
-    return ""
-  end
-  if tostring(words[1]):lower() == "reset" then
-    return ""
-  end
-  local glyph = M.ICONS[tostring(words[1]):lower()]
-  if glyph then
-    if #words == 1 then
-      return glyph
-    end
-    local rest = {}
-    for i = 2, #words do rest[#rest + 1] = words[i] end
-    return glyph .. " " .. table.concat(rest, " ")
-  end
-  return table.concat(words, " ")
-end
+-- Icon map + title resolver re-exported from the shared lib (D-03) so the pane
+-- public surface (M.ICONS / M.resolve_title) and M.run_title are unchanged while
+-- the single source of truth lives in cli/lib/title.lua.
+M.ICONS = title.ICONS
+M.resolve_title = title.resolve_title
 
 --- Handle `wez pane title <words...>` / `wez pane title reset`.
 function M.run_title(args)

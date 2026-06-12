@@ -99,5 +99,54 @@ local r_def = captured(fake_tab({}, false, "", "myshell", 0), {}, {}, {}, false,
 check("15 no user var -> default bg", r_def[1].Background.Color == "#333333")
 check("16 falls back to pane title when no custom title", find_text(r_def):find("myshell", 1, true) ~= nil)
 
+-- parse_tab_title
+local p17c, p17t = M.parse_tab_title("navy:build")
+check("17 'navy:build' -> color=navy, title=build", p17c == "navy" and p17t == "build")
+
+local p18c, p18t = M.parse_tab_title("blue")
+check("18 'blue' (bare, no colon) -> color=blue, title=nil", p18c == "blue" and p18t == nil)
+
+local p19c, p19t = M.parse_tab_title("teal:")
+check("19 'teal:' (trailing colon, empty title) -> color=teal, title=nil", p19c == "teal" and p19t == nil)
+
+local p20c, p20t = M.parse_tab_title("purple:a:b")
+check("20 'purple:a:b' (title contains colon) -> color=purple, title='a:b'", p20c == "purple" and p20t == "a:b")
+
+local p21c, p21t = M.parse_tab_title("")
+check("21 '' (empty string) -> color=nil, title=nil", p21c == nil and p21t == nil)
+
+local p22c, p22t = M.parse_tab_title(nil)
+check("22 nil -> color=nil, title=nil", p22c == nil and p22t == nil)
+
+local p23c, p23t = M.parse_tab_title(":onlytitle")
+check("23 ':onlytitle' (empty color, title set) -> color=nil, title=onlytitle", p23c == nil and p23t == "onlytitle")
+
+-- D-03a handler precedence: tab-prefix color/title resolution via parse_tab_title
+-- (pane var > tab prefix > default/active_pane.title), TAB-05 indicator preserved.
+
+-- tab-prefix color+title, no pane vars: own accent + own title (TAB-02/TAB-04 baseline)
+local r24 = captured(fake_tab({}, false, "blue:api", "", 0), {}, {}, {}, false, 40)
+check("24 tab-prefix 'blue:api' -> blue accent", r24[1].Background.Color == "#1e3a5f")
+check("24b tab-prefix 'blue:api' -> label 'api'", find_text(r24):find("api", 1, true) ~= nil)
+
+-- empty-color prefix -> default accent, title still applied
+local r25 = captured(fake_tab({}, false, ":api", "", 0), {}, {}, {}, false, 40)
+check("25 tab-prefix ':api' -> default accent", r25[1].Background.Color == "#333333")
+check("25b tab-prefix ':api' -> label 'api'", find_text(r25):find("api", 1, true) ~= nil)
+
+-- empty-title prefix -> blue accent, falls back to active_pane.title for label
+local r26 = captured(fake_tab({}, false, "blue:", "myshell", 0), {}, {}, {}, false, 40)
+check("26 tab-prefix 'blue:' -> blue accent", r26[1].Background.Color == "#1e3a5f")
+check("26b tab-prefix 'blue:' -> falls back to pane title", find_text(r26):find("myshell", 1, true) ~= nil)
+
+-- pane WEZTERM_TAB_COLOR overrides tab-prefix color (TAB-04), tab-prefix title still wins
+local r27 = captured(fake_tab({ WEZTERM_TAB_COLOR = "navy" }, false, "blue:api", "", 0), {}, {}, {}, false, 40)
+check("27 pane color overrides tab-prefix -> navy accent", r27[1].Background.Color == "#1a2040")
+check("27b pane color override keeps tab-prefix title 'api'", find_text(r27):find("api", 1, true) ~= nil)
+
+-- active tab with tab-prefix still shows the TAB-05 indicator
+local r28 = captured(fake_tab({}, true, "blue:api", "", 0), {}, {}, {}, false, 40)
+check("28 active tab-prefix tab shows indicator", find_text(r28):find("●%->") ~= nil)
+
 io.write(string.format("\nformat-tab-title_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

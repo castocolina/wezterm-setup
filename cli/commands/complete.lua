@@ -24,6 +24,8 @@ local spec = require("cli.spec")
 -- The canonical color/icon tables live in the command module (single source of
 -- truth, D-16) — completion derives candidates from them, never a second copy.
 local pane = require("cli.commands.pane")
+local tab = require("cli.commands.tab")
+local title = require("cli.lib.title")
 
 local M = {}
 
@@ -63,10 +65,29 @@ local function pane_icons()
   return out
 end
 
+-- `wez tab color <Tab>` candidates: the curated palette + the `reset` value.
+local function tab_colors()
+  local out = {}
+  for _, n in ipairs(tab.COLOR_NAMES) do out[#out + 1] = n end
+  out[#out + 1] = "reset"
+  return out
+end
+
+-- `wez tab title <Tab>` candidates: the shared icon-name keys (sorted, stable),
+-- sourced from cli/lib/title.lua — the SAME map pane-icons now uses (D-03).
+local function tab_icons()
+  local out = {}
+  for name in pairs(title.ICONS) do out[#out + 1] = name end
+  table.sort(out)
+  return out
+end
+
 local CONTEXTS = {
   subcommands = visible_subcommands,
   ["pane-colors"] = pane_colors,
   ["pane-icons"] = pane_icons,
+  ["tab-colors"] = tab_colors,
+  ["tab-icons"] = tab_icons,
 }
 
 -- run(args): print newline-separated candidates for args.context. Unknown context
