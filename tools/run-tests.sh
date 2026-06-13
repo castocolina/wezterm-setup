@@ -3,8 +3,10 @@
 #
 # Thin test harness (bootstrap/glue only, no decision logic per D-01).
 #
-# Discovers every tests/**/*_test.lua file and runs each under lua5.4, collects
-# exit codes, prints per-file pass/fail, and exits non-zero if ANY test fails.
+# Discovers every *_test.lua file co-located with source — under tests/, cli/,
+# and config/ (tests live next to the code they cover, e.g. cli/lib/scene_test.lua
+# beside cli/lib/scene.lua) — runs each under lua5.4, collects exit codes, prints
+# per-file pass/fail, and exits non-zero if ANY test fails.
 #
 # When WEZTERM_INTEGRATION=1, additionally runs live/integration tests:
 #   - any tests/**/*_integration_test.lua
@@ -29,16 +31,23 @@ if ! command -v "${LUA_BIN}" >/dev/null 2>&1; then
   exit 127
 fi
 
-if [ ! -d tests ]; then
-  echo "run-tests: no tests/ directory; nothing to run"
+# Source roots that hold co-located tests. tests/ is canonical; cli/ and config/
+# carry the unit tests that live next to the modules they cover.
+TEST_ROOTS=()
+for d in tests cli config; do
+  [ -d "$d" ] && TEST_ROOTS+=("$d")
+done
+
+if [ "${#TEST_ROOTS[@]}" -eq 0 ]; then
+  echo "run-tests: no test roots (tests/ cli/ config/); nothing to run"
   exit 0
 fi
 
 INTEGRATION="${WEZTERM_INTEGRATION:-0}"
 
 # Collect unit test files: *_test.lua, EXCLUDING *_integration_test.lua unless
-# integration mode is on.
-mapfile -t ALL_TESTS < <(find tests -type f -name '*_test.lua' | sort)
+# integration mode is on. (Integration files live only under tests/integration/.)
+mapfile -t ALL_TESTS < <(find "${TEST_ROOTS[@]}" -type f -name '*_test.lua' | sort)
 
 FILES=()
 for f in "${ALL_TESTS[@]}"; do

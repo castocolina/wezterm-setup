@@ -45,6 +45,7 @@ local CATEGORIES = {
   ["completions"] = "shell",
   ["pane"] = "identity",
   ["tab"] = "identity",
+  ["scene"] = "scenes",
   ["__complete"] = "internal",
 }
 
@@ -58,6 +59,7 @@ local SUBCOMMANDS = {
   "completions",
   "pane",
   "tab",
+  "scene",
   "__complete",
 }
 
@@ -143,6 +145,26 @@ function M.build_parser()
   tab_color:option("--title", "Also set the tab title (icon name + text allowed)")
   local tab_title = tab:command("title", "Set or clear this tab's title")
   tab_title:argument("words", "Title text, an icon name + text, or empty / 'reset' to clear"):args("*")
+
+  -- scene (Phase 4: Ad-hoc Scenes) ----------------------------------------
+  -- `wez scene new --layout <L> --pane '<spec>' [--pane ...] [--color] [--title]`.
+  -- The nested subcommand name lands in result.scene_cmd; result.command stays
+  -- "scene" so the dispatcher routes to cli/commands/scene.lua. This is the
+  -- MINIMAL routing registration (04-02): full --layout/--pane candidate-value
+  -- completions are 04-03's scope and intentionally NOT wired here.
+  local scene = parser:command("scene", "Build an ad-hoc multi-pane scene")
+  scene:command_target("scene_cmd")
+  local scene_new = scene:command("new", "Build a multi-pane tab from a layout + pane specs")
+  -- --layout: required, single value (validated against the 4-layout enum by
+  -- cli/lib/scene.lua at run time).
+  scene_new:option("--layout", "Layout: tall | tall:mirrored | grid | horizontal"):args(1)
+  -- --pane: required (>=1, enforced in scene.lua for the exact UI-SPEC error),
+  -- repeatable. count("*") makes argparse collect every occurrence into an array
+  -- (result.pane). Each value is a --pane spec string (shell | bare cmd | k=v,...).
+  scene_new:option("--pane", "A pane spec: 'shell' | '<cmd>' | 'cmd=..,color=..,title=..'"):args(1):count("*")
+  -- --color / --title: optional tab-level identity for the whole scene (D-05).
+  scene_new:option("--color", "Tab-level accent color for the scene"):args(1)
+  scene_new:option("--title", "Tab-level title for the scene"):args(1)
 
   -- __complete (hidden, Plan 07) -----------------------------------------
   -- Internal hook the shell completion functions call for dynamic values.

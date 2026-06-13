@@ -26,6 +26,7 @@ local spec = require("cli.spec")
 local pane = require("cli.commands.pane")
 local tab = require("cli.commands.tab")
 local title = require("cli.lib.title")
+local scene = require("cli.lib.scene")
 
 local M = {}
 
@@ -82,12 +83,23 @@ local function tab_icons()
   return out
 end
 
+-- `wez scene new --layout <Tab>` candidates: the 4 closed layout names, in
+-- display order, sourced from cli/lib/scene.lua's M.LAYOUTS (the SAME array
+-- validate_layout checks against — D-16 single source of truth). No table.sort:
+-- M.LAYOUTS is already in the intended display order (tall first).
+local function scene_layouts()
+  local out = {}
+  for _, n in ipairs(scene.LAYOUTS) do out[#out + 1] = n end
+  return out
+end
+
 local CONTEXTS = {
   subcommands = visible_subcommands,
   ["pane-colors"] = pane_colors,
   ["pane-icons"] = pane_icons,
   ["tab-colors"] = tab_colors,
   ["tab-icons"] = tab_icons,
+  ["scene-layouts"] = scene_layouts,
 }
 
 -- run(args): print newline-separated candidates for args.context. Unknown context

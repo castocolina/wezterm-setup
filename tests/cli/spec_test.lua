@@ -141,11 +141,18 @@ do
   check("main{'--version'} exits 0", code == 0, "code=" .. tostring(code))
 end
 do
-  -- A registered-but-unimplemented subcommand (e.g. doctor stub) must exit
-  -- non-zero with a clean message, never a raw traceback.
+  -- `doctor` dispatches and returns a NUMERIC exit code without raising a raw
+  -- traceback. We deliberately do NOT assert a specific exit value here: doctor's
+  -- code reflects the LIVE ~/.config/wezterm install health, which is not a
+  -- property of the spec/dispatcher under test. (An earlier version asserted
+  -- "exits non-zero" — but that only held because the live install was BROKEN by
+  -- the BUG 2 config-load failure; it flipped to a false RED the moment the
+  -- install was repaired. Coupling a unit gate to live install state is the very
+  -- blind spot the install-config-e2e integration test now covers properly.)
   local ok, code = pcall(wez.main, { "doctor" })
-  check("main{'doctor'} (unimplemented stub) does not raise", ok, ok and "" or tostring(code))
-  check("main{'doctor'} exits non-zero", ok and type(code) == "number" and code ~= 0, "code=" .. tostring(code))
+  check("main{'doctor'} dispatches without raising", ok, ok and "" or tostring(code))
+  check("main{'doctor'} returns a numeric exit code", ok and type(code) == "number",
+    "code=" .. tostring(code))
 end
 do
   -- Regression: a HYPHENATED subcommand name (`install-state`) must resolve to

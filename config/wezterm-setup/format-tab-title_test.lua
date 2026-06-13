@@ -1,6 +1,11 @@
 -- Fixture tests for format-tab-title.lua pure helpers.
--- Run from this directory: `lua5.4 format-tab-title_test.lua`
+-- Run from this directory (`lua5.4 format-tab-title_test.lua`) OR from the repo
+-- root via tools/run-tests.sh — the preamble below makes the bare require resolve
+-- regardless of CWD by putting THIS file's directory on package.path.
 -- No wezterm global required (pure helpers only).
+
+local here = (arg and arg[0] or ""):match("^(.*)/[^/]+$") or "."
+package.path = here .. "/?.lua;" .. package.path
 
 local M = require("format-tab-title")
 

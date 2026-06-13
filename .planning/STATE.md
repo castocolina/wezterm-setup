@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-last_updated: "2026-06-12T10:45:43.145Z"
+status: Phase 4 complete — awaiting phase verification
+last_updated: "2026-06-13T09:30:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 20
-  completed_plans: 20
-  percent: 67
+  total_plans: 23
+  completed_plans: 23
+  percent: 100
 ---
 
 # Project State: wezterm-setup
@@ -26,11 +26,13 @@ progress:
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-**Current Phase**: Phase 1 — Foundation (all 7 plans complete on Linux; macOS verification + phase close pending)  
-**Current Plan**: 01-07 complete — Phase 1 feature-complete on Linux  
-**Status**: Phase 1 Linux-complete; schedule the batched macOS verification pass + `/gsd-transition` before closing Phase 1 (D-04/D-05/D-18)
+**Current Phase**: Phase 4 — Ad-hoc Scenes (all 3 plans complete on Linux: 04-01 pure core,
+04-02 live orchestration + verified e2e, 04-03 spec/completion wiring)
+**Current Plan**: 04-03 complete — `wez scene new` is feature-complete on Linux
+**Status**: Phase 4 Linux-complete and e2e-verified (5 scene repros PASS, per-pane colors GUI-signed).
+Two foundational install/config bugs found during the e2e attempt are fixed + archived
+(`.planning/debug/resolved/install-config-e2e.md`). Next: phase verification (`gsd-verifier`) +
+the batched macOS verification pass before milestone close (D-04/D-05/D-18).
 
 ### Progress Bar
 
@@ -55,8 +57,17 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 1 | Foundation | Pending | - |
 | 2 | Pane Identity | Pending | - |
 | 3 | Tab Identity | Complete | 2026-06-12 |
-| 4 | Ad-hoc Scenes | Pending | - |
+| 4 | Ad-hoc Scenes | Complete | 2026-06-13 |
 | 5 | Named Scenes | Pending | - |
+
+---
+
+## Quick Tasks Completed
+
+| Quick ID | Slug | Summary | Date | Commit |
+|----------|------|---------|------|--------|
+| 260613-dlh | doctor-config-path | `wez doctor` GATE 3 now replicates WezTerm's `<config-dir>/?.lua` path so the installed config's dotted requires resolve (fixes a false `[FAIL] config dofiles cleanly`) | 2026-06-13 | aace2ff |
+| 260613-dup | ci-colocated-tests | `make test` now discovers co-located `*_test.lua` under `cli/` and `config/` (8 → 14 files); 6 previously-orphaned suites (pane/tab/title/scene/complete/format-tab-title) now run in CI | 2026-06-13 | 77b76bb |
 
 ---
 
@@ -132,7 +143,9 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ## Session Continuity
 
-**Last session**: 2026-06-09 — Executed Plan 01-07 (shell completions, DIAG-05). TDD Task 1: RED test → `cli/commands/completions.lua` + `cli/commands/complete.lua` (`d7930e8`). The generator WALKS the argparse parser built by `cli/spec.lua` (`_commands` + each command's `_options._aliases`), enumerating every VISIBLE subcommand + its long flags (drops auto `-h/--help` and hidden `__complete`) and emits a `#compdef wez` zsh function / `complete -F _wez` bash function — spec-driven (D-16), so adding a subcommand to spec.lua extends coverage with no generator edit. Generated scripts shell out to `wez __complete subcommands` for dynamic candidates; `complete.lua` is the hidden hook (closed context dispatch, plain tokens only, unknown context → empty + exit 0, T-07-02). Rule-3 fix in `cli/wez.lua`: the `-`→`_` module transform leaves `__complete` unchanged, so the dispatcher couldn't reach `complete.lua`; added a closed `MODULE_ALIASES` map (`__complete`→`complete`) over the already-allow-listed name (T-01-02 holds); spec.lua untouched (D-16). 47 spec-driven assertions green; both scripts pass `bash -n`/`zsh -n`. Task 2 (`aea68ef`): `tools/setup.sh` STEP 5b generates both scripts via explicit `wez completions zsh|bash`, writes to user-owned dirs (`~/.local/share/zsh/site-functions/_wez`, `~/.local/share/bash-completion/completions/wez`), and registers idempotently under `# wezterm-setup:completions` (distinct from + coexisting with Plan 04's `# wezterm-setup:osc7`); sudo-free (T-07-03), shellcheck -x clean, satisfies doctor's ADVISORY completions line (never flips exit code, D-15). Installer dogfood: scripts written, re-install idempotent (marker count stays 1), osc7 line preserved. R2 repro `docs/repro/h-diag-completions.md`: observed live bash `compgen` `wez <Tab>` subcommands + `wez keys --<Tab>` `--json`; zsh `_wez` loaded by compinit without error with the same candidate set. Full suite 8/8. DIAG-05 Done (Linux). **Phase 1 is feature-complete on Linux** — schedule the batched macOS pass before closing.
+**Last session**: 2026-06-13 — Executed Plan 04-01 (scene pure-logic core, logic half of SCEN-02) via full TDD RED→GREEN→REFACTOR. Built two net-new files `cli/lib/scene.lua` + `cli/lib/scene_test.lua` mirroring the `cli/lib/title.lua` module style and the `cli/lib/title_test.lua` check/eq harness (added a recursive `deep_eq`/`teq` for table-returning functions). RED (`4a77af2`, `test`): require of absent `cli.lib.scene` fails, exit 1. GREEN (`19a8b38`, `feat`): implemented `plan_splits` (equal-share split sequencer — `round_pct(remaining)=floor(100/remaining+0.5)` — for tall/tall:mirrored/horizontal/grid with creation-order pane-index targeting; N≤1→`{}`), `parse_pane_spec` (shell/bare/key=value grammar, first-`=` split, unknown-key validate-before-emit error echoing original spec), `validate_layout`/`validate_color` (exact UI-SPEC error strings, color case-insensitive with original-case echo), `validate_pane_id`=`validate_tab_id` (integer coerce+range), and `decide_materialization` (D-10 reuse when `tab_pane_count==1` else D-11 new-tab; `n` is signature-only, NOT a mode factor — per plan body over the research sketch's `&& N==1`). Module is provably pure: `rg -c 'wezterm|io.popen|os.execute' cli/lib/scene.lua`==0 (reworded doc comments to avoid the literal banned tokens; no `cli.lib.title` require — auto-title (D-07) is a 04-02 live-wrapper job). REFACTOR (`eff22e8`, `refactor`): `round_pct`/`split_kv_segments` already sole-sited from GREEN, so this added only edge-case fixtures (tall N=2, horizontal N=2, grid N=4 perfect-square=3 steps, empty-spec→bare `cmd=""`). Final suite `scene_test: 49 passed, 0 failed`, exit 0. SCEN-02 left **Pending** — layouts don't render live until 04-02, so marking it now would over-report. 04-02 owns the I/O boundary: must call `validate_pane_id`/`validate_tab_id` on every list-JSON id before shelling out and resolve auto pane-titles via `cli/lib/title.lua` at spawn. Plan now 2/3 in Phase 4; progress 21/23 (91%).
+
+**Older session**: 2026-06-09 — Executed Plan 01-07 (shell completions, DIAG-05). TDD Task 1: RED test → `cli/commands/completions.lua` + `cli/commands/complete.lua` (`d7930e8`). The generator WALKS the argparse parser built by `cli/spec.lua` (`_commands` + each command's `_options._aliases`), enumerating every VISIBLE subcommand + its long flags (drops auto `-h/--help` and hidden `__complete`) and emits a `#compdef wez` zsh function / `complete -F _wez` bash function — spec-driven (D-16), so adding a subcommand to spec.lua extends coverage with no generator edit. Generated scripts shell out to `wez __complete subcommands` for dynamic candidates; `complete.lua` is the hidden hook (closed context dispatch, plain tokens only, unknown context → empty + exit 0, T-07-02). Rule-3 fix in `cli/wez.lua`: the `-`→`_` module transform leaves `__complete` unchanged, so the dispatcher couldn't reach `complete.lua`; added a closed `MODULE_ALIASES` map (`__complete`→`complete`) over the already-allow-listed name (T-01-02 holds); spec.lua untouched (D-16). 47 spec-driven assertions green; both scripts pass `bash -n`/`zsh -n`. Task 2 (`aea68ef`): `tools/setup.sh` STEP 5b generates both scripts via explicit `wez completions zsh|bash`, writes to user-owned dirs (`~/.local/share/zsh/site-functions/_wez`, `~/.local/share/bash-completion/completions/wez`), and registers idempotently under `# wezterm-setup:completions` (distinct from + coexisting with Plan 04's `# wezterm-setup:osc7`); sudo-free (T-07-03), shellcheck -x clean, satisfies doctor's ADVISORY completions line (never flips exit code, D-15). Installer dogfood: scripts written, re-install idempotent (marker count stays 1), osc7 line preserved. R2 repro `docs/repro/h-diag-completions.md`: observed live bash `compgen` `wez <Tab>` subcommands + `wez keys --<Tab>` `--json`; zsh `_wez` loaded by compinit without error with the same candidate set. Full suite 8/8. DIAG-05 Done (Linux). **Phase 1 is feature-complete on Linux** — schedule the batched macOS pass before closing.
 
 **Prior session**: 2026-06-09 — Executed Plan 01-06 (`wez doctor` DIAG-01 + granular `uninstall-state` INST-04/05). TDD Task 1: RED test → `cli/commands/doctor.lua` (`a06febe`) — `aggregate(core, advisory)` exits 0 iff all FOUR core integrity gates pass (binary-on-PATH, sentinel well-formed via reused `install_state.parse`, config dofiles cleanly via protected `pcall` of managed init.lua [T-06-02], backup exists via reused `newest_backup`); completions-installed + live `wezterm cli list` are ADVISORY (printed, never flip exit 0, D-15). 15 gate-aggregation assertions green. R2 repro `docs/repro/h-diag-doctor.md`: scratch HEALTHY install exits 0 even with the advisory completions probe FAILing; excising the sentinel block flips it to exit 1 naming the failed gate. TDD Task 2: RED test → `cli/commands/uninstall_state.lua` (`3dcf337`) — pure `plan_removal(flags)` (each keep-flag suppresses exactly its component) + pure `excise_block` (removes EXACTLY the sentinel range, user lines byte-identical, T-06-01) via reused `atomic_write`; only the `wezterm-setup/` subtree removed, never its parent (T-06-03); all user paths, no sudo (T-06-04). `tools/uninstall.sh` decision-free glue reads KEEP_CONFIG/KEEP_CLI/KEEP_BACKUP → --keep-* flags, delegates to the binary; shellcheck -x clean. 37 assertions green (pure + scratch-FS run for full + each keep-flag). Live dogfood through the bash glue: full uninstall removed block+config+cli+backups, exit 0, wezterm.lua user lines byte-identical to the pre-install original. spec.lua untouched (D-16). Full suite 7/7. DIAG-01 + INST-04/05 Done (Linux). Phase 1 success criteria #2 (granular uninstall) + the doctor half of #4 satisfied.
 
@@ -156,3 +169,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 *State initialized: 2026-06-07*  
 *Last updated: 2026-06-07 after Phase 0 completion*
+
+## Decisions
+
+- [Phase ?]: scene.lua materialization mode driven solely by tab_pane_count==1 (reuse) else new-tab (04-01)

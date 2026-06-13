@@ -141,6 +141,22 @@ function M.gate_config_dofiles(init_path, opts)
   if loader then
     ok, err = loader(init_path)
   else
+    -- Replicate WezTerm's module resolution before loading: WezTerm puts
+    -- `<config-dir>/?.lua` on its Lua path, so the managed init.lua's DOTTED
+    -- requires (`require("wezterm-setup.keybindings")`, ...) resolve to
+    -- `<config-dir>/wezterm-setup/<name>.lua`. Plain lua5.4 does NOT, so without
+    -- this the gate FALSE-FAILS on a config WezTerm loads cleanly. The config dir
+    -- is the PARENT of init.lua's directory
+    -- (init_path = <config-dir>/wezterm-setup/init.lua). Prepend it, then restore
+    -- package.path on EVERY exit path (loadfile error or pcall) so the gate leaks
+    -- nothing. Still loads ONLY the managed init.lua chunk — no user wezterm.lua
+    -- side effects (T-06-02).
+    local init_dir = tostring(init_path):match("^(.*)/[^/]+$")
+    local config_dir = init_dir and init_dir:match("^(.*)/[^/]+$")
+    local saved_path = package.path
+    if config_dir and config_dir ~= "" then
+      package.path = config_dir .. "/?.lua;" .. config_dir .. "/?/init.lua;" .. package.path
+    end
     -- loadfile compiles the chunk; pcall runs it under protection. A module that
     -- only `return`s a table loads cleanly without side effects.
     local chunk, lerr = loadfile(init_path)
@@ -149,6 +165,7 @@ function M.gate_config_dofiles(init_path, opts)
     else
       ok, err = pcall(chunk)
     end
+    package.path = saved_path
   end
   if ok then
     return gate(true, "config dofiles cleanly")

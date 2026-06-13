@@ -12,7 +12,7 @@
 - [x] **Phase 1: Foundation** - Install/uninstall, CWD, clear keybinding, curated bindings, doctor, keys (completed 2026-06-10)
 - [x] **Phase 2: Pane Identity** - Per-pane background color and title via `wez pane` (completed 2026-06-11)
 - [x] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven) (completed 2026-06-12)
-- [ ] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes
+- [x] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes (completed 2026-06-13, Linux; macOS deferred)
 - [ ] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
 
 ---
@@ -146,7 +146,7 @@
 | 1. Foundation | 7/7 | Complete    | 2026-06-10 |
 | 2. Pane Identity | 5/5 | Complete | 2026-06-11 |
 | 3. Tab Identity | 4/4 | Complete    | 2026-06-12 |
-| 4. Ad-hoc Scenes | 0/? | Not started | - |
+| 4. Ad-hoc Scenes | 3/3 | Complete | 2026-06-13 |
 | 5. Named Scenes | 0/? | Not started | - |
 
 ---

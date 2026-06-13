@@ -24,9 +24,28 @@
 
 local M = {}
 
-local keybindings = require("keybindings")
-local cwd = require("cwd")
-local format_tab_title = require("format-tab-title")
+-- Resolve our sibling modules (keybindings/cwd/format-tab-title) with DOTTED
+-- module names so they load under every loader WITHOUT mutating package.path.
+--
+-- Why not bare `require("keybindings")`: under WezTerm only the config DIR
+-- (~/.config/wezterm/) is on package.path, so a bare name resolves against the
+-- config ROOT, not this `wezterm-setup/` subdir -> `module 'keybindings' not
+-- found`, apply() throws, and WezTerm pops a config-error window beside the main
+-- one (the original two-windows bug).
+--
+-- Why not derive our own dir via `debug.getinfo`: WezTerm's embedded Lua sandbox
+-- does NOT expose the `debug` library (`debug` is nil), so that approach errors
+-- at load with `attempt to index a nil value (global 'debug')`.
+--
+-- Dotted names sidestep both: `require("wezterm-setup.keybindings")` resolves to
+-- `<config-dir>/wezterm-setup/keybindings.lua` via WezTerm's existing
+-- `<config-dir>/?.lua` template -- no `debug`, no `wezterm` global, no
+-- package.path mutation. The unit tests put the config ROOT (`config/`) on
+-- package.path so the same dotted names resolve there too. (luastatic bundles
+-- only cli/, never config/, so this layer always loads as plain files at runtime.)
+local keybindings = require("wezterm-setup.keybindings")
+local cwd = require("wezterm-setup.cwd")
+local format_tab_title = require("wezterm-setup.format-tab-title")
 
 -- Resolve our declarative action spec (from keybindings.lua) into a real
 -- wezterm.action. Pure data in -> wezterm action out. When the `wezterm`

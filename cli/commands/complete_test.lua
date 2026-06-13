@@ -62,5 +62,23 @@ local _, subs = run_context("subcommands")
 check("subcommands includes pane", set_of(subs)["pane"] == true)
 check("subcommands excludes __complete", set_of(subs)["__complete"] ~= true)
 
+-- scene-layouts (04-03): exactly the 4 layout names, in M.LAYOUTS order, derived
+-- from cli.lib.scene.LAYOUTS (single source of truth — the expected value is
+-- BUILT from the required module, never a hardcoded literal, so the test itself
+-- enforces no drift between validation and completion).
+local scene = require("cli.lib.scene")
+local c4, layouts = run_context("scene-layouts")
+check("scene-layouts exits 0", c4 == 0)
+check("scene-layouts count == #scene.LAYOUTS", #layouts == #scene.LAYOUTS)
+check("scene-layouts is exactly scene.LAYOUTS in order", (function()
+  for i, n in ipairs(scene.LAYOUTS) do if layouts[i] ~= n then return false end end
+  return #layouts == #scene.LAYOUTS
+end)())
+check("scene-layouts not alphabetized (tall before grid)", (function()
+  local idx = {}
+  for i, n in ipairs(layouts) do idx[n] = i end
+  return idx["tall"] and idx["grid"] and idx["tall"] < idx["grid"]
+end)())
+
 io.write(string.format("\ncomplete_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

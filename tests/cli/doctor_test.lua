@@ -150,5 +150,48 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- gate_config_dofiles must replicate WezTerm's <config-dir>/?.lua module
+-- resolution: the managed init.lua uses dotted requires
+-- (require("wezterm-setup.<sibling>")) that resolve only when the config dir is
+-- on package.path as <config-dir>/?.lua. Before the fix (quick 260613-dlh) the
+-- gate loaded init.lua under bare lua5.4 and FALSE-FAILED on a config WezTerm
+-- loads fine.
+-- ----------------------------------------------------------------------------
+do
+  local base = os.tmpname()
+  os.remove(base) -- os.tmpname makes a file; we want a dir at that path
+  local setup = base .. "/wezterm-setup"
+  assert(os.execute("mkdir -p '" .. setup .. "'"))
+  local function writefile(path, content)
+    local f = assert(io.open(path, "w")); f:write(content); f:close()
+  end
+
+  -- A sibling module that resolves ONLY via <config-dir>/?.lua (config-dir = base).
+  writefile(setup .. "/dttest_sibling.lua", "return { ok = true }\n")
+  -- The managed init.lua loads the sibling by DOTTED name, like the real config.
+  writefile(setup .. "/init.lua",
+    "local s = require('wezterm-setup.dttest_sibling')\nassert(s.ok)\nreturn {}\n")
+
+  local path_before = package.path
+  local g_dotted = D.gate_config_dofiles(setup .. "/init.lua")
+  check("config-dofiles gate passes on dotted requires (WezTerm path replicated)",
+    g_dotted.ok == true, g_dotted.detail)
+
+  -- A genuinely broken config (module resolves NOWHERE) must STILL fail — the fix
+  -- must not mask real load errors.
+  writefile(setup .. "/init.lua",
+    "require('wezterm-setup.does_not_exist_anywhere')\nreturn {}\n")
+  local g_broken = D.gate_config_dofiles(setup .. "/init.lua")
+  check("config-dofiles gate still fails on a genuinely missing module",
+    g_broken.ok == false, tostring(g_broken.ok))
+
+  -- The gate must RESTORE package.path (no leak of the temp config dir).
+  check("config-dofiles gate restores package.path (no leak)",
+    package.path == path_before, "package.path was not restored")
+
+  os.execute("rm -rf '" .. base .. "'")
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

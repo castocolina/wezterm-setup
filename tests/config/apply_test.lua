@@ -8,11 +8,14 @@
 --   * a user-defined key binding present before apply() survives (T-03-01)
 --
 -- Runs under plain lua5.4: there is no `wezterm` global, so init.lua keeps the
--- declarative action specs in place. We point package.path at the config dir so
--- `require("init")`, `require("keybindings")`, and `require("cwd")` resolve.
+-- declarative action specs in place. The subdir entry resolves `require("init")`;
+-- the config ROOT entry resolves init.lua's DOTTED sibling requires
+-- (`require("wezterm-setup.keybindings")` etc.), mirroring how WezTerm's
+-- `<config-dir>/?.lua` template resolves them in a real session.
 
 local here = arg[0]:match("^(.*)/[^/]*$") or "."
-package.path = here .. "/../../config/wezterm-setup/?.lua;" .. package.path
+package.path = here .. "/../../config/wezterm-setup/?.lua;"
+  .. here .. "/../../config/?.lua;" .. package.path
 
 local wezterm_setup = require("init")
 
