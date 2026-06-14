@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 4 complete — awaiting phase verification
-last_updated: "2026-06-13T09:30:00.000Z"
+status: Executing Phase 05
+last_updated: "2026-06-14T14:13:22Z"
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 23
-  completed_plans: 23
+  completed_phases: 5
+  total_plans: 27
+  completed_plans: 27
   percent: 100
 ---
 
@@ -26,13 +26,17 @@ progress:
 
 ## Current Position
 
-**Current Phase**: Phase 4 — Ad-hoc Scenes (all 3 plans complete on Linux: 04-01 pure core,
-04-02 live orchestration + verified e2e, 04-03 spec/completion wiring)
-**Current Plan**: 04-03 complete — `wez scene new` is feature-complete on Linux
-**Status**: Phase 4 Linux-complete and e2e-verified (5 scene repros PASS, per-pane colors GUI-signed).
-Two foundational install/config bugs found during the e2e attempt are fixed + archived
-(`.planning/debug/resolved/install-config-e2e.md`). Next: phase verification (`gsd-verifier`) +
-the batched macOS verification pass before milestone close (D-04/D-05/D-18).
+Phase: 05 (named-scenes) — ALL PLANS COMPLETE (4/4)
+Plan: 4 of 4 complete
+**Current Phase**: Phase 5 — Named Scenes (wave 3 of 3 done)
+**Current Plan**: 05-04 complete — dynamic `scene-names` recipe-name tab completion (SCEN-05 DONE)
+**Status**: 05-04 done and green (complete_test 26/26, completions_test 69/69, full suite 17/17).
+`wez scene launch <Tab>` now completes recipe basenames read DYNAMICALLY at Tab time via the SAME
+single `scene.list_recipe_names(scene.scenes_dir())` provider launch uses (no second lister, no
+caching — adding/removing a `.toml` changes the set with no regeneration). The nested `scene)`
+generator arm REPLACES the generic flag arm in both zsh + bash (launch->scene-names, new->flags,
+*->new launch); both generated scripts pass `bash -n`/`zsh -n`. Next: schedule the batched macOS
+verification pass, then `/gsd-transition` to close Phase 5.
 
 ### Progress Bar
 
@@ -82,6 +86,11 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- 2026-06-14: Phase 6 added — **Ergonomic Installer** (one-line `curl|bash` remote bootstrap + README; new requirement INST-07).
+- 2026-06-14: Phase 7 added — **macOS Parity Pass (D-18)**; macOS verification promoted from a deferred note to a real phase (final gate before v1 close). No new requirement IDs.
+
 ### Key Decisions (from PROJECT.md)
 
 | Decision | Status |
@@ -127,7 +136,12 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ### Active Todos
 
-*(None yet — roadmap just created)*
+**Single tracker:** [`.planning/MACOS-PARITY-AND-FOLLOWUPS.md`](MACOS-PARITY-AND-FOLLOWUPS.md) — all post-Phase-5 pending work. Phases 1–4 are CLOSED, so items are NOT scattered into those dirs.
+
+- **macOS batched pass (D-18)** — the next milestone-level activity. Run `bash tools/verify-macos.sh` (auto, non-destructive) for the gate, then drive `docs/macos-verification.md` top-to-bottom on a real Mac (pair with `agent-ui-ux-designer` for the visual/UX steps). Tracker §C.
+- **✅ A-1 RESOLVED 2026-06-14: `wez scene new --layout`/`--color <Tab>` value completion** — wired into both generated scripts (`--layout)→scene-layouts`, `--color)→scene-colors`; new `scene.COLOR_NAMES` single source + `scene-colors` context). Bash runtime proven; zsh confirm on the runbook §6. Suite 17/17. Tracker §A-1. (`--pane`/`--title` values remain uncompleted — minor.)
+- **UX backlog** (deferred, non-blocking): `wez scene list`, did-you-mean, unify error prefixes, dead dispatcher branch, README recipe caveats. Tracker §A-2.
+- **Clarified (NOT bugs):** `bg` == `wez pane color`; no separate `bg`/`opacity` ships in v1 (new requirement if wanted). Tracker §B.
 
 ### Blockers
 
@@ -143,7 +157,13 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ## Session Continuity
 
-**Last session**: 2026-06-13 — Executed Plan 04-01 (scene pure-logic core, logic half of SCEN-02) via full TDD RED→GREEN→REFACTOR. Built two net-new files `cli/lib/scene.lua` + `cli/lib/scene_test.lua` mirroring the `cli/lib/title.lua` module style and the `cli/lib/title_test.lua` check/eq harness (added a recursive `deep_eq`/`teq` for table-returning functions). RED (`4a77af2`, `test`): require of absent `cli.lib.scene` fails, exit 1. GREEN (`19a8b38`, `feat`): implemented `plan_splits` (equal-share split sequencer — `round_pct(remaining)=floor(100/remaining+0.5)` — for tall/tall:mirrored/horizontal/grid with creation-order pane-index targeting; N≤1→`{}`), `parse_pane_spec` (shell/bare/key=value grammar, first-`=` split, unknown-key validate-before-emit error echoing original spec), `validate_layout`/`validate_color` (exact UI-SPEC error strings, color case-insensitive with original-case echo), `validate_pane_id`=`validate_tab_id` (integer coerce+range), and `decide_materialization` (D-10 reuse when `tab_pane_count==1` else D-11 new-tab; `n` is signature-only, NOT a mode factor — per plan body over the research sketch's `&& N==1`). Module is provably pure: `rg -c 'wezterm|io.popen|os.execute' cli/lib/scene.lua`==0 (reworded doc comments to avoid the literal banned tokens; no `cli.lib.title` require — auto-title (D-07) is a 04-02 live-wrapper job). REFACTOR (`eff22e8`, `refactor`): `round_pct`/`split_kv_segments` already sole-sited from GREEN, so this added only edge-case fixtures (tall N=2, horizontal N=2, grid N=4 perfect-square=3 steps, empty-spec→bare `cmd=""`). Final suite `scene_test: 49 passed, 0 failed`, exit 0. SCEN-02 left **Pending** — layouts don't render live until 04-02, so marking it now would over-report. 04-02 owns the I/O boundary: must call `validate_pane_id`/`validate_tab_id` on every list-JSON id before shelling out and resolve auto pane-titles via `cli/lib/title.lua` at spawn. Plan now 2/3 in Phase 4; progress 21/23 (91%).
+**Last session**: 2026-06-14 — Executed Plan 05-04 (dynamic recipe-name completion, SCEN-05 DONE). Task 1 (`677c811`, `feat`): `cli/commands/complete.lua` now requires the COMMAND module `cli.commands.scene` and adds a `scene_names()` provider returning `scene.list_recipe_names(scene.scenes_dir())` read DYNAMICALLY at Tab time (no caching); registered `["scene-names"]` in the CONTEXTS table. Reuses the SINGLE launch provider (Pitfall 6 / D-16) — completion can never advertise a recipe set launch resolves differently. The existing run() loop emits sorted basenames one-per-line and no-ops on unknown context, so empty/missing scenes dir -> `{}` -> nothing emitted, exit 0 (Tab-time-never-fails, T-05-13). `complete_test.lua` +8 assertions via child `lua5.4 -e` with `WEZTERM_SETUP_DIR` set (lua5.4 has no os.setenv): sorted basenames no-ext, non-`.toml` ignored, new file appears on re-run with NO regeneration (dynamic), empty + missing dir no-op exit 0. Task 2 (`d6a0279`, `feat`): `cli/commands/completions.lua` — the generic flag loop in BOTH gen_zsh + gen_bash now SKIPS `scene`, and a hand-written nested `scene)` arm is emitted beside pane)/tab): launch->`wez __complete scene-names`, new->`--layout --pane --color --title`, *->`new launch`. This REPLACES the generic flag arm (ratified Open Q3) because `scene` has top-level flags AND subcommands — the flagless pane/tab template can't be cloned. Recipe names never hardcoded; they flow through scene-names (D-09/D-16). `completions_test.lua` +14 assertions: exactly ONE scene) arm (no duplicate), launch->scene-names routing, new->flags, *->new launch, dynamic launch candidates, + `bash -n` (mandatory) / `zsh -n` (skipped if zsh absent) syntax checks on the generated scripts. Verified end-to-end against the real `dist/wez` source launcher: `__complete scene-names` prints sorted basenames and is dynamic; both `completions bash|zsh` pass `-n`. complete_test 26/26, completions_test 69/69, full suite 17/17. No deviations. SCEN-05 Done (Linux). Phase 5 now 4/4 complete; progress 27/27 (100%). Next: batched macOS pass, then `/gsd-transition`.
+
+**Older session**: 2026-06-13 — Executed Plan 05-02 (copy-if-absent install seeding, SCEN-06 DONE). Task 1 (`a46ec88`, `feat`): authored the 3 locked seed recipes `scenes/{dev,ai,docker}.toml` at the repo TOP LEVEL (sibling to cli/config/tools), OUTSIDE `config/wezterm-setup/` so STEP 4's wholesale `cp -R config/wezterm-setup/.` can never place or clobber them (D-06/D-08 INVARIANT). Each encodes EXACTLY the SCEN-06 table (dev=tall/green/2 shell; ai=tall/purple/2 shell; docker=grid/teal/[docker stats, docker ps, docker compose logs -f, shell]), uses `command = "shell"` for shell panes (round-trips to literal `--pane shell`, no auto-title), no `title` key; all 3 round-trip through `recipe.load_and_map` to the expected args. Task 2 (`17d844a`, `feat`): `cli/commands/seed_scenes.lua` mirrors `install_state.lua`'s pure-decision + run()-glue split — PURE `plan_seed(repo_names, dest_names) -> {name, action=seed|keep}` (fixture-testable, no FS), `run()` lists src+dest via shquote'd `io.popen("ls -1")` (T-05-06), applies plan_seed, RE-CHECKS dest absence at write time (TOCTOU, T-05-05) and copies bytes, emitting EXACT UI-SPEC copy `seeded scene recipe: <name>` / `kept existing scene recipe: <name>` (never "skipped"). Dest resolver: `WEZTERM_SETUP_DIR` → `WEZTERM_CONFIG_DIR/wezterm-setup` → `XDG_CONFIG_HOME/wezterm/wezterm-setup` → `~/.config/wezterm/wezterm-setup`, then `/scenes`. Src resolver: relative to the running script via `debug.getinfo` source, with `WEZ_SEED_SRC_DIR` override. Registered `seed-scenes` in `cli/spec.lua` (parser command + SUBCOMMANDS allow-list + CATEGORIES=install). `tests/cli/seed_scenes_test.lua`: pure plan_seed cases (all-new→seed, all-existing→keep, mixed) + scratch-FS run() proving first run writes 3 and a user edit SURVIVES a second run byte-identical (lua5.4 lacks `os.setenv`, so the FS test uses a child-`lua5.4 -e` fallback with env set). 14/14 green; `dist/wez seed-scenes` dispatches against a scratch WEZTERM_SETUP_DIR (first run seeds 3, second keeps 3, exit 0); plan_seed purity grep clean. Task 3 (`5213314`, `feat`): `tools/setup.sh` STEP 4b mirrors STEP 6's decision-free `install-state` delegation — `WEZ_SEED_SRC_DIR=${REPO_ROOT}/scenes WEZTERM_SETUP_DIR=${SETUP_DIR} "${BIN_DIR}/wez" seed-scenes`; STEP 4 cp -R untouched (3 refs all `config/wezterm-setup/.`); no recipe copy/keep branching in bash (D-01/D-07). `bash -n` + `shellcheck -x` clean; full suite 16/16. README scene path corrected from the stale standalone `~/.config/wezterm-setup/scenes/` to the co-located D-04 `~/.config/wezterm/wezterm-setup/scenes/`. No deviations. SCEN-06 Done (Linux). Plan now 2/4 in Phase 5; progress 25/27 (93%). Next: 05-03 (launch IO-shell) + 05-04 (completion).
+
+**Older session**: 2026-06-13 — Executed Plan 05-01 (recipe core, SCEN-03 logic) as a continuation agent after the Task-1 supply-chain checkpoint was human-approved. Task 1 (`cbeb1eb`, `feat`): committed the already-vendored, SHA-256-verified `cli/vendor/tinytoml.lua` (pure-Lua TOML 1.1.0 decoder, pinned upstream tag `1.0.0`/commit `663e319` — NOT `v1.0.0`, upstream tags without the v; provenance header carries URL+tag+SHA-256; zero `require(`, MIT, `return tinytoml`; bundles via the existing `cli/**/*.lua` build glob, no build.sh edit). Task 2 TDD: RED (`d5aedd3`, `test`) — `cli/lib/recipe_test.lua` (28 assertions mirroring scene_test's check/eq/teq+deep_eq harness) fails on absent `cli.lib.recipe`. GREEN (`053dbf6`, `feat`) — `cli/lib/recipe.lua` exports `guard_name` (rejects empty/`/`/`..` pre-I/O, T-05-01), `recipe_to_args` (pure; `panes` key + `pane` alias; Option-1 bare-command fast path — `command=="shell"`/none→`"shell"`, single-field→bare command, multi-field→`cmd=,color=,title=`; `cmd` alias), and `load_and_map` (MANDATORY `pcall(toml.parse, raw, {load_from_string=true})` since tinytoml RAISES — Pitfall 1; extracts `line (%d+)`→`could not parse TOML at line <N>`, never a traceback, T-05-02; missing-layout reason; reuses `scene.validate_layout`/`validate_color` verbatim for EXACT enum strings, UI-SPEC single source). PURE by contract: pure-core grep clean (`io%.|os%.execute|os%.getenv|wezterm`); dual-resolution `pcall(require,"cli.vendor.tinytoml")`. 28/28 recipe_test green, full suite 15/15, no regression. No REFACTOR commit (GREEN already clean). recipe error reasons use the no-name `error: scene recipe is invalid: ...` form — the per-file `'<name>'` framing is 05-03's IO-shell job. Plan now 1/4 in Phase 5; progress 24/27 (89%). Next: 05-02 (seed-scenes copy-if-absent) + 05-03 (launch IO-shell: file read → guard_name → load_and_map → run_new).
+
+**Older session**: 2026-06-13 — Executed Plan 04-01 (scene pure-logic core, logic half of SCEN-02) via full TDD RED→GREEN→REFACTOR. Built two net-new files `cli/lib/scene.lua` + `cli/lib/scene_test.lua` mirroring the `cli/lib/title.lua` module style and the `cli/lib/title_test.lua` check/eq harness (added a recursive `deep_eq`/`teq` for table-returning functions). RED (`4a77af2`, `test`): require of absent `cli.lib.scene` fails, exit 1. GREEN (`19a8b38`, `feat`): implemented `plan_splits` (equal-share split sequencer — `round_pct(remaining)=floor(100/remaining+0.5)` — for tall/tall:mirrored/horizontal/grid with creation-order pane-index targeting; N≤1→`{}`), `parse_pane_spec` (shell/bare/key=value grammar, first-`=` split, unknown-key validate-before-emit error echoing original spec), `validate_layout`/`validate_color` (exact UI-SPEC error strings, color case-insensitive with original-case echo), `validate_pane_id`=`validate_tab_id` (integer coerce+range), and `decide_materialization` (D-10 reuse when `tab_pane_count==1` else D-11 new-tab; `n` is signature-only, NOT a mode factor — per plan body over the research sketch's `&& N==1`). Module is provably pure: `rg -c 'wezterm|io.popen|os.execute' cli/lib/scene.lua`==0 (reworded doc comments to avoid the literal banned tokens; no `cli.lib.title` require — auto-title (D-07) is a 04-02 live-wrapper job). REFACTOR (`eff22e8`, `refactor`): `round_pct`/`split_kv_segments` already sole-sited from GREEN, so this added only edge-case fixtures (tall N=2, horizontal N=2, grid N=4 perfect-square=3 steps, empty-spec→bare `cmd=""`). Final suite `scene_test: 49 passed, 0 failed`, exit 0. SCEN-02 left **Pending** — layouts don't render live until 04-02, so marking it now would over-report. 04-02 owns the I/O boundary: must call `validate_pane_id`/`validate_tab_id` on every list-JSON id before shelling out and resolve auto pane-titles via `cli/lib/title.lua` at spawn. Plan now 2/3 in Phase 4; progress 21/23 (91%).
 
 **Older session**: 2026-06-09 — Executed Plan 01-07 (shell completions, DIAG-05). TDD Task 1: RED test → `cli/commands/completions.lua` + `cli/commands/complete.lua` (`d7930e8`). The generator WALKS the argparse parser built by `cli/spec.lua` (`_commands` + each command's `_options._aliases`), enumerating every VISIBLE subcommand + its long flags (drops auto `-h/--help` and hidden `__complete`) and emits a `#compdef wez` zsh function / `complete -F _wez` bash function — spec-driven (D-16), so adding a subcommand to spec.lua extends coverage with no generator edit. Generated scripts shell out to `wez __complete subcommands` for dynamic candidates; `complete.lua` is the hidden hook (closed context dispatch, plain tokens only, unknown context → empty + exit 0, T-07-02). Rule-3 fix in `cli/wez.lua`: the `-`→`_` module transform leaves `__complete` unchanged, so the dispatcher couldn't reach `complete.lua`; added a closed `MODULE_ALIASES` map (`__complete`→`complete`) over the already-allow-listed name (T-01-02 holds); spec.lua untouched (D-16). 47 spec-driven assertions green; both scripts pass `bash -n`/`zsh -n`. Task 2 (`aea68ef`): `tools/setup.sh` STEP 5b generates both scripts via explicit `wez completions zsh|bash`, writes to user-owned dirs (`~/.local/share/zsh/site-functions/_wez`, `~/.local/share/bash-completion/completions/wez`), and registers idempotently under `# wezterm-setup:completions` (distinct from + coexisting with Plan 04's `# wezterm-setup:osc7`); sudo-free (T-07-03), shellcheck -x clean, satisfies doctor's ADVISORY completions line (never flips exit code, D-15). Installer dogfood: scripts written, re-install idempotent (marker count stays 1), osc7 line preserved. R2 repro `docs/repro/h-diag-completions.md`: observed live bash `compgen` `wez <Tab>` subcommands + `wez keys --<Tab>` `--json`; zsh `_wez` loaded by compinit without error with the same candidate set. Full suite 8/8. DIAG-05 Done (Linux). **Phase 1 is feature-complete on Linux** — schedule the batched macOS pass before closing.
 
@@ -173,3 +193,11 @@ Phase 5  [░░░░░░░░░░]  Not started
 ## Decisions
 
 - [Phase ?]: scene.lua materialization mode driven solely by tab_pane_count==1 (reuse) else new-tab (04-01)
+- [Phase 5]: tinytoml vendored at upstream tag `1.0.0` (NOT `v1.0.0` — upstream tags without leading v; plan URL was a typo); provenance header records URL + tag + SHA-256, human-approved (T-05-SC) (05-01)
+- [Phase 5]: recipe panes key is `panes` (matches README/UI-SPEC `[[panes]]`), `pane` accepted as fallback alias; Option-1 bare-command fast path keeps the 3 seeds comma-safe through `--pane` round-trip (05-01)
+- [Phase 5]: `recipe.load_and_map` error reasons use the no-name form `error: scene recipe is invalid: ...`; per-file `'<name>'` framing is the 05-03 IO-shell's job (05-01)
+- [Phase 5]: seed recipes live at the repo TOP LEVEL `scenes/` (outside `config/wezterm-setup/`) so the installer's wholesale `cp -R` never clobbers user-edited recipes — the `wez seed-scenes` copy-if-absent seeder is the ONLY writer of the dest scenes dir (D-06 INVARIANT) (05-02)
+- [Phase 5]: `wez seed-scenes` owns all copy/keep decisions in Lua (pure `plan_seed` + run() TOCTOU re-check, never overwrite); `setup.sh` STEP 4b is decision-free glue passing `WEZ_SEED_SRC_DIR`/`WEZTERM_SETUP_DIR` (D-01/D-07) (05-02)
+- [Phase 5]: seeder dest resolver precedence = `WEZTERM_SETUP_DIR` → `WEZTERM_CONFIG_DIR/wezterm-setup` → `XDG_CONFIG_HOME/wezterm/wezterm-setup` → `~/.config/wezterm/wezterm-setup`, then `/scenes` (05-02)
+- [Phase 5]: `scene-names` completion reuses the SINGLE `scene.list_recipe_names(scene.scenes_dir())` provider launch uses (no second lister), read dynamically at Tab time — adding/removing a `.toml` changes the set with no regeneration (Pitfall 6 / D-16) (05-04)
+- [Phase 5]: the nested `scene)` generator arm REPLACES the generic flag arm (skip `scene` in the flag loop) because `scene` has both top-level flags and subcommands — launch->scene-names, new->flags, *->new launch (ratified Open Q3) (05-04)

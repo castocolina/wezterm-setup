@@ -1,0 +1,18 @@
+# docker — seeded example scene recipe (SCEN-06).
+# A 4-pane grid for container work: live stats, container list, compose logs,
+# and a free shell. Edit freely; the installer uses copy-if-absent and will
+# NEVER overwrite your changes.
+layout = "grid"
+color = "teal"
+
+[[panes]]
+command = "docker stats"
+
+[[panes]]
+command = "docker ps"
+
+[[panes]]
+command = "docker compose logs -f"
+
+[[panes]]
+command = "shell"

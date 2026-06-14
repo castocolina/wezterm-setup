@@ -127,7 +127,11 @@ local function gen_zsh(tree)
   w("    args)")
   w("      case $line[1] in")
   for _, c in ipairs(tree.commands) do
-    if #c.flags > 0 then
+    -- `scene` has top-level flags AND subcommands (new/launch). Its generic flag
+    -- arm is REPLACED by the hand-written nested scene) arm below (which dispatches
+    -- launch -> scene-names, new -> flags), so SKIP it here to avoid a duplicate
+    -- scene) case (ratified planner decision, Open Q3).
+    if c.name ~= "scene" and #c.flags > 0 then
       w("        " .. c.name .. ")")
       w("          compadd " .. words(c.flags))
       w("          ;;")
@@ -149,6 +153,26 @@ local function gen_zsh(tree)
   w("            color) compadd ${(f)\"$(wez __complete tab-colors 2>/dev/null)\"} ;;")
   w("            title) compadd ${(f)\"$(wez __complete tab-icons 2>/dev/null)\"} ;;")
   w("            *) compadd color title ;;")
+  w("          esac")
+  w("          ;;")
+  -- Nested dispatch for `scene` — REPLACES the generic flag arm (skipped in the
+  -- loop above). Unlike pane/tab, scene has subcommands: launch <name> completes
+  -- recipe names dynamically via `wez __complete scene-names` (SCEN-05/D-16, no
+  -- hardcoded recipe names); new completes its tab-level flags; the bare scene
+  -- word completes the subcommand names.
+  w("        scene)")
+  w("          case $line[2] in")
+  w("            launch) compadd ${(f)\"$(wez __complete scene-names 2>/dev/null)\"} ;;")
+  -- `new` completes FLAG NAMES, and the VALUE after --layout / --color routes to
+  -- the dynamic contexts (D-16). ${words[CURRENT-1]} is the word before the cursor.
+  w("            new)")
+  w("              case \"${words[CURRENT-1]}\" in")
+  w("                --layout) compadd ${(f)\"$(wez __complete scene-layouts 2>/dev/null)\"} ;;")
+  w("                --color) compadd ${(f)\"$(wez __complete scene-colors 2>/dev/null)\"} ;;")
+  w("                *) compadd --layout --pane --color --title ;;")
+  w("              esac")
+  w("              ;;")
+  w("            *) compadd new launch ;;")
   w("          esac")
   w("          ;;")
   w("        *) ;;")
@@ -199,7 +223,9 @@ local function gen_bash(tree)
   w("  local cmd=\"${COMP_WORDS[1]}\"")
   w("  case \"$cmd\" in")
   for _, c in ipairs(tree.commands) do
-    if #c.flags > 0 then
+    -- Skip `scene` here: its generic flag arm is REPLACED by the hand-written
+    -- nested scene) arm below (launch -> scene-names, new -> flags). See zsh path.
+    if c.name ~= "scene" and #c.flags > 0 then
       w("    " .. c.name .. ")")
       w("      COMPREPLY=( $(compgen -W \"" .. words(c.flags) .. "\" -- \"$cur\") )")
       w("      return 0")
@@ -222,6 +248,26 @@ local function gen_bash(tree)
   w("        color) COMPREPLY=( $(compgen -W \"$(wez __complete tab-colors 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
   w("        title) COMPREPLY=( $(compgen -W \"$(wez __complete tab-icons 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
   w("        *) COMPREPLY=( $(compgen -W \"color title\" -- \"$cur\") ); return 0 ;;")
+  w("      esac")
+  w("      ;;")
+  -- Nested dispatch for `scene` — REPLACES the generic flag arm (skipped above).
+  -- launch <name> completes recipe names dynamically via scene-names (SCEN-05/
+  -- D-16, no hardcoded recipe names); new completes its flags; bare scene
+  -- completes the subcommand names.
+  w("    scene)")
+  w("      local sub=\"${COMP_WORDS[2]}\"")
+  w("      case \"$sub\" in")
+  w("        launch) COMPREPLY=( $(compgen -W \"$(wez __complete scene-names 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
+  -- `new` completes FLAG NAMES; the VALUE after --layout / --color routes to the
+  -- dynamic contexts (D-16). $prev is the word before the cursor (set at top).
+  w("        new)")
+  w("          case \"$prev\" in")
+  w("            --layout) COMPREPLY=( $(compgen -W \"$(wez __complete scene-layouts 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
+  w("            --color) COMPREPLY=( $(compgen -W \"$(wez __complete scene-colors 2>/dev/null)\" -- \"$cur\") ); return 0 ;;")
+  w("            *) COMPREPLY=( $(compgen -W \"--layout --pane --color --title\" -- \"$cur\") ); return 0 ;;")
+  w("          esac")
+  w("          ;;")
+  w("        *) COMPREPLY=( $(compgen -W \"new launch\" -- \"$cur\") ); return 0 ;;")
   w("      esac")
   w("      ;;")
   w("    *) ;;")

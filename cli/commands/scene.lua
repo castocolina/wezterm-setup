@@ -39,6 +39,7 @@
 local M = {}
 
 local scenelib = require("cli.lib.scene")
+local recipelib = require("cli.lib.recipe")
 local panelib = require("cli.commands.pane")
 local tablib = require("cli.commands.tab")
 local titlelib = require("cli.lib.title")
@@ -376,6 +377,168 @@ function M.read_current_tab_title(tab_id)
 end
 
 -- ---------------------------------------------------------------------------
+-- M.scenes_dir() -> the user's co-located scenes dir (D-04). The ONE resolver
+-- shared by `scene launch` (this file), completion (05-04), and the seeder
+-- (05-02) — Pitfall 6: a second resolver would let completion advertise a
+-- recipe launch resolves to a different dir. Ports uninstall_state's
+-- default_setup_dir env precedence, appending /scenes:
+--   WEZTERM_SETUP_DIR (dogfood/test override) -> /scenes
+--   WEZTERM_CONFIG_DIR                         -> /wezterm-setup/scenes
+--   XDG_CONFIG_HOME/wezterm                    -> /wezterm-setup/scenes
+--   ~/.config/wezterm                          -> /wezterm-setup/scenes
+-- ---------------------------------------------------------------------------
+function M.scenes_dir()
+  local setup = os.getenv("WEZTERM_SETUP_DIR")
+  if setup and setup ~= "" then return setup .. "/scenes" end
+  local cfg = os.getenv("WEZTERM_CONFIG_DIR")
+  if cfg and cfg ~= "" then return cfg .. "/wezterm-setup/scenes" end
+  local xdg = os.getenv("XDG_CONFIG_HOME")
+  if xdg and xdg ~= "" then return xdg .. "/wezterm/wezterm-setup/scenes" end
+  local home = os.getenv("HOME") or ""
+  return home .. "/.config/wezterm/wezterm-setup/scenes"
+end
+
+-- ---------------------------------------------------------------------------
+-- M.list_recipe_names(dir) -> { <basename-without-ext>, ... } (sorted).
+-- The SINGLE provider feeding BOTH shell completion (05-04) and the launch
+-- error-hint block below (single source of truth). Globs the dir via the
+-- shipped `newest_backup` io.popen("ls -1") idiom (the path is shquote'd so a
+-- metacharacter cannot break out), keeps only `*.toml`, strips the extension,
+-- and sorts. A missing or empty dir returns {} (no error — the Tab-time and
+-- empty-state contracts depend on this).
+-- ---------------------------------------------------------------------------
+function M.list_recipe_names(dir)
+  local names = {}
+  if not dir or dir == "" then return names end
+  local fh = io.popen("ls -1 -- " .. shquote(dir) .. " 2>/dev/null")
+  if not fh then return names end
+  for entry in fh:lines() do
+    local base = entry:match("^(.+)%.toml$")
+    if base then names[#names + 1] = base end
+  end
+  fh:close()
+  table.sort(names)
+  return names
+end
+
+-- ---------------------------------------------------------------------------
+-- Emit the available-recipes hint block (UI-SPEC row 122) to stderr: the
+-- `available recipes:` header, one `  - <name>` line per recipe (sorted, from
+-- the SAME single-provider M.list_recipe_names), and a `try:` suggestion using
+-- the first name. Caller guarantees #names > 0.
+-- ---------------------------------------------------------------------------
+local function emit_recipe_hint(names)
+  io.stderr:write("available recipes:\n")
+  for _, n in ipairs(names) do
+    io.stderr:write("  - " .. n .. "\n")
+  end
+  io.stderr:write("try: wez scene launch " .. names[1] .. "\n")
+end
+
+-- The user-facing display path for the scenes dir in error copy (UI-SPEC).
+local DISPLAY_SCENES_DIR = "~/.config/wezterm/wezterm-setup/scenes/"
+
+-- The actionable recovery line shared by every no-recipes state (UI-SPEC rows
+-- 119/120): points at the REAL reseed command (`wez seed-scenes`, the
+-- copy-if-absent path) rather than a vague "reinstall". Indented guidance, never
+-- carries its own `error:` prefix — so a caller that already emitted an `error:`
+-- line stays at ONE `error:` token per invocation.
+local function emit_seed_hint()
+  io.stderr:write("  run: wez seed-scenes to restore the seeded examples (ai, docker, dev)\n")
+end
+
+-- The no-recipes ERROR (UI-SPEC row 120): emitted when a NAME was given but the
+-- scenes dir is missing or holds no `.toml`. Here the missing recipes ARE the
+-- primary failure, so it leads with `error:`; the no-name path instead leads
+-- with its own usage error and appends only emit_seed_hint() (one `error:`).
+local function emit_no_recipes()
+  io.stderr:write("error: no scene recipes found in " .. DISPLAY_SCENES_DIR .. "\n")
+  emit_seed_hint()
+end
+
+-- ---------------------------------------------------------------------------
+-- M.run_launch(args) -> exit code. The SCEN-04 structural-equivalence seam:
+-- a thin IO-shell that resolves the scenes dir, guards the name, reads
+-- <name>.toml, hands the RAW STRING to the PURE cli/lib/recipe.lua (parse +
+-- validate + map), then delegates to the SAME M.run_new the `scene new` path
+-- uses (D-03: build NOTHING new — no argv, no subprocess, no re-implemented
+-- geometry/palette/OSC). Validate-before-emit: every error path exits BEFORE
+-- any mux call, so a bad launch builds ZERO panes.
+--   args.name : the recipe basename (without .toml).
+-- ---------------------------------------------------------------------------
+function M.run_launch(args)
+  args = args or {}
+  local name = args.name
+  local dir = M.scenes_dir()
+  local names = M.list_recipe_names(dir)
+
+  -- 1. No name given -> usage error (exit 2). When recipes exist, append the
+  --    available-recipes hint; otherwise the no-recipes guidance.
+  if not name or name == "" then
+    -- The usage error is the SINGLE `error:` line for this invocation. When no
+    -- recipes exist we append only the seed-hint guidance line (I-1) — NOT a
+    -- second `error: no scene recipes found` line, which would double the
+    -- `error:` token for one failure.
+    io.stderr:write("error: wez scene launch requires a recipe name (got none)\n")
+    if #names > 0 then
+      emit_recipe_hint(names)
+    else
+      emit_seed_hint()
+    end
+    return 2
+  end
+
+  -- 2. Guard the name BEFORE any io.open (T-05-08 path-traversal block, T-05-01
+  --    from 05-01): rejects empty/`/`/`..` so a name with a separator never
+  --    reaches the filesystem. The resolved path is always <scenes_dir>/<name>.toml.
+  local guard_ok, guard_err = recipelib.guard_name(name)
+  if not guard_ok then
+    io.stderr:write("error: " .. guard_err .. "\n")
+    return 1
+  end
+
+  -- 3. No recipes present at all -> no-recipes guidance (exit 2).
+  if #names == 0 then
+    emit_no_recipes()
+    return 2
+  end
+
+  -- 4. Open <name>.toml. Absent -> not-found error + available-recipes hint
+  --    (exit 1). (guard_name already ensured name has no separator/`..`.)
+  local path = dir .. "/" .. name .. ".toml"
+  local fh = io.open(path, "rb")
+  if not fh then
+    io.stderr:write("error: no scene recipe named '" .. name
+      .. "' in " .. DISPLAY_SCENES_DIR .. "\n")
+    emit_recipe_hint(names)
+    return 1
+  end
+
+  -- 5. Read the bytes and hand the RAW STRING to the pure loader/mapper. On a
+  --    parse/validate failure -> recipe-is-invalid (exit 1), building ZERO panes
+  --    (T-05-09). recipe.lua's reason is the no-name form `error: scene recipe
+  --    is invalid: <reason>`; re-frame it with this file's `'<name>'`.
+  local raw = fh:read("*a") or ""
+  fh:close()
+  local mapped, map_err = recipelib.load_and_map(raw)
+  if not mapped then
+    -- Strip BOTH the load_and_map framing AND any leading `error: ` that the
+    -- reused validate_layout/validate_color strings already carry, so the line
+    -- reads `error: scene recipe '<name>' is invalid: <reason>` with a SINGLE
+    -- `error:` token (no `error: ... invalid: error: ...` double-prefix).
+    local reason = tostring(map_err)
+      :gsub("^error: scene recipe is invalid: ", "")
+      :gsub("^error: ", "")
+    io.stderr:write("error: scene recipe '" .. name .. "' is invalid: " .. reason .. "\n")
+    return 1
+  end
+
+  -- 6. Success -> the SINGLE materialization path (SCEN-04). Silent on stdout
+  --    (inherits Phase 4 D-09).
+  return M.run_new(mapped)
+end
+
+-- ---------------------------------------------------------------------------
 -- M.run(args): command entry. Branches on the selected `scene` subcommand
 -- (args.scene_cmd), mirroring pane.lua / tab.lua's dispatcher shape.
 -- ---------------------------------------------------------------------------
@@ -384,7 +547,10 @@ function M.run(args)
   if sub == "new" then
     return M.run_new(args)
   end
-  io.stderr:write("wez scene: expected a subcommand (new)\n")
+  if sub == "launch" then
+    return M.run_launch(args)
+  end
+  io.stderr:write("wez scene: expected a subcommand (new, launch)\n")
   return 2
 end
 

@@ -198,12 +198,19 @@ end
 -- UI-SPEC Color Contract: 10-profile palette, case-insensitive. The error
 -- message echoes the ORIGINAL case as given (not the lowercased lookup key).
 -- ---------------------------------------------------------------------------
-local COLORS = {
-  red = true, orange = true, yellow = true, green = true, teal = true,
-  cyan = true, blue = true, navy = true, purple = true, pink = true,
+-- 10-profile palette in display order (D-16 single source). Both validate_color
+-- and the `scene-colors` completion context derive from this ONE array, so the
+-- completion can never advertise a color the validator rejects (mirrors the
+-- M.LAYOUTS pattern above).
+M.COLOR_NAMES = {
+  "red", "orange", "yellow", "green", "teal",
+  "cyan", "blue", "navy", "purple", "pink",
 }
+local COLOR_SET = {}
+for _, name in ipairs(M.COLOR_NAMES) do COLOR_SET[name] = true end
+
 function M.validate_color(name)
-  if COLORS[tostring(name):lower()] then
+  if COLOR_SET[tostring(name):lower()] then
     return true, nil
   end
   return false, string.format(

@@ -172,5 +172,111 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- Nested scene) -> launch) arm (05-04, SCEN-05). Unlike pane/tab, `scene` has
+-- top-level flags AND subcommands, so the nested scene) arm REPLACES the generic
+-- flag arm (ratified planner decision): launch -> scene-names, new -> flags,
+-- bare -> new launch. The recipe names route through `wez __complete scene-names`
+-- (never hardcoded). Both generated scripts must remain syntactically valid.
+-- ----------------------------------------------------------------------------
+
+-- Count non-overlapping occurrences of a literal substring.
+local function count_sub(haystack, needle)
+  local n, i = 0, 1
+  while true do
+    local s, e = haystack:find(needle, i, true)
+    if not s then break end
+    n = n + 1
+    i = e + 1
+  end
+  return n
+end
+
+-- Write `text` to a temp file and run `checker file 2>&1`; returns (ok, output).
+-- ok is true only when the checker exits 0. Used for `bash -n` / `zsh -n`.
+local function syntax_check(text, checker)
+  local base = os.getenv("TMPDIR") or "/tmp"
+  local path = string.format("%s/wezsetup-compl-%d-%d.sh", base, os.time(), math.random(1, 1e6))
+  local fh = assert(io.open(path, "wb"))
+  fh:write(text)
+  fh:close()
+  local p = assert(io.popen(checker .. " '" .. path .. "' 2>&1"))
+  local out = p:read("*a") or ""
+  local _, _, code = p:close()
+  os.execute("rm -f '" .. path .. "'")
+  return code == 0 or code == true, out
+end
+
+-- zsh generator: exactly ONE scene) arm, with launch) -> scene-names and
+-- new) -> the scene flags; no duplicate generic scene flag arm.
+do
+  local _, _, out = capture(function() return completions.run({ shell = "zsh" }) end)
+  check("zsh: routes scene launch -> `wez __complete scene-names`",
+    out:find("__complete scene-names", 1, true) ~= nil)
+  check("zsh: exactly one scene) arm (generic flag arm replaced, not duplicated)",
+    count_sub(out, "        scene)") == 1, "count=" .. count_sub(out, "        scene)"))
+  check("zsh: scene) launch) case calls scene-names",
+    out:find("launch%) compadd %${%(f%)\"%$%(wez __complete scene%-names") ~= nil)
+  check("zsh: scene) new) fallback offers the scene flags",
+    out:find("*) compadd --layout --pane --color --title", 1, true) ~= nil)
+  check("zsh: scene new --layout VALUE routes to scene-layouts (A-1 fix)",
+    out:find("--layout) compadd ${(f)\"$(wez __complete scene-layouts 2>/dev/null)\"}", 1, true) ~= nil)
+  check("zsh: scene new --color VALUE routes to scene-colors (A-1 fix)",
+    out:find("--color) compadd ${(f)\"$(wez __complete scene-colors 2>/dev/null)\"}", 1, true) ~= nil)
+  check("zsh: scene) bare case offers new launch",
+    out:find("*) compadd new launch", 1, true) ~= nil)
+  -- D-16: the launch candidate set is NOT hardcoded — the scene) arm's launch)
+  -- case routes through scene-names and adds no literal recipe word. Asserted by
+  -- checking the launch) case body contains the dynamic shell-out and nothing else.
+  local scene_arm = out:match("        scene%)(.-)\n          ;;")
+  check("zsh: scene) launch) routes dynamically (no hardcoded recipe candidate)",
+    scene_arm ~= nil
+      and scene_arm:find("launch) compadd ${(f)\"$(wez __complete scene-names 2>/dev/null)\"}", 1, true) ~= nil)
+end
+
+-- bash generator: exactly ONE scene) arm dispatching on ${COMP_WORDS[2]}.
+do
+  local _, _, out = capture(function() return completions.run({ shell = "bash" }) end)
+  check("bash: routes scene launch -> `wez __complete scene-names`",
+    out:find("__complete scene-names", 1, true) ~= nil)
+  check("bash: exactly one scene) arm (generic flag arm replaced, not duplicated)",
+    count_sub(out, "    scene)") == 1, "count=" .. count_sub(out, "    scene)"))
+  check("bash: scene) launch) case calls scene-names via compgen",
+    out:find("launch) COMPREPLY=( $(compgen -W \"$(wez __complete scene-names", 1, true) ~= nil)
+  check("bash: scene) new) fallback offers the scene flags",
+    out:find("*) COMPREPLY=( $(compgen -W \"--layout --pane --color --title\"", 1, true) ~= nil)
+  check("bash: scene new --layout VALUE routes to scene-layouts (A-1 fix)",
+    out:find("--layout) COMPREPLY=( $(compgen -W \"$(wez __complete scene-layouts 2>/dev/null)\"", 1, true) ~= nil)
+  check("bash: scene new --color VALUE routes to scene-colors (A-1 fix)",
+    out:find("--color) COMPREPLY=( $(compgen -W \"$(wez __complete scene-colors 2>/dev/null)\"", 1, true) ~= nil)
+  check("bash: scene) bare case offers new launch",
+    out:find("*) COMPREPLY=( $(compgen -W \"new launch\"", 1, true) ~= nil)
+  -- D-16: launch candidates route through scene-names, no literal recipe word in
+  -- the scene) arm's launch) case.
+  local scene_arm = out:match("    scene%)(.-)\n      ;;")
+  check("bash: scene) launch) routes dynamically (no hardcoded recipe candidate)",
+    scene_arm ~= nil
+      and scene_arm:find("launch) COMPREPLY=( $(compgen -W \"$(wez __complete scene-names 2>/dev/null)\"", 1, true) ~= nil)
+end
+
+-- Syntax validity (CLAUDE.md verify-before-done): the recorded proof is the -n
+-- check, not "should work". bash -n is MANDATORY; zsh -n is skipped gracefully
+-- when zsh is absent.
+do
+  local _, _, bash_out = capture(function() return completions.run({ shell = "bash" }) end)
+  local ok_bash, detail = syntax_check(bash_out, "bash -n")
+  check("generated bash script passes `bash -n`", ok_bash, detail)
+
+  local _, _, zsh_out = capture(function() return completions.run({ shell = "zsh" }) end)
+  local has_zsh = (os.execute("command -v zsh >/dev/null 2>&1") == 0
+    or os.execute("command -v zsh >/dev/null 2>&1") == true)
+  if has_zsh then
+    local ok_zsh, zdetail = syntax_check(zsh_out, "zsh -n")
+    check("generated zsh script passes `zsh -n`", ok_zsh, zdetail)
+  else
+    print("  skip - `zsh -n` (zsh not installed)")
+  end
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

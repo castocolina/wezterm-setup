@@ -42,6 +42,7 @@ local CATEGORIES = {
   ["keys"] = "diagnostics",
   ["install-state"] = "install",
   ["uninstall-state"] = "install",
+  ["seed-scenes"] = "install",
   ["completions"] = "shell",
   ["pane"] = "identity",
   ["tab"] = "identity",
@@ -56,6 +57,7 @@ local SUBCOMMANDS = {
   "keys",
   "install-state",
   "uninstall-state",
+  "seed-scenes",
   "completions",
   "pane",
   "tab",
@@ -113,6 +115,11 @@ function M.build_parser()
   uninstall_state:flag("--keep-backup", "Preserve wezterm.lua.bak.* backups")
   uninstall_state:flag("--keep-cli", "Preserve the wez binary")
 
+  -- seed-scenes (Plan 05) ------------------------------------------------
+  -- Copy-if-absent install seeding of the example scene recipes (SCEN-06). No
+  -- flags: all copy/keep decisions live in cli/commands/seed_scenes.lua (D-01).
+  parser:command("seed-scenes", "Seed example scene recipes (copy-if-absent)")
+
   -- completions (Plan 07) ------------------------------------------------
   local completions = parser:command("completions", "Generate shell completions from this spec")
   completions:argument("shell", "Target shell (bash|zsh)"):args("?")
@@ -165,6 +172,15 @@ function M.build_parser()
   -- --color / --title: optional tab-level identity for the whole scene (D-05).
   scene_new:option("--color", "Tab-level accent color for the scene"):args(1)
   scene_new:option("--title", "Tab-level title for the scene"):args(1)
+  -- scene launch <name> (Plan 05-03, SCEN-03/04) — the saved-recipe front door.
+  -- A sibling subcommand under `scene` (scene_cmd target already set above), so
+  -- the completion generator's spec-walk picks `launch` up automatically (D-16).
+  -- The single positional <name> is the recipe basename (without .toml).
+  -- OPTIONAL (args "?"): a bare `wez scene launch` must reach M.run_launch so it
+  -- emits the UI-SPEC usage copy + available-recipes hint (exit 2) itself, rather
+  -- than argparse intercepting with a generic "missing argument 'name'" error.
+  local scene_launch = scene:command("launch", "Launch a saved scene recipe by name")
+  scene_launch:argument("name", "Recipe basename (without .toml) under the scenes dir"):args("?")
 
   -- __complete (hidden, Plan 07) -----------------------------------------
   -- Internal hook the shell completion functions call for dynamic values.

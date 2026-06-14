@@ -87,6 +87,19 @@ log "placing managed config -> ${SETUP_DIR}"
 mkdir -p "${SETUP_DIR}"
 cp -R "${REPO_ROOT}/config/wezterm-setup/." "${SETUP_DIR}/"
 
+# --- STEP 4b: seed example scene recipes (copy-if-absent, SCEN-06) ------------
+# Decision-free delegation mirroring STEP 6's `wez install-state` invocation: ALL
+# copy/keep decisions live in `wez seed-scenes` (cli/commands/seed_scenes.lua,
+# D-01/D-07); this script adds NO copy/keep branching. The seeds live at the repo
+# TOP LEVEL (${REPO_ROOT}/scenes), OUTSIDE config/wezterm-setup/, so STEP 4's
+# wholesale `cp -R` above never places or clobbers a recipe (D-06 INVARIANT) — the
+# seeder is the ONLY writer of ${SETUP_DIR}/scenes and never overwrites a user
+# edit. WEZ_SEED_SRC_DIR points the (possibly bundled) binary at the repo seeds;
+# WEZTERM_SETUP_DIR (already the seeder's dest resolver) targets ${SETUP_DIR}.
+log "seeding example scene recipes (copy-if-absent)…"
+WEZ_SEED_SRC_DIR="${REPO_ROOT}/scenes" WEZTERM_SETUP_DIR="${SETUP_DIR}" \
+  "${BIN_DIR}/wez" seed-scenes
+
 # --- STEP 5: register OSC 7 shell integration (idempotent, marker-guarded) ----
 # Append a guarded source line to the user's rc once. Re-running checks for the
 # EXACT marker before appending so no duplicates are added (T-04-03).

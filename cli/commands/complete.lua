@@ -27,6 +27,11 @@ local pane = require("cli.commands.pane")
 local tab = require("cli.commands.tab")
 local title = require("cli.lib.title")
 local scene = require("cli.lib.scene")
+-- The COMMAND module (not the lib) owns the SINGLE recipe-listing provider
+-- M.list_recipe_names + M.scenes_dir (05-03) that the launch error hint uses.
+-- scene-names reuses it so completion can never advertise a recipe set that
+-- differs from what launch resolves (Pitfall 6 / single source — D-16).
+local scene_cmd = require("cli.commands.scene")
 
 local M = {}
 
@@ -93,6 +98,26 @@ local function scene_layouts()
   return out
 end
 
+-- `wez scene launch <Tab>` candidates: the recipe basenames (sorted, no .toml),
+-- read DYNAMICALLY at completion time from the scenes dir via the SAME single
+-- provider the launch error hint uses (scene.list_recipe_names(scene.scenes_dir())
+-- — D-16 single source). No caching: adding/removing a recipe file changes the
+-- set on the next Tab with NO regeneration (SCEN-05). A missing/empty dir yields
+-- {} -> nothing emitted, exit 0 (the Tab-time-never-fails contract).
+local function scene_names()
+  return scene_cmd.list_recipe_names(scene_cmd.scenes_dir())
+end
+
+-- `wez scene new --color <Tab>` candidates: the scene accent palette in display
+-- order, sourced from scene.COLOR_NAMES (the SAME array validate_color checks —
+-- D-16 single source). No `reset`: `scene new` sets an accent at creation, there
+-- is nothing to reset (unlike `pane/tab color reset`).
+local function scene_colors()
+  local out = {}
+  for _, n in ipairs(scene.COLOR_NAMES) do out[#out + 1] = n end
+  return out
+end
+
 local CONTEXTS = {
   subcommands = visible_subcommands,
   ["pane-colors"] = pane_colors,
@@ -100,6 +125,8 @@ local CONTEXTS = {
   ["tab-colors"] = tab_colors,
   ["tab-icons"] = tab_icons,
   ["scene-layouts"] = scene_layouts,
+  ["scene-colors"] = scene_colors,
+  ["scene-names"] = scene_names,
 }
 
 -- run(args): print newline-separated candidates for args.context. Unknown context

@@ -13,6 +13,7 @@
 - [x] **INST-04**: Uninstall removes managed config, companion CLI, and sentinel block with no trace — 01-06 (`wez uninstall-state` excises the block leaving user lines byte-identical; T-06-01)
 - [x] **INST-05**: Uninstall supports granular flags: `--keep-config`, `--keep-backup`, `--keep-cli` — 01-06 (`plan_removal` honors each keep-flag; sudo-free glue via `tools/uninstall.sh`)
 - [x] **INST-06**: Install bootstraps the WezTerm emulator itself, sudo-free, into a user path (Linux: `*.Ubuntu<base>.tar.xz` extracted to `~/.local`; macOS: `.app` to `~/Applications`). Reuses an existing WezTerm that meets a minimum version (non-destructive — never touches a system install); otherwise offers an interactive version selection (rolling `nightly` + last 5 dated releases) with a pinned known-good dated release as the non-interactive default. AppImage is explicitly avoided (libfuse2 dependency)
+- [ ] **INST-07**: An ergonomic one-line remote installer — `curl -fsSL <raw-url> | bash` (with a `wget -qO- … | bash` variant) — downloads the repo to a temporary path, installs/updates WezTerm sudo-free (INST-06), copies the managed assets via the existing setup, runs `wez doctor`, and cleans up the temp checkout. README.md documents the one-liner plus post-install/config steps. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, integrity verification). *(Added 2026-06-14; Phase 6.)*
 
 ### Foundation Behaviors
 
@@ -49,10 +50,10 @@
 
 - [ ] **SCEN-01**: `wez scene new` opens a new tab with a specified layout, N styled panes, per-pane startup commands, tab color, and tab title
 - [ ] **SCEN-02**: Supported layouts at minimum: `tall`, `tall:mirrored`, `grid`, `horizontal`
-- [ ] **SCEN-03**: Scene recipes in `~/.config/wezterm-setup/scenes/` are TOML or Lua files loaded by name
+- [ ] **SCEN-03**: Scene recipes in `~/.config/wezterm/wezterm-setup/scenes/` are TOML or Lua files loaded by name
 - [ ] **SCEN-04**: `wez scene launch <name>` produces the same result as an equivalent `wez scene new` call
-- [ ] **SCEN-05**: Scene names dynamically complete in zsh and bash based on recipe files present in `~/.config/wezterm-setup/scenes/` — no manual update needed when adding or removing recipes
-- [ ] **SCEN-06**: Installer seeds three example recipes using copy-if-absent; user edits survive reinstall
+- [x] **SCEN-05**: Scene names dynamically complete in zsh and bash based on recipe files present in `~/.config/wezterm/wezterm-setup/scenes/` — no manual update needed when adding or removing recipes
+- [x] **SCEN-06**: Installer seeds three example recipes using copy-if-absent; user edits survive reinstall
 
   | Recipe | Layout | Color | Panes | Startup commands |
   |--------|--------|-------|-------|------------------|
@@ -85,6 +86,7 @@
 | INST-04 | Phase 1 | Done (01-06) |
 | INST-05 | Phase 1 | Done (01-06) |
 | INST-06 | Phase 1 | Done (01-02, Linux; macOS deferred D-06/D-18) |
+| INST-07 | Phase 6 | Pending (ergonomic one-line installer + README) |
 | FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
@@ -108,14 +110,15 @@
 | SCEN-02 | Phase 4 | Pending |
 | SCEN-03 | Phase 5 | Pending |
 | SCEN-04 | Phase 5 | Pending |
-| SCEN-05 | Phase 5 | Pending |
+| SCEN-05 | Phase 5 | Done (05-04, Linux; macOS deferred D-18) |
 | SCEN-06 | Phase 5 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 31 total
-- Mapped to phases: 31
+- v1 requirements: 32 total (INST-07 added 2026-06-14)
+- Mapped to phases: 32
 - Unmapped: 0 ✓
+- Note: Phase 7 (macOS Parity, D-18) is a verification gate over the platform-sensitive subset — it adds no new requirement IDs.
 
 ---
 *Requirements defined: 2026-06-07*  

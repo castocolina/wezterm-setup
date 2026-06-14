@@ -87,7 +87,7 @@ Ad-hoc scene (open and forget):
 wez scene new --layout tall --panes 2 --color navy --title "deploy"
 ```
 
-Named recipe in `~/.config/wezterm-setup/scenes/dev.toml`:
+Named recipe in `~/.config/wezterm/wezterm-setup/scenes/dev.toml`:
 
 ```toml
 layout = "tall"

@@ -2,7 +2,7 @@
 
 **Milestone:** v1  
 **Granularity:** Coarse  
-**Coverage:** 31/31 v1 requirements mapped + Phase 0 (validation, no REQUIREMENTS.md items)
+**Coverage:** 32/32 v1 requirements mapped + Phase 0 (validation, no REQUIREMENTS.md items)
 
 ---
 
@@ -13,7 +13,15 @@
 - [x] **Phase 2: Pane Identity** - Per-pane background color and title via `wez pane` (completed 2026-06-11)
 - [x] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven) (completed 2026-06-12)
 - [x] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes (completed 2026-06-13, Linux; macOS deferred)
-- [ ] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
+- [x] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
+- [ ] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs
+- [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
+
+> **macOS parity is now Phase 7 (D-18).** All features are Linux-verified; the batched macOS pass
+> is scheduled as a real phase. Pending work (macOS gaps + UX backlog) is tracked in
+> [`.planning/MACOS-PARITY-AND-FOLLOWUPS.md`](MACOS-PARITY-AND-FOLLOWUPS.md); drive it with
+> `bash tools/verify-macos.sh` (auto) + `docs/macos-verification.md` (step-by-step on a Mac).
+> Phase 6 (ergonomic installer) lands first so the macOS pass also covers it.
 
 ---
 
@@ -130,11 +138,54 @@
 
 **Success Criteria** (what must be TRUE):
 
-1. A TOML or Lua recipe file in `~/.config/wezterm-setup/scenes/` is launchable by name via `wez scene launch <name>` and produces the same result as an equivalent `wez scene new` call
-2. `wez scene launch <Tab>` dynamically completes recipe names from `~/.config/wezterm-setup/scenes/` — adding or removing a recipe file updates completion without any manual step
+1. A **TOML** recipe file in `~/.config/wezterm/wezterm-setup/scenes/` is launchable by name via `wez scene launch <name>` and produces the same result as an equivalent `wez scene new` call (TOML-only per CONTEXT D-01 — supersedes the original "TOML or Lua" phrasing)
+2. `wez scene launch <Tab>` dynamically completes recipe names from `~/.config/wezterm/wezterm-setup/scenes/` — adding or removing a recipe file updates completion without any manual step
 3. A fresh install seeds three example recipes (`ai`, `docker`, `dev`) using copy-if-absent — reinstalling does not overwrite user edits to those files
 
+**Plans**: 4 plans
+
+Plans:
+
+- [x] 05-01-PLAN.md — Vendor tinytoml + pure recipe loader/mapper/name-guard (SCEN-03) ✓ 2026-06-13
+- [x] 05-02-PLAN.md — Copy-if-absent seeder + 3 seed recipes + spec/installer wiring (SCEN-06) ✓ 2026-06-13
+- [x] 05-03-PLAN.md — `wez scene launch <name>` reuse seam + scenes-dir resolver + listing provider (SCEN-03/04)
+- [x] 05-04-PLAN.md — Dynamic `scene-names` completion context + nested `scene)→launch)` arm (SCEN-05) ✓ 2026-06-14
+
+---
+
+### Phase 6: Ergonomic Installer
+
+**Goal**: A new user can install and configure wezterm-setup with a single pasted command — no manual git clone, no multi-step setup
+**Depends on**: Phase 5
+**Requirements**: INST-07 (builds on the INST-06 WezTerm bootstrap + the existing `tools/setup.sh` asset placement + `wez doctor`)
+
+**Success Criteria** (what must be TRUE):
+
+1. A single `curl -fsSL <raw-github-url> | bash` (and a `wget -qO- … | bash` variant) downloads the repo to a temporary path and runs the full setup unattended
+2. The bootstrap installs or updates WezTerm sudo-free (reusing INST-06), copies the managed assets via `tools/setup.sh`, and finishes by running `wez doctor` with a clear pass/fail
+3. The temp checkout is cleaned up — nothing is left behind after a successful run
+4. README.md documents the one-line install plus post-install/config steps, with both the `curl|bash` and `wget` variants
+5. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, integrity verification) — captured as a threat model at plan time
+
 **Plans**: TBD
+
+---
+
+### Phase 7: macOS Parity Pass (D-18)
+
+**Goal**: Every shipped feature is verified working on macOS (Apple Silicon + Intel) and the platform-deferred gaps are closed — the final gate before v1 is declared done
+**Depends on**: Phase 6
+**Requirements**: macOS verification (D-18) of all platform-sensitive requirements — INST-01/06/07, FOUND-01, DIAG-05, PANE-01..04, SCEN-03..06 (no new requirement IDs; flips their "macOS deferred" status to Done)
+
+**Success Criteria** (what must be TRUE):
+
+1. `bash tools/verify-macos.sh` passes its auto gate on a real Mac (build, suite, all `__complete` contexts, completion `-n`, scene-launch exit codes, copy-if-absent seeding)
+2. The full `docs/macos-verification.md` runbook is driven top-to-bottom and every capability section passes — visual/UX steps reviewed with `agent-ui-ux-designer`
+3. Deferred macOS gaps closed: Gatekeeper/quarantine, Apple Silicon ad-hoc codesign of the built binary, `install_macos` real `.app` placement (INST-06), `sha256sum`→`shasum`, `mapfile`/bash-3.2 in the test harness
+4. Every "macOS deferred D-18" status in REQUIREMENTS.md / coverage is flipped to Done with recorded evidence (incl. the A-1 `scene new --layout/--color` completion confirmed in zsh on macOS)
+
+**Plans**: TBD
+**Reference**: `.planning/MACOS-PARITY-AND-FOLLOWUPS.md`, `docs/macos-verification.md`, `tools/verify-macos.sh`
 
 ---
 
@@ -147,7 +198,9 @@
 | 2. Pane Identity | 5/5 | Complete | 2026-06-11 |
 | 3. Tab Identity | 4/4 | Complete    | 2026-06-12 |
 | 4. Ad-hoc Scenes | 3/3 | Complete | 2026-06-13 |
-| 5. Named Scenes | 0/? | Not started | - |
+| 5. Named Scenes | 4/4 | Complete | 2026-06-14 |
+| 6. Ergonomic Installer | 0/? | Not started | - |
+| 7. macOS Parity Pass (D-18) | 0/? | Not started | - |
 
 ---
 
@@ -182,14 +235,16 @@
 | TAB-05 | Phase 3 | Pending |
 | SCEN-01 | Phase 4 | Pending |
 | SCEN-02 | Phase 4 | Pending |
-| SCEN-03 | Phase 5 | Pending |
-| SCEN-04 | Phase 5 | Pending |
-| SCEN-05 | Phase 5 | Pending |
-| SCEN-06 | Phase 5 | Pending |
+| SCEN-03 | Phase 5 | Done (05-01 recipe core + 05-03 launch wiring, Linux; macOS deferred D-18) |
+| SCEN-04 | Phase 5 | Done (05-03 launch≡new structural equivalence, Linux; macOS deferred D-18) |
+| SCEN-05 | Phase 5 | Done (05-04, Linux; macOS deferred D-18) |
+| SCEN-06 | Phase 5 | Done (05-02, Linux; macOS deferred D-18) |
 
-**v1 coverage: 31/31 requirements mapped. Phase 0 carries validation work only (no REQUIREMENTS.md items).**
+| INST-07 | Phase 6 | Pending (ergonomic one-line `curl\|bash` remote installer + README) |
+
+**v1 coverage: 32/32 requirements mapped (INST-07 added 2026-06-14). Phase 0 carries validation work only (no REQUIREMENTS.md items). Phase 7 is the macOS verification gate (D-18) — no new IDs.**
 
 ---
 
 *Roadmap created: 2026-06-07*  
-*Last updated: 2026-06-07 after initial roadmap creation*
+*Last updated: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18)*

@@ -1,0 +1,11 @@
+# dev — seeded example scene recipe (SCEN-06).
+# Two side-by-side shell panes for general development. Edit freely; the
+# installer uses copy-if-absent and will NEVER overwrite your changes.
+layout = "tall"
+color = "green"
+
+[[panes]]
+command = "shell"
+
+[[panes]]
+command = "shell"
