@@ -25,6 +25,10 @@ on:
   push:
     tags:
       - "v*"
+  # Manual trigger: lets a maintainer dry-run the full 3-leg build matrix from the
+  # Actions UI without cutting a version tag. The publish step keys off a real tag
+  # ref, so a workflow_dispatch run builds + checksums assets but skips the upload.
+  workflow_dispatch:
 
 # Least privilege (T-06-03-03): only the scope `gh release upload` needs.
 permissions:
@@ -88,7 +92,25 @@ jobs:
       # Upload via the IDENTICAL command tools/publish.sh runs (same-contract
       # rule, P6-D08): `gh release upload <tag> <asset> <asset>.sha256 --clobber`.
       # gh owns its own auth via github.token (no third-party action to pin).
+      # `gh release upload` requires the release to already exist — it does NOT
+      # create one. With three matrix legs racing, create it idempotently:
+      # view-or-create-or-view. If a sibling leg wins the create between our view
+      # and create, our create fails but the trailing view confirms it now exists,
+      # so the step still succeeds. (contents: write already grants create.)
+      - name: Ensure release exists
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" \
+                 --title "$GITHUB_REF_NAME" --generate-notes \
+            || gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1
+
       - name: Upload release asset
+        # Only a real tag push has a release to upload to; a workflow_dispatch
+        # dry-run builds + checksums the asset but skips the upload.
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
