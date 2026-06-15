@@ -44,8 +44,14 @@ jobs:
       matrix:
         include:
           - { runner: ubuntu-latest, os: linux, arch: x86_64 }
-          - { runner: macos-15-intel, os: darwin, arch: x86_64 } # supported Intel image (older one removed 2025-12-04)
-          - { runner: macos-14, os: darwin, arch: aarch64 } # arm64-only image
+          # macOS legs are DEFERRED TO PHASE 7 (macOS Parity Pass, D-18), where they
+          # get verified on real Intel + Apple-Silicon hardware. They are disabled
+          # here (not just left red) because the toolchain needs on-Mac fixes that
+          # cannot be verified without a Mac: the arm64 leg needs a lua@5.4 strategy
+          # (Homebrew's `lua` is now 5.5), and the Intel leg hit a /usr/local brew
+          # permission error. Re-enable both in Phase 7:
+          # - { runner: macos-15-intel, os: darwin, arch: x86_64 } # supported Intel image (older one removed 2025-12-04)
+          # - { runner: macos-14, os: darwin, arch: aarch64 } # arm64-only image
     runs-on: ${{ matrix.runner }}
     steps:
       # Pinned to an immutable release tag (T-06-03-01: never @main). Hardening to
