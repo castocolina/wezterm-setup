@@ -51,7 +51,7 @@ end
 -- Every Phase 1 subcommand name must be registered (interface-first contract, D-16).
 local required_subcommands = {
   "version", "doctor", "keys",
-  "install-state", "uninstall-state", "completions", "__complete",
+  "install-state", "uninstall-state", "seed-scenes", "update", "completions", "__complete",
 }
 local names = spec.subcommand_names()
 check("spec.subcommand_names() returns a table", type(names) == "table")

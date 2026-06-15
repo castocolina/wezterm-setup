@@ -29,25 +29,90 @@ priority over tab-level color when both are set.
 
 ## Install
 
+One line, no `sudo`, nothing replaced — the installer fetches this repo to a temp dir,
+bootstraps WezTerm sudo-free, installs the `wez` CLI, injects a single guarded block into
+your `wezterm.lua`, and verifies with `wez doctor`:
+
 ```sh
-curl -fsSL https://raw.githubusercontent.com/you/wezterm-setup/main/tools/setup.sh | sh
+curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh | bash
 ```
 
-Or clone and run locally:
+Prefer `wget`? Same result:
 
 ```sh
-git clone https://github.com/you/wezterm-setup
+wget -qO- https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh | bash
+```
+
+If a previous install already exists, or you want the WezTerm version selector, use the
+process-substitution form so the prompts stay interactive (`curl … | bash` consumes stdin,
+so the re-install / version prompts only appear with this form or a real terminal):
+
+```sh
+bash <(curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh)
+```
+
+### Requirements
+
+- `curl` **or** `wget`, plus `tar` (all standard on Linux + macOS)
+- Linux (Wayland + X11) or macOS — every feature ships with parity on both
+- No `sudo`, ever — everything lands under `~/.local` and `~/.config`
+
+### What it does
+
+1. Fetches this repo into a `mktemp -d` temp dir (cleaned up on exit — nothing left behind).
+2. Bootstraps or reuses WezTerm **sudo-free**, targeting the rolling `nightly` by default.
+   A behind-the-latest install **in your user path** is updated in place; a **system**
+   WezTerm install (e.g. from `apt`) is **never touched**.
+3. Downloads the matching `wez-<os>-<arch>` release binary, **SHA-256 verified before it is
+   made executable**.
+4. Injects a single `dofile(...)` line into your `~/.config/wezterm/wezterm.lua` between
+   sentinel comments — your config is backed up (timestamped) and only added to, never replaced.
+5. Places config, example scenes, and shell completions, then runs `wez doctor`.
+
+Re-running detects the existing managed block and asks: override / restore backup / skip
+(or pass `--force` / `--restore` / `--skip`).
+
+### After installing
+
+- Ensure `~/.local/bin` is on your `PATH` so `wez` resolves.
+- Restart your shell (or `source` your rc) so the OSC 7 integration and tab-completions load.
+- Run `wez doctor` to confirm a healthy install.
+
+### Trust model
+
+This is `curl | bash` — you are running a script fetched over the network. HTTPS guarantees the
+*transport*, not that the content is what the author published. Two cheap habits make this safe:
+
+**Inspect before you run:**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh -o install.sh
+less install.sh        # read it — the whole body is one main(), called on the last line
+bash install.sh
+```
+
+**Pin to a tag or commit instead of `main`** (so the byte you read is the byte you run):
+
+```sh
+WEZ_REF=v1.0.0 bash <(curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh)
+# WEZ_REF also accepts a full commit SHA. The installer fetches the matching snapshot from
+#   https://codeload.github.com/castocolina/wezterm-setup/tar.gz/refs/tags/<tag>   (tag)
+#   https://codeload.github.com/castocolina/wezterm-setup/tar.gz/<sha>             (commit)
+```
+
+The downloaded `wez` binary is **SHA-256 verified before `chmod +x`** (a wrong or tampered binary
+aborts the install). Pinning + inspection close the residual content-authenticity gap that HTTPS
+alone leaves open.
+
+### Local / development install
+
+Already have the repo cloned? Run the local installer directly:
+
+```sh
+git clone https://github.com/castocolina/wezterm-setup
 cd wezterm-setup
 make install
 ```
-
-What `install` does:
-1. Injects a single `dofile(...)` line in your `~/.config/wezterm/wezterm.lua` between
-   sentinel comments — nothing else is touched.
-2. Creates a timestamped backup of your original config.
-3. Installs the `wez` CLI to `~/.local/bin/wez`.
-
-Re-running install detects the existing block and asks: override / restore backup / skip.
 
 ### Uninstall
 

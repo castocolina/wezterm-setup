@@ -3,11 +3,13 @@
 # See docs/agent-iteration.md (R3 — config layer is composable).
 
 .DEFAULT_GOAL := help
-.PHONY: help install clean doctor test uninstall
+.PHONY: help install build publish clean doctor test uninstall
 
 help:
 	@echo "wezterm-setup targets:"
 	@echo "  install                  inject sentinel block into wezterm.lua + install wez CLI"
+	@echo "  build                    build dist/wez (luastatic single binary, same path CI uses)"
+	@echo "  publish                  build + upload this platform's wez-<os>-<arch> asset to the release"
 	@echo "  clean                    wipe .tmp/ scratch; keep install intact"
 	@echo "  doctor                   diagnose install state and config health"
 	@echo "  test                     run test suite (set WEZTERM_INTEGRATION=1 for live tests)"
@@ -18,6 +20,12 @@ help:
 
 install:
 	@./tools/setup.sh
+
+build:
+	@./tools/build.sh
+
+publish:
+	@./tools/publish.sh
 
 clean:
 	@rm -rf .tmp/

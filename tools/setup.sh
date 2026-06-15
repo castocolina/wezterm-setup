@@ -75,7 +75,13 @@ if [ ! -x "${REPO_ROOT}/dist/wez" ]; then
   err "build did not produce ${REPO_ROOT}/dist/wez"
   exit 1
 fi
-install -m 0755 "${REPO_ROOT}/dist/wez" "${BIN_DIR}/wez"
+# Atomic install: stage into a temp in the SAME dir, then mv -f over the target.
+# Replacing a RUNNING wez (e.g. `wez update` shelling back through here) must not
+# truncate the live binary's inode in place (`ETXTBSY` / a torn binary) — a rename
+# swaps the directory entry atomically and the running process keeps its old inode.
+# Matches the temp-then-mv idiom already used for the managed config files below.
+install -m 0755 "${REPO_ROOT}/dist/wez" "${BIN_DIR}/wez.tmp.$$"
+mv -f "${BIN_DIR}/wez.tmp.$$" "${BIN_DIR}/wez"
 log "installed wez -> ${BIN_DIR}/wez"
 case ":${PATH}:" in
   *":${BIN_DIR}:"*) : ;;

@@ -43,6 +43,7 @@ local CATEGORIES = {
   ["install-state"] = "install",
   ["uninstall-state"] = "install",
   ["seed-scenes"] = "install",
+  ["update"] = "install",
   ["completions"] = "shell",
   ["pane"] = "identity",
   ["tab"] = "identity",
@@ -58,6 +59,7 @@ local SUBCOMMANDS = {
   "install-state",
   "uninstall-state",
   "seed-scenes",
+  "update",
   "completions",
   "pane",
   "tab",
@@ -119,6 +121,12 @@ function M.build_parser()
   -- Copy-if-absent install seeding of the example scene recipes (SCEN-06). No
   -- flags: all copy/keep decisions live in cli/commands/seed_scenes.lua (D-01).
   parser:command("seed-scenes", "Seed example scene recipes (copy-if-absent)")
+
+  -- update (Plan 06-05) --------------------------------------------------
+  -- Self-update front door (INST-09). No flags: the only Lua logic is the two
+  -- version-comparison decisions in cli/commands/update.lua (D-01); the actual
+  -- fetch/place/self-replace is delegated to the shared launcher (P6-D11).
+  parser:command("update", "Self-update wez, managed config, and WezTerm (newer nightly)")
 
   -- completions (Plan 07) ------------------------------------------------
   local completions = parser:command("completions", "Generate shell completions from this spec")

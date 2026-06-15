@@ -81,10 +81,45 @@ if [ "${#FILES[@]}" -eq 0 ]; then
   exit 0
 fi
 
+FAILED=0
+
+# --- Shell-syntax gate (bash -n) over tracked tools/*.sh -----------------------
+# Catch a syntactically broken installer/build/publish script in `make test`
+# BEFORE the Lua suite (the install.sh one-liner can't be safely EXECUTED in CI —
+# `curl|bash` is live RCE — so the gate is syntax-only; the live one-liner is
+# verified by the Plan 04 human checkpoint). If shellcheck is present we also run
+# `shellcheck -x` and report it, but a missing shellcheck never fails the suite.
+SHELL_SCRIPTS=()
+while IFS= read -r s; do
+  [ -f "$s" ] && SHELL_SCRIPTS+=("$s")
+done < <(find tools -maxdepth 1 -type f -name '*.sh' | sort)
+
+if [ "${#SHELL_SCRIPTS[@]}" -gt 0 ]; then
+  echo "run-tests: bash -n syntax gate over ${#SHELL_SCRIPTS[@]} tools/*.sh script(s)"
+  HAVE_SHELLCHECK=0
+  if command -v shellcheck >/dev/null 2>&1; then HAVE_SHELLCHECK=1; fi
+  for s in "${SHELL_SCRIPTS[@]}"; do
+    if bash -n "$s" 2>/dev/null; then
+      printf 'PASS  bash -n %s\n' "$s"
+    else
+      printf 'FAIL  bash -n %s\n' "$s"
+      bash -n "$s" || true
+      FAILED=$((FAILED + 1))
+    fi
+    if [ "$HAVE_SHELLCHECK" = "1" ]; then
+      if shellcheck -x "$s" >/dev/null 2>&1; then
+        printf 'PASS  shellcheck -x %s\n' "$s"
+      else
+        printf 'warn  shellcheck -x %s (advisory — not failing the suite)\n' "$s"
+      fi
+    fi
+  done
+  echo
+fi
+
 echo "run-tests: ${#FILES[@]} file(s) (integration=${INTEGRATION})"
 echo
 
-FAILED=0
 for f in "${FILES[@]}"; do
   if "${LUA_BIN}" "$f"; then
     printf 'PASS  %s\n' "$f"

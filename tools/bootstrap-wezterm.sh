@@ -8,12 +8,22 @@
 #
 # Flow:
 #   1. DETECT  — `wezterm --version`; if it parses to a version meeting the
-#      declared MINIMUM, REUSE it untouched and exit 0 (D-07 detection-first /
-#      non-destructive). Never modify a system install.
-#   2. SELECT  — only when missing/below-minimum: with a TTY, offer the rolling
+#      resolved WANT target (the latest-nightly datestamp by default, or the
+#      pinned date when WEZTERM_TARGET=pinned), REUSE it untouched and exit 0
+#      (D-07 detection-first / non-destructive). If a PROJECT user-path install
+#      (under ${BIN_DIR}) is BEHIND the want, UPDATE IT IN PLACE by reusing the
+#      STEP-3 fetch (P6-D09 / SC#8). A SYSTEM install (e.g. /usr/bin/wezterm) is
+#      NEVER fetched-over or sudo'd — it is left intact and a user-path copy that
+#      wins on PATH is offered instead (gated on wezterm_install_is_user_path).
+#   2. SELECT  — only when missing/below-want: with a TTY, offer the rolling
 #      `nightly` + the last 5 dated releases (via tools/lib/wezterm-release.sh)
-#      and read the user's pick; without a TTY, use the pinned known-good dated
-#      release for reproducibility (D-08).
+#      and read the user's pick; without a TTY, install the WEZTERM_TARGET
+#      (default `nightly`; `pinned`/explicit-tag is the reproducibility opt-in).
+#
+# Version policy (P6-D09): the install TARGET defaults to the rolling `nightly`
+# (WEZTERM_TARGET=nightly), INCLUDING the non-interactive pipe path. The pinned
+# dated release (WEZTERM_PINNED_RELEASE) stays an explicit opt-in via
+# WEZTERM_TARGET=pinned. WEZTERM_MIN_RELEASE remains the distinct reuse FLOOR.
 #   3. FETCH/EXTRACT/SYMLINK (Linux, verified now) — download the matching
 #      generic `.Ubuntu<base>.tar.xz` (NOT AppImage, no FUSE, no sudo — D-05),
 #      integrity-check it BEFORE extraction (T-02-01), extract into a fresh
@@ -35,11 +45,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib/wezterm-release.sh
 . "${SCRIPT_DIR}/lib/wezterm-release.sh"
 
-# Minimum acceptable WezTerm: the pinned known-good baseline (D-07/D-08). An
-# install at or above this date-stamp is REUSED untouched. WezTerm versions are
-# date-stamped (YYYYMMDD-HHMMSS-shortsha); the leading 8-digit date is the
-# monotonic comparator we gate on.
+# Reuse FLOOR: the absolute minimum a found install must meet before it is
+# considered usable at all (D-07/D-08). Distinct from the install TARGET below.
+# WezTerm versions are date-stamped (YYYYMMDD-HHMMSS-shortsha); the leading
+# 8-digit date is the monotonic comparator we gate on. An install BELOW this
+# floor always triggers a fresh fetch regardless of target.
 WEZTERM_MIN_RELEASE="${WEZTERM_MIN_RELEASE:-${WEZTERM_PINNED_RELEASE}}"
+
+# Install TARGET (P6-D09): the version the bootstrap aims to PLACE/UPDATE TO.
+# Defaults to the rolling `nightly` — including the non-interactive pipe path —
+# so the installer tracks the latest nightly by default. Set WEZTERM_TARGET=pinned
+# (or an explicit dated tag) to opt into the reproducible pinned release. This is
+# the install TARGET, distinct from the WEZTERM_MIN_RELEASE reuse FLOOR above.
+WEZTERM_TARGET="${WEZTERM_TARGET:-nightly}"
 
 # User-path install locations (D-04/D-05; T-02-03 — never a system path, never sudo).
 PREFIX="${WEZTERM_BOOTSTRAP_PREFIX:-${HOME}/.local/opt/wezterm}"
@@ -61,43 +79,190 @@ wezterm_datestamp_ge() {
   [ -n "$1" ] && [ -n "$2" ] && [ "$1" -ge "$2" ]
 }
 
+# Resolve the latest-nightly want-datestamp (06-01-SUMMARY Open-Q1 verdict).
+#
+# Query: GET ${WEZTERM_RELEASE_API}/repos/${WEZTERM_RELEASE_REPO}/releases/tags/nightly
+# (official wez/wezterm HTTPS only, via the same curl-or-wget shape as
+# _wezterm_fetch in wezterm-release.sh — DO NOT add a new fetcher). From that
+# rolling-tag release, take the OS-base-matched asset's PER-ASSET `updated_at`
+# (NEVER the release-level published_at/created_at, which are frozen at the tag's
+# 2017/2019 creation and would falsely report "never newer") and reduce it to the
+# leading 8-digit YYYYMMDD, comparable by wezterm_datestamp_ge.
+#
+# GRACEFUL DEGRADATION (T-06-06-01): a failed/garbage/unparseable fetch prints
+# NOTHING (empty want). The caller treats an empty want as a NO-OP (reuse
+# untouched) so a tampered/missing "newer?" signal can NEVER force a swap. We
+# never fabricate a datestamp.
+latest_nightly_datestamp() {
+  local api_url base asset_name json updated
+  api_url="${WEZTERM_RELEASE_API}/repos/${WEZTERM_RELEASE_REPO}/releases/tags/nightly"
+
+  # Match the asset to THIS host's OS base so we compare like-for-like (Ubuntu20
+  # lags 24 by months — Open-Q1 caveat). macOS stays design-only (D-06/D-18).
+  case "$(platform_os)" in
+    linux)
+      base="$(platform_ubuntu_base 2>/dev/null)" || base=""
+      [ -n "${base}" ] && asset_name="wezterm-nightly.Ubuntu${base}.tar.xz"
+      ;;
+    macos) asset_name="WezTerm-macos-nightly.zip" ;;
+  esac
+  [ -n "${asset_name:-}" ] || return 0
+
+  json="$(_wezterm_fetch "${api_url}" 2>/dev/null)" || return 0
+  [ -n "${json}" ] || return 0
+
+  # Pull the `updated_at` that belongs to the matched asset's object. We scope to
+  # the window AFTER the asset's "name" and grab the NEXT updated_at — robust to
+  # the assets[] ordering without a strict full-document jq parse (the releases
+  # payload can carry C0 control chars in bodies; see wezterm-release.sh).
+  updated="$(printf '%s' "${json}" \
+    | tr ',' '\n' \
+    | grep -A40 -F "\"${asset_name}\"" 2>/dev/null \
+    | grep -oE '"updated_at"[[:space:]]*:[[:space:]]*"[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+    | head -n1 \
+    | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+    | head -n1 \
+    | tr -d '-')"
+
+  # Only emit a real 8-digit stamp; anything else degrades to empty (no-op).
+  case "${updated}" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) printf '%s\n' "${updated}" ;;
+    *) return 0 ;;
+  esac
+}
+
+# Resolve the WANT datestamp the active install is compared against:
+#   - WEZTERM_TARGET=nightly (default) -> the latest-nightly datestamp (may be
+#     empty on fetch failure -> caller treats as no-op / never a forced swap).
+#   - otherwise (pinned / explicit dated tag) -> the datestamp of that target,
+#     defaulting to WEZTERM_PINNED_RELEASE when WEZTERM_TARGET=pinned.
+resolve_want_datestamp() {
+  if [ "${WEZTERM_TARGET}" = "nightly" ]; then
+    latest_nightly_datestamp
+    return 0
+  fi
+  local target="${WEZTERM_TARGET}"
+  [ "${target}" = "pinned" ] && target="${WEZTERM_PINNED_RELEASE}"
+  wezterm_version_datestamp "${target}"
+}
+
+# Install-kind predicate (P6-D09 safety gate / Blocker 3). Returns 0 (true) iff
+# the active `wezterm` binary resolves UNDER ${BIN_DIR} (the project user-path
+# install), non-zero (false) for any other path (e.g. /usr/bin/wezterm — the
+# verified apt `wezterm-nightly` SYSTEM install). The update-in-place branch and
+# any symlink swap are GATED on this = user-path so a system install is NEVER
+# fetched-over or sudo'd. Reusable by cli/commands/update.lua (Plan 05).
+#
+# Arg: $1 = a wezterm path to classify; when omitted, resolves the active one via
+# `command -v wezterm`. Pure path compare — unit-testable by sourcing the script.
+wezterm_install_is_user_path() {
+  local path="${1:-}"
+  if [ -z "${path}" ]; then
+    path="$(command -v wezterm 2>/dev/null || true)"
+  fi
+  [ -n "${path}" ] || return 1
+  case "${path}" in
+    "${BIN_DIR}/"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- STEP 1: DETECT / REUSE --------------------------------------------------
 
 # If an adequate WezTerm is already present, reuse it untouched and exit 0.
-# Returns 0 if it handled the bootstrap (reused), 1 if a fetch is required.
+# When a PROJECT user-path install is BEHIND the resolved WANT (the latest-nightly
+# datestamp by default), UPDATE IT IN PLACE by reusing the STEP-3 fetch (SC#8 /
+# P6-D09). A SYSTEM install is NEVER fetched-over or sudo'd — it is left intact and
+# routed to a user-path placement that wins on PATH.
+#
+# Returns 0 if it handled the bootstrap (reused or updated in place), 1 if main()
+# must proceed to select_release + install_linux (fresh / user-path placement).
 detect_and_reuse() {
   command -v wezterm >/dev/null 2>&1 || return 1
 
-  local ver have want
+  local ver wez_path have floor want
   ver="$(wezterm --version 2>/dev/null || true)"
+  wez_path="$(command -v wezterm 2>/dev/null || true)"
   have="$(wezterm_version_datestamp "${ver}")"
-  want="$(wezterm_version_datestamp "${WEZTERM_MIN_RELEASE}")"
+  # Reuse FLOOR (the absolute minimum) and install WANT (the target: latest
+  # nightly by default, else the pinned/explicit-tag date). These are distinct.
+  floor="$(wezterm_version_datestamp "${WEZTERM_MIN_RELEASE}")"
+  want="$(resolve_want_datestamp)"
 
   if [ -z "${have}" ]; then
     log "found a wezterm on PATH but could not parse its version ('${ver}') — treating as below minimum"
     return 1
   fi
 
-  if wezterm_datestamp_ge "${have}" "${want}"; then
-    log "existing WezTerm '${ver}' meets minimum ${WEZTERM_MIN_RELEASE} — reusing it untouched (D-07)"
-    if [ "$(command -v wezterm)" != "${BIN_DIR}/wezterm" ]; then
+  # Below the absolute floor -> always a fresh fetch, regardless of target.
+  if ! wezterm_datestamp_ge "${have}" "${floor}"; then
+    log "existing WezTerm '${ver}' is below minimum ${WEZTERM_MIN_RELEASE} — will fetch a newer release"
+    return 1
+  fi
+
+  # At/above the floor. Decide against the WANT target.
+  #   - empty want (degraded/failed latest-nightly fetch) -> treat as no-op
+  #     (reuse untouched); a garbage "newer?" signal NEVER forces a swap (T-06-06-01).
+  #   - have >= want                                      -> reuse untouched (no-op).
+  if [ -z "${want}" ] || wezterm_datestamp_ge "${have}" "${want}"; then
+    if [ -z "${want}" ]; then
+      log "could not resolve a latest-nightly want — reusing existing WezTerm '${ver}' untouched (no forced swap)"
+    else
+      log "existing WezTerm '${ver}' meets target ${want} (>= floor ${WEZTERM_MIN_RELEASE}) — reusing it untouched (D-07)"
+    fi
+    # Install-kind detection lives in the reusable wezterm_install_is_user_path()
+    # predicate (Blocker 3); here it is informational only.
+    if ! wezterm_install_is_user_path "${wez_path}"; then
       log "note: reused install is outside ${BIN_DIR} (likely a system/managed install); leaving it intact"
     fi
     return 0
   fi
 
-  log "existing WezTerm '${ver}' is below minimum ${WEZTERM_MIN_RELEASE} — will fetch a newer release"
+  # have < want: a newer nightly exists. The update-in-place + any swap are GATED
+  # on the user-path predicate (P6-D09 Blocker 3).
+  if wezterm_install_is_user_path "${wez_path}"; then
+    # Project user-path install behind the want -> UPDATE IN PLACE by REUSING the
+    # existing STEP-3 fetch/extract/symlink (install_linux). Never re-implement
+    # fetch; never touch a system path (SC#8).
+    log "project user-path WezTerm '${ver}' (${have}) is behind target ${want} — updating in place"
+    if install_linux "$(select_release)"; then
+      return 0
+    fi
+    err "in-place update failed; leaving the existing user-path install in place"
+    return 0
+  fi
+
+  # System install (e.g. /usr/bin/wezterm, the apt wezterm-nightly case) behind
+  # the want -> NEVER fetch-over/sudo it. Leave it intact and route main() to a
+  # user-path placement under ${BIN_DIR} that wins on PATH (install_linux writes
+  # ONLY under ${PREFIX}/${BIN_DIR} — sudo-free, system path untouched).
+  log "a newer nightly (${want}) is available, but the active WezTerm '${wez_path}' is a SYSTEM install — leaving it intact (no sudo)"
+  log "will place a user-path copy under ${BIN_DIR} that wins on PATH (P6-D09)"
   return 1
 }
 
 # --- STEP 2: SELECT ----------------------------------------------------------
 
 # Echo the release tag to install. With a TTY, present nightly + last 5 dated and
-# read a pick; without a TTY, use the pinned known-good default (D-08).
+# read a pick; without a TTY, install WEZTERM_TARGET — the rolling `nightly` by
+# default (P6-D09), or the pinned/explicit dated tag when WEZTERM_TARGET=pinned
+# (or set to a literal tag) for reproducibility (D-08).
 select_release() {
   if [ ! -t 0 ]; then
-    log "no TTY on stdin — selecting pinned known-good release ${WEZTERM_PINNED_RELEASE} (D-08)" >&2
-    printf '%s\n' "${WEZTERM_PINNED_RELEASE}"
+    case "${WEZTERM_TARGET}" in
+      nightly)
+        log "no TTY on stdin — targeting the rolling 'nightly' (P6-D09 default)" >&2
+        printf '%s\n' "nightly"
+        ;;
+      pinned)
+        log "no TTY on stdin — WEZTERM_TARGET=pinned: selecting pinned release ${WEZTERM_PINNED_RELEASE} (D-08)" >&2
+        printf '%s\n' "${WEZTERM_PINNED_RELEASE}"
+        ;;
+      *)
+        log "no TTY on stdin — WEZTERM_TARGET is an explicit tag: selecting ${WEZTERM_TARGET}" >&2
+        printf '%s\n' "${WEZTERM_TARGET}"
+        ;;
+    esac
     return 0
   fi
 

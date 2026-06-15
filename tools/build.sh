@@ -25,9 +25,10 @@
 #      download the matching prebuilt `wez` release binary (asset via
 #      tools/lib/platform.sh) and place it at dist/wez. SECURITY (T-01-01): the
 #      release tag is PINNED and the download is verified against a published
-#      SHA-256 checksum BEFORE chmod +x; a checksum mismatch aborts non-zero. We
-#      never run an unverified download. This path is dormant until real releases
-#      exist (the WEZ_RELEASE_BASE placeholder `github.com/you/...` stays).
+#      per-asset `<asset>.sha256` checksum BEFORE chmod +x; a checksum mismatch
+#      aborts non-zero. We never run an unverified download. The base points at
+#      the real `github.com/castocolina/wezterm-setup/releases/download`; the
+#      path stays dormant until the first `v*` release asset exists.
 #
 # Usage:
 #   ./tools/build.sh                         # local build: luastatic -> dev launcher
@@ -47,7 +48,7 @@ ENTRY="cli/wez.lua"
 
 # Pinned release for the download fallback (T-01-01: never "latest").
 WEZ_RELEASE_TAG="${WEZ_RELEASE_TAG:-v0.1.0}"
-WEZ_RELEASE_BASE="${WEZ_RELEASE_BASE:-https://github.com/you/wezterm-setup/releases/download}"
+WEZ_RELEASE_BASE="${WEZ_RELEASE_BASE:-https://github.com/castocolina/wezterm-setup/releases/download}"
 
 mkdir -p "${DIST_DIR}"
 
@@ -105,7 +106,8 @@ download_release() {
   arch="$(platform_arch)"
   asset="wez-${os}-${arch}"
   url="${WEZ_RELEASE_BASE}/${WEZ_RELEASE_TAG}/${asset}"
-  sums_url="${WEZ_RELEASE_BASE}/${WEZ_RELEASE_TAG}/SHA256SUMS"
+  # Per-asset checksum (Plan 01 Open Q2 verdict): one line, '<64-hex>  <name>'.
+  sums_url="${WEZ_RELEASE_BASE}/${WEZ_RELEASE_TAG}/${asset}.sha256"
 
   log "Lua toolchain absent -> release-download fallback (${WEZ_RELEASE_TAG}, ${asset})"
 
@@ -134,13 +136,19 @@ download_release() {
   fi
 
   # T-01-01: verify SHA-256 BEFORE making it executable. Abort on mismatch.
+  # The per-asset `.sha256` is a single line, so take field 1 of that one line.
   local want got
-  want="$(grep -E "  ${asset}\$|\\*${asset}\$" "${sums}" | awk '{print $1}' | head -n1)"
+  want="$(awk '{print $1}' "${sums}")"
   if [ -z "${want}" ]; then
-    log "ERROR: no checksum for ${asset} in SHA256SUMS — refusing unverified download"
+    log "ERROR: no checksum for ${asset} in ${asset}.sha256 — refusing unverified download"
     return 1
   fi
-  got="$(sha256sum "${tmp}" | awk '{print $1}')"
+  # Portable digest (Pitfall 4): macOS has no `sha256sum`, only `shasum -a 256`.
+  if command -v sha256sum >/dev/null 2>&1; then
+    got="$(sha256sum "${tmp}" | awk '{print $1}')"
+  else
+    got="$(shasum -a 256 "${tmp}" | awk '{print $1}')"
+  fi
   if [ "${want}" != "${got}" ]; then
     log "ERROR: checksum mismatch for ${asset} (want ${want}, got ${got}) — aborting"
     return 1
