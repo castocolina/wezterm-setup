@@ -18,6 +18,17 @@
 -- Exposes main(argv) -> number so dispatch is unit-testable without os.exit.
 -- Only calls os.exit when run as the program's main chunk.
 
+-- Capture how this chunk was invoked. Lua passes the require KEY as the first
+-- vararg to a chunk loaded via `require` (so `... == "cli.wez"` in tests), but the
+-- CLI ARGS to a main chunk. This is the ONLY signal that holds across all three
+-- runtimes: the dev launcher (`lua5.4 cli/wez.lua` — arg[0] ends with wez.lua),
+-- the shipped luastatic single binary (arg[0] is the executable `wez`, NOT a
+-- *.lua path), and `require("cli.wez")` in unit tests. The previous arg[0]
+-- =~ /wez%.lua$/ heuristic silently disabled main() inside the luastatic binary,
+-- so the shipped artifact ran nothing and exited 0 (the bug that made every
+-- prebuilt install inert).
+local INVOKED_AS = ...
+
 -- Path bootstrap (source runs only): make `cli.*` and the vendored deps
 -- requireable regardless of the invocation CWD, by anchoring on this file's
 -- directory. Inside the luastatic bundle this is a no-op (modules are baked in
@@ -128,13 +139,11 @@ function M.main(argv)
 end
 
 -- Run as a program only when invoked directly (not when required as a module).
--- Detect "main chunk" by checking whether this file was the script Lua launched.
+-- When loaded via `require("cli.wez")` (unit tests), INVOKED_AS is the module
+-- name and we must NOT run main; in every program-entry runtime (dev launcher,
+-- luastatic binary) INVOKED_AS is a CLI arg (or nil), never the require key.
 local function is_main()
-  -- When run via `lua5.4 cli/wez.lua`, arg[0] ends with wez.lua and there is no
-  -- enclosing require. Heuristic: if the global `arg` table exists and this
-  -- module was not loaded through require (pcall require returns cached table),
-  -- fall back to checking arg[0].
-  return type(arg) == "table" and type(arg[0]) == "string" and arg[0]:match("wez%.lua$") ~= nil
+  return INVOKED_AS ~= "cli.wez"
 end
 
 if is_main() then

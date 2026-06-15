@@ -67,30 +67,57 @@ have_luastatic() {
 build_with_luastatic() {
   log "luastatic toolchain present -> static single-binary build"
 
-  # Locate the Lua 5.4 headers for luastatic linking.
-  local lua_incdir
-  lua_incdir="$(pkg-config --variable=includedir lua5.4 2>/dev/null || true)"
-  [ -z "${lua_incdir}" ] && lua_incdir="/usr/include/lua5.4"
+  # Resolve the Lua 5.4 compile flags for luastatic. Use `pkg-config --cflags`,
+  # NOT `--variable=includedir`: on Debian/Ubuntu the .pc includedir is /usr/include
+  # while the actual headers (lauxlib.h, lua.h) live in /usr/include/lua5.4, so
+  # `--cflags` is the only query that yields the correct `-I/usr/include/lua5.4`.
+  # Try the common .pc names across distros, then fall back to the Debian path.
+  local lua_cflags
+  lua_cflags="$(pkg-config --cflags lua5.4 2>/dev/null \
+    || pkg-config --cflags lua-5.4 2>/dev/null \
+    || pkg-config --cflags lua 2>/dev/null \
+    || echo '-I/usr/include/lua5.4')"
 
-  # Collect every Lua source under cli/ (entry + spec + commands + vendored deps)
-  # so luastatic bakes them in by their module names.
+  # luastatic must also LINK the Lua interpreter — locate the static archive.
+  # Debian ships it as liblua5.4.a; other distros as liblua.a. Passing it
+  # explicitly (per luastatic's documented form) avoids relying on a `-llua`
+  # auto-guess that fails under Debian's versioned library naming.
+  local lua_libdir liblua=""
+  lua_libdir="$(pkg-config --variable=libdir lua5.4 2>/dev/null \
+    || pkg-config --variable=libdir lua 2>/dev/null || true)"
+  local cand
+  for cand in \
+    "${lua_libdir}/liblua5.4.a" "${lua_libdir}/liblua.a" \
+    /usr/lib/*/liblua5.4.a /usr/lib/liblua5.4.a /usr/local/lib/liblua5.4.a \
+    /usr/lib/*/liblua.a /usr/local/lib/liblua.a; do
+    [ -f "${cand}" ] && { liblua="${cand}"; break; }
+  done
+
+  # Collect every Lua source under cli/ (entry + spec + commands + vendored deps).
+  # CRITICAL: luastatic derives each bundled module's name from the PATH STRING it
+  # is given, so we must invoke it from REPO_ROOT with RELATIVE paths (cli/spec.lua
+  # -> module `cli.spec`). Absolute paths would bake in names like
+  # `home.user.repo.cli.spec`, and every `require("cli.spec")` in the binary would
+  # fail at runtime. So paths here stay relative and luastatic runs with cwd=REPO_ROOT.
   local sources=()
   while IFS= read -r f; do sources+=("$f"); done \
     < <(find cli -type f -name '*.lua' ! -name 'wez.lua' | sort)
 
   (
-    cd "${DIST_DIR}"
-    # luastatic <main.lua> <module.lua...> liblua.a -I<headers>
-    luastatic "${REPO_ROOT}/${ENTRY}" \
-      "${sources[@]/#/${REPO_ROOT}/}" \
-      -I"${lua_incdir}"
+    cd "${REPO_ROOT}"
+    # luastatic <main.lua> <module.lua...> [liblua.a] <cflags>
+    # shellcheck disable=SC2086
+    luastatic "${ENTRY}" \
+      "${sources[@]}" \
+      ${liblua:+"${liblua}"} \
+      ${lua_cflags}
   )
 
-  # luastatic writes <name> (and a <name>.c). Normalize the artifact to dist/wez.
-  if [ -f "${DIST_DIR}/wez" ]; then
-    :
-  elif [ -f "${DIST_DIR}/wez.lua" ]; then
-    mv "${DIST_DIR}/wez.lua" "${OUT}"
+  # luastatic writes ./<name> (and ./<name>.c) into the cwd (REPO_ROOT). Normalize
+  # the binary to dist/wez and clean up the generated C translation unit.
+  rm -f "${REPO_ROOT}/wez.luastatic.c"
+  if [ -f "${REPO_ROOT}/wez" ]; then
+    mv "${REPO_ROOT}/wez" "${OUT}"
   fi
   chmod +x "${OUT}"
   log "built static binary: ${OUT}"
@@ -184,14 +211,25 @@ main() {
   if have_luastatic; then
     build_with_luastatic
   elif [ "${WEZ_REMOTE_BOOTSTRAP:-0}" = "1" ]; then
-    # REMOTE bootstrap path ONLY (the future curl|bash installer opts in with
-    # WEZ_REMOTE_BOOTSTRAP=1). Try the pinned+verified release download; if that
-    # is not reachable (e.g. no releases published yet) fall back to the dev
-    # launcher so the installer still yields a runnable dist/wez.
-    if download_release; then
-      :
-    else
-      build_dev_launcher
+    # REMOTE bootstrap path ONLY (the curl|bash installer opts in with
+    # WEZ_REMOTE_BOOTSTRAP=1). The ONLY acceptable artifact here is the verified
+    # prebuilt static binary. We must NEVER fall back to the dev source-launcher:
+    # it bakes in REPO_ROOT pointing at install.sh's ephemeral temp checkout, which
+    # is deleted on exit — leaving a `wez` that dies with "cannot open
+    # /tmp/.../cli/wez.lua". Detect the missing artifact and STOP LOUDLY with
+    # actionable instructions rather than installing something broken.
+    if ! download_release; then
+      local os arch
+      os="$(platform_os)"; arch="$(platform_arch)"
+      log "ERROR: no prebuilt wez binary available for this platform (wez-${os}-${arch})."
+      log "  The remote installer requires a published release asset and will NOT"
+      log "  build from source on your machine (sudo-free invariant: no toolchain"
+      log "  is installed for you)."
+      log "  Likely cause: no release published yet for tag '${WEZ_RELEASE_TAG}', or"
+      log "  no asset exists for ${os}-${arch}. Check the releases page:"
+      log "    ${WEZ_RELEASE_BASE%/download}/tag/${WEZ_RELEASE_TAG}"
+      log "  Then re-run the installer once the asset is available."
+      exit 1
     fi
   else
     # LOCAL source build: NEVER touch the network. luastatic absent -> the dev
@@ -200,11 +238,16 @@ main() {
     build_dev_launcher
   fi
 
-  # Smoke-verify the produced artifact.
-  if "${OUT}" version >/dev/null 2>&1; then
-    log "verify: '${OUT} version' OK"
+  # Smoke-verify the produced artifact. Assert NON-EMPTY output, not just exit 0:
+  # the previous luastatic binary exited 0 while running nothing (broken is_main),
+  # so an exit-code-only check would have shipped an inert binary. Requiring real
+  # `version` output catches that failure mode at build time.
+  local smoke
+  if smoke="$("${OUT}" version 2>/dev/null)" && [ -n "${smoke}" ]; then
+    log "verify: '${OUT} version' OK (${smoke})"
   else
-    log "ERROR: '${OUT} version' did not exit 0"
+    log "ERROR: '${OUT} version' produced no output or non-zero exit — refusing to"
+    log "       ship an inert binary."
     exit 1
   fi
 }
