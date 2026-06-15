@@ -2,7 +2,7 @@
 
 **Milestone:** v1  
 **Granularity:** Coarse  
-**Coverage:** 32/32 v1 requirements mapped + Phase 0 (validation, no REQUIREMENTS.md items)
+**Coverage:** 34/34 v1 requirements mapped + Phase 0 (validation, no REQUIREMENTS.md items)
 
 ---
 
@@ -14,7 +14,7 @@
 - [x] **Phase 3: Tab Identity** - Per-tab accent color and title via `wez tab` (mechanism proven) (completed 2026-06-12)
 - [x] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes (completed 2026-06-13, Linux; macOS deferred)
 - [x] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
-- [ ] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs
+- [x] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs (completed 2026-06-15)
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
 
 > **macOS parity is now Phase 7 (D-18).** All features are Linux-verified; the batched macOS pass
@@ -157,17 +157,36 @@ Plans:
 
 **Goal**: A new user can install and configure wezterm-setup with a single pasted command — no manual git clone, no multi-step setup
 **Depends on**: Phase 5
-**Requirements**: INST-07 (builds on the INST-06 WezTerm bootstrap + the existing `tools/setup.sh` asset placement + `wez doctor`)
+**Requirements**: INST-07 (ergonomic one-line remote installer + README), INST-08 (cross-platform build-and-publish pipeline — CI matrix + local `make build/install/publish`), INST-09 (`wez update` self-update via the shared launcher). Builds on the INST-06 WezTerm bootstrap, the existing `tools/setup.sh` asset placement, the dormant `WEZ_REMOTE_BOOTSTRAP=1` path in `tools/build.sh`, and `wez doctor`.
+
+> Real remote configured: `github.com/castocolina/wezterm-setup` (default `main`) — raw base
+> `raw.githubusercontent.com/castocolina/wezterm-setup/main/…`, releases at
+> `github.com/castocolina/wezterm-setup/releases/download/…`.
 
 **Success Criteria** (what must be TRUE):
 
-1. A single `curl -fsSL <raw-github-url> | bash` (and a `wget -qO- … | bash` variant) downloads the repo to a temporary path and runs the full setup unattended
-2. The bootstrap installs or updates WezTerm sudo-free (reusing INST-06), copies the managed assets via `tools/setup.sh`, and finishes by running `wez doctor` with a clear pass/fail
+1. A single `curl -fsSL <raw-github-url> | bash` (and a `wget -qO- … | bash` variant) downloads the repo to a temporary path and runs the full setup
+2. The bootstrap installs or updates WezTerm sudo-free (reusing INST-06), downloads the matching `wez` release binary for the detected OS+arch, copies the managed assets via `tools/setup.sh`, and finishes by running `wez doctor` with a clear pass/fail
 3. The temp checkout is cleaned up — nothing is left behind after a successful run
-4. README.md documents the one-line install plus post-install/config steps, with both the `curl|bash` and `wget` variants
-5. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, integrity verification) — captured as a threat model at plan time
+4. README.md documents the one-line install plus post-install/config steps (both `curl|bash` and `wget` variants), authored/reviewed with the `crafting-effective-readmes` skill
+5. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, pin-to-tag/commit, binary checksum) — captured as a threat model at plan time
+6. Interactive prompts (re-install decision, version selection) work under the pipe by reading from `/dev/tty`; a genuinely headless run keeps the non-zero abort (D-03)
+7. A GitHub Actions matrix builds and publishes per-OS/arch `wez` assets (`linux-x86_64`, `darwin-x86_64`, `darwin-aarch64`; Silicon ad-hoc-codesigned); a maintainer can equally `make build && make publish` from Linux or macOS. The launcher selects the asset by detected OS+arch and errors clearly when none exists. *(macOS asset build is wired here; its on-Mac verification is Phase 7.)*
+8. `wez update` checks for and applies updates by invoking the same launcher as the one-liner — refreshing the `wez` binary, managed assets, and WezTerm (when a newer `nightly` exists); update-in-place only for the user-path install, never a system install; a clear no-op when current; completion-wired
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+- [x] 06-01-PLAN.md — Spike the latest-nightly datestamp query (Open Q1) + per-asset .sha256 contract (Open Q2) [wave 1]
+- [x] 06-02-PLAN.md — INST-08 supply side: repoint download_release() to castocolina + per-asset .sha256 + make build/publish [wave 2]
+- [x] 06-03-PLAN.md — INST-08 CI: tag-triggered GitHub Actions release matrix (linux-x86_64, macos-15-intel, macos-14) [wave 2]
+- [x] 06-06-PLAN.md — WezTerm nightly default + update-in-place + wezterm_install_is_user_path() predicate (P6-D09) [wave 2]
+- [x] 06-04-PLAN.md — INST-07 consume side: pipe-safe tools/install.sh one-liner + README rewrite + trust model [wave 3]
+- [x] 06-05-PLAN.md — INST-09: wez update (split semver/datestamp comparators) delegating to the shared launcher [wave 3]
+
+**No-AppImage/No-Flatpak invariant** — every layer is plain user-path artifacts, sudo-free.
+**Default target = `nightly`**, with update-in-place scoped to the project-managed user-path install only (a system install is never modified).
 
 ---
 
@@ -199,7 +218,7 @@ Plans:
 | 3. Tab Identity | 4/4 | Complete    | 2026-06-12 |
 | 4. Ad-hoc Scenes | 3/3 | Complete | 2026-06-13 |
 | 5. Named Scenes | 4/4 | Complete | 2026-06-14 |
-| 6. Ergonomic Installer | 0/? | Not started | - |
+| 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started | - |
 
 ---
@@ -241,10 +260,12 @@ Plans:
 | SCEN-06 | Phase 5 | Done (05-02, Linux; macOS deferred D-18) |
 
 | INST-07 | Phase 6 | Pending (ergonomic one-line `curl\|bash` remote installer + README) |
+| INST-08 | Phase 6 | Pending (cross-platform CI matrix + local `make build/install/publish`) |
+| INST-09 | Phase 6 | Pending (`wez update` self-update via the shared launcher) |
 
-**v1 coverage: 32/32 requirements mapped (INST-07 added 2026-06-14). Phase 0 carries validation work only (no REQUIREMENTS.md items). Phase 7 is the macOS verification gate (D-18) — no new IDs.**
+**v1 coverage: 34/34 requirements mapped (INST-07 + INST-08 + INST-09 added 2026-06-14). Phase 0 carries validation work only (no REQUIREMENTS.md items). Phase 7 is the macOS verification gate (D-18) — no new IDs.**
 
 ---
 
 *Roadmap created: 2026-06-07*  
-*Last updated: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18)*
+*Last updated: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18); discuss-phase 6 added INST-08 (cross-platform build/publish pipeline)*

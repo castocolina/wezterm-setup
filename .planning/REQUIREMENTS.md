@@ -13,7 +13,9 @@
 - [x] **INST-04**: Uninstall removes managed config, companion CLI, and sentinel block with no trace — 01-06 (`wez uninstall-state` excises the block leaving user lines byte-identical; T-06-01)
 - [x] **INST-05**: Uninstall supports granular flags: `--keep-config`, `--keep-backup`, `--keep-cli` — 01-06 (`plan_removal` honors each keep-flag; sudo-free glue via `tools/uninstall.sh`)
 - [x] **INST-06**: Install bootstraps the WezTerm emulator itself, sudo-free, into a user path (Linux: `*.Ubuntu<base>.tar.xz` extracted to `~/.local`; macOS: `.app` to `~/Applications`). Reuses an existing WezTerm that meets a minimum version (non-destructive — never touches a system install); otherwise offers an interactive version selection (rolling `nightly` + last 5 dated releases) with a pinned known-good dated release as the non-interactive default. AppImage is explicitly avoided (libfuse2 dependency)
-- [ ] **INST-07**: An ergonomic one-line remote installer — `curl -fsSL <raw-url> | bash` (with a `wget -qO- … | bash` variant) — downloads the repo to a temporary path, installs/updates WezTerm sudo-free (INST-06), copies the managed assets via the existing setup, runs `wez doctor`, and cleans up the temp checkout. README.md documents the one-liner plus post-install/config steps. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, integrity verification). *(Added 2026-06-14; Phase 6.)*
+- [ ] **INST-07**: An ergonomic one-line remote installer — `curl -fsSL <raw-url> | bash` (with a `wget -qO- … | bash` variant) — downloads the repo to a temporary path, installs/updates WezTerm sudo-free (INST-06), copies the managed assets via the existing setup, runs `wez doctor`, and cleans up the temp checkout. README.md documents the one-liner plus post-install/config steps. The pipe-to-bash entry point ships with a documented trust model (inspect-before-run guidance, integrity verification). The installer reads interactive prompts from `/dev/tty` so re-install (INST-03) and version selection stay interactive under the pipe; a genuinely headless run keeps the non-zero abort. *(Added 2026-06-14; Phase 6.)*
+- [ ] **INST-08**: The `wez` binary is produced by a cross-platform build-and-publish pipeline. A GitHub Actions matrix builds and publishes a per-OS/arch release asset (`linux-x86_64`, `darwin-x86_64`/Intel, `darwin-aarch64`/Apple Silicon — the Silicon asset ad-hoc-codesigned). A maintainer can equally build, dogfood-install (downloads WezTerm + uses the locally built `wez`), and publish the asset for their own platform from **either Linux or macOS** via `make build` / `make install` / `make publish`. The remote installer (INST-07) selects the asset by detected OS+arch and errors clearly when none exists for the platform. No AppImage/Flatpak, sudo-free, user-path only. *(Added 2026-06-14; Phase 6.)*
+- [ ] **INST-09**: A `wez update` subcommand checks for and applies updates without retyping the remote URL — it invokes the **same GitHub launcher** the `curl|bash` one-liner uses (single entry point) to refresh the `wez` binary, the managed config assets, and (when a newer `nightly` is available) the WezTerm emulator. It honors the same constraints: sudo-free, never modifies a system install, update-in-place only for the project-managed user-path install (INST-08/P6-D09), and the same trust model (INST-07). It is a clear no-op when already current, and is completion-wired via the spec (DIAG-05/D-16). *(Added 2026-06-14; Phase 6.)*
 
 ### Foundation Behaviors
 
@@ -87,6 +89,8 @@
 | INST-05 | Phase 1 | Done (01-06) |
 | INST-06 | Phase 1 | Done (01-02, Linux; macOS deferred D-06/D-18) |
 | INST-07 | Phase 6 | Pending (ergonomic one-line installer + README) |
+| INST-08 | Phase 6 | Pending (cross-platform CI + local `make build/install/publish`) |
+| INST-09 | Phase 6 | Pending (`wez update` self-update via the shared launcher) |
 | FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
@@ -115,8 +119,8 @@
 
 **Coverage:**
 
-- v1 requirements: 32 total (INST-07 added 2026-06-14)
-- Mapped to phases: 32
+- v1 requirements: 34 total (INST-07 + INST-08 + INST-09 added 2026-06-14)
+- Mapped to phases: 34
 - Unmapped: 0 ✓
 - Note: Phase 7 (macOS Parity, D-18) is a verification gate over the platform-sensitive subset — it adds no new requirement IDs.
 

@@ -34,6 +34,19 @@
 - **Still open (minor, low priority):** `--pane` / `--title` values don't complete (no obvious
   closed candidate set for a `--pane` spec).
 
+### A-3 `wez update` post-install launcher resolution (Phase 6 code-review, deferred)
+- [ ] **Wire the installed binary to its companion shell scripts.** `cli/commands/update.lua`
+      resolves `tools/install.sh` (launcher) + `tools/bootstrap-wezterm.sh` (the
+      `wezterm_install_is_user_path` predicate + `resolve_want_datestamp`) via `repo_root()`,
+      which inside the shipped luastatic bundle depends on `WEZ_REPO_DIR`. `tools/setup.sh`
+      does **not** export `WEZ_REPO_DIR` nor place those scripts in a stable managed location,
+      so `wez update`'s live delegation only works from a checkout today. Fix alongside cutting
+      the first `vN.N.N` release (Open Q3): have `setup.sh` place `install.sh` +
+      `bootstrap-wezterm.sh` under `${SETUP_DIR}/` and export `WEZ_REPO_DIR`, **or** have
+      `update.lua` fall back to the remote `curl …/install.sh | bash` one-liner. The pure
+      comparators + system-install guard are unaffected and fully tested.
+      *(Phase 6 review Important #2; pure-logic half verified, live delegation is the gap.)*
+
 ### A-2 UX backlog from the Phase 5 review (deferred, not blocking)
 - [ ] `wez scene list` — a first-class, non-error "what can I launch?" browse surface
       (reuses the existing `list_recipe_names` provider; closes the discoverability gap).

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Executing Phase 05
-last_updated: "2026-06-14T14:13:22Z"
+status: Phase 06 complete (verified passed-with-concerns) — Phase 07 (macOS) remaining
+last_updated: "2026-06-15T12:00:00Z"
 progress:
-  total_phases: 6
-  completed_phases: 5
-  total_plans: 27
-  completed_plans: 27
-  percent: 100
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 33
+  completed_plans: 33
+  percent: 88
 ---
 
 # Project State: wezterm-setup
@@ -26,17 +26,14 @@ progress:
 
 ## Current Position
 
-Phase: 05 (named-scenes) — ALL PLANS COMPLETE (4/4)
-Plan: 4 of 4 complete
-**Current Phase**: Phase 5 — Named Scenes (wave 3 of 3 done)
-**Current Plan**: 05-04 complete — dynamic `scene-names` recipe-name tab completion (SCEN-05 DONE)
-**Status**: 05-04 done and green (complete_test 26/26, completions_test 69/69, full suite 17/17).
-`wez scene launch <Tab>` now completes recipe basenames read DYNAMICALLY at Tab time via the SAME
-single `scene.list_recipe_names(scene.scenes_dir())` provider launch uses (no second lister, no
-caching — adding/removing a `.toml` changes the set with no regeneration). The nested `scene)`
-generator arm REPLACES the generic flag arm in both zsh + bash (launch->scene-names, new->flags,
-*->new launch); both generated scripts pass `bash -n`/`zsh -n`. Next: schedule the batched macOS
-verification pass, then `/gsd-transition` to close Phase 5.
+Phase: 06 (installer) — COMPLETE + verified (passed-with-concerns)
+Plan: 6 of 6 executed, verified, committed
+**Current Phase**: Phase 6 — Ergonomic Installer SHIPPED (INST-07 + INST-08 + INST-09)
+**Next action**: `/gsd-plan-phase 7` (macOS Parity Pass) — requires a real Mac; or cut the first `v*` release tag (Open Q3) to light up the live binary download.
+**What shipped (6 plans, 21 commits, +1038 lines, suite 21/21):** `tools/install.sh` (pipe-safe one-liner: main()-last-line, /dev/tty open-probe, codeload tarball + mktemp/trap cleanup, WEZ_REMOTE_BOOTSTRAP=1 handoff, WEZ_REF pin); `tools/build.sh` repointed castocolina + per-asset .sha256 + portable verify; `tools/publish.sh` + `make build/publish`; `.github/workflows/release.yml` (matrix ubuntu/macos-15-intel/macos-14, arm64 codesign); `tools/ci-setup-toolchain.sh`; `tools/bootstrap-wezterm.sh` nightly-default + update-in-place + `wezterm_install_is_user_path` predicate; `cli/commands/update.lua` (`wez update`, split semver/datestamp comparators, system-install guard) + `cli/spec.lua` registration; README via crafting-effective-readmes; `bash -n` gate in run-tests.sh.
+**Verification:** 06-VERIFICATION.md status=passed-with-concerns, 8/8 SC. Live-checked: `wez update` refuses the system /usr/bin wezterm (P6-D09 holds); install.sh temp cleanup fixed (eb8a691, live-dogfound bug); deterministic headless-abort.
+**Known interim (deferred-by-design, NOT failures):** (1) no `v*` release tag cut yet → live wez-binary download not exercised end-to-end; dev source-launcher/local-checkout fallback keeps the installer working (Open Q3, maintainer action). (2) macOS on-Mac verification = Phase 7 (`install_macos()` stub; macOS asset BUILD is wired in CI). Coverage 34/34 reqs mapped (INST-07/08/09 added). Phases 0–6 done; Phase 7 is the v1 close gate.
+**Open user decisions:** whether to `sudo apt purge wezterm-nightly` (system install) to dogfood the sudo-free user-path download; when to cut the first `v*` tag.
 
 ### Progress Bar
 
@@ -58,11 +55,13 @@ Phase 5  [░░░░░░░░░░]  Not started
 | Phase | Name | Status | Completed |
 |-------|------|--------|-----------|
 | 0 | Spikes & Alignment | Complete | 2026-06-07 |
-| 1 | Foundation | Pending | - |
-| 2 | Pane Identity | Pending | - |
+| 1 | Foundation | Complete | 2026-06-10 |
+| 2 | Pane Identity | Complete | 2026-06-11 |
 | 3 | Tab Identity | Complete | 2026-06-12 |
 | 4 | Ad-hoc Scenes | Complete | 2026-06-13 |
-| 5 | Named Scenes | Pending | - |
+| 5 | Named Scenes | Complete | 2026-06-14 |
+| 6 | Ergonomic Installer | Complete (passed-with-concerns) | 2026-06-15 |
+| 7 | macOS Parity Pass (D-18) | Pending — needs a Mac | - |
 
 ---
 
