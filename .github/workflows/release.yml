@@ -35,24 +35,15 @@ permissions:
   contents: write
 
 jobs:
+  # LINUX-ONLY for v1: the macOS legs are DEFERRED TO PHASE 7 (macOS Parity Pass,
+  # D-18), where they get verified on real Intel + Apple-Silicon hardware — their
+  # toolchain needs on-Mac fixes that cannot be verified without a Mac (Homebrew's
+  # `lua` is now 5.5 not 5.4; the Intel runner hit a /usr/local brew permission
+  # error). Phase 7 re-introduces a `strategy.matrix` over ubuntu + the two macOS
+  # runners; until then this is a single hardcoded job (no matrix).
   build:
-    name: build ${{ matrix.os }}-${{ matrix.arch }}
-    strategy:
-      # Publish every leg that succeeds; one runner's failure must not cancel the
-      # others mid-release.
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: ubuntu-latest, os: linux, arch: x86_64 }
-          # macOS legs are DEFERRED TO PHASE 7 (macOS Parity Pass, D-18), where they
-          # get verified on real Intel + Apple-Silicon hardware. They are disabled
-          # here (not just left red) because the toolchain needs on-Mac fixes that
-          # cannot be verified without a Mac: the arm64 leg needs a lua@5.4 strategy
-          # (Homebrew's `lua` is now 5.5), and the Intel leg hit a /usr/local brew
-          # permission error. Re-enable both in Phase 7:
-          # - { runner: macos-15-intel, os: darwin, arch: x86_64 } # supported Intel image (older one removed 2025-12-04)
-          # - { runner: macos-14, os: darwin, arch: aarch64 } # arm64-only image
-    runs-on: ${{ matrix.runner }}
+    name: build linux-x86_64
+    runs-on: ubuntu-latest
     steps:
       # Pinned to an immutable release tag (T-06-03-01: never @main). Hardening to
       # a full commit SHA is a recommended follow-up once registry access exists.
@@ -65,14 +56,8 @@ jobs:
       - name: Build dist/wez (same path as make build)
         run: ./tools/build.sh
 
-      # Apple Silicon ONLY: ad-hoc-codesign so the arm64 Mach-O loads on a real
-      # Mac (Pattern 7 / T-06-03-04). `--verify` sanity-checks the signature in CI
-      # before the asset is uploaded (T-06-03-02).
-      - name: Ad-hoc codesign (Apple Silicon only)
-        if: matrix.os == 'darwin' && matrix.arch == 'aarch64'
-        run: |
-          codesign --force --sign - dist/wez
-          codesign --verify --verbose dist/wez
+      # NOTE: the Apple-Silicon ad-hoc codesign step lives only on the macOS arm64
+      # leg, which is deferred to Phase 7 along with the rest of the macOS matrix.
 
       # Name + checksum the asset. The asset name is derived from
       # tools/lib/platform.sh `platform_os`/`platform_arch` — BYTE-IDENTICALLY to
