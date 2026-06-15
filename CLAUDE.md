@@ -9,7 +9,8 @@
 
 ## Critical rules
 
-- **Commit discipline** — prefer fewer, cohesive commits; amend the current commit to fold in closely related follow-ups, and when review feedback requires a fix, amend rather than stacking a new commit if it belongs to the same change
+- **Language — English only** — always respond in English, and write **all** content in English (code, comments, docstrings, `.md` docs, commit messages, planning artifacts), **regardless of the language the user writes in**. The user may write in Spanish; the output is always English.
+- **Commit discipline — group by logical work unit** — granular commits are fine *while working*, but **before closing a phase or ending a session you MUST compact them into cohesive logical units of correlated work** — typically **one commit per plan or self-contained change-set**. Do NOT leave one commit per tiny chunk, and do NOT collapse a whole phase into a single monolithic commit either — the right grain is the plan / correlated work unit. Amend the current commit to fold in closely related follow-ups; when review feedback requires a fix, amend rather than stacking a new commit if it belongs to the same change.
 - **Hypothesis before implementation** — every behavior starts as a hypothesis in `.tmp/h<NN>-<slug>/` (or a probe in `.tmp/probes/<change>/`), gitignored and deleted after manual promotion — see [docs/agent-iteration.md](docs/agent-iteration.md)
 - **Verify before declaring done** — `wez doctor` output or recorded manual repro; no "should work"
 - **Questions are not orders** — answer questions; do not auto-change code
