@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase 06 reopened, fully fixed + LIVE-VERIFIED (v0.1.0 published, install/uninstall/doctor green on Linux); Phase 07 (macOS) remaining
-last_updated: "2026-06-15T12:41:07.841Z"
+last_updated: "2026-06-15T17:19:39.363Z"
 progress:
-  total_phases: 8
+  total_phases: 9
   completed_phases: 7
   total_plans: 33
   completed_plans: 33
-  percent: 88
+  percent: 78
 ---
 
 # Project State: wezterm-setup

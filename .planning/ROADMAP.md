@@ -15,6 +15,8 @@
 - [x] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes (completed 2026-06-13, Linux; macOS deferred)
 - [x] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
 - [x] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs (completed 2026-06-15)
+- [ ] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes
+- [ ] **Phase 6.2: User Documentation Audit and Refactor** *(INSERTED)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
 
 > **macOS parity is now Phase 7 (D-18).** All features are Linux-verified; the batched macOS pass
@@ -189,6 +191,47 @@ Plans:
 **Default target = `nightly`**, with update-in-place scoped to the project-managed user-path install only (a system install is never modified).
 
 ---
+
+### Phase 06.1: Tab and Scene Identity Redesign (INSERTED)
+
+**Goal:** Decouple tab COLOR from tab TITLE everywhere and remove the legacy `"<color>:<title>"` encoding (a pre-roadmap scripting shortcut), so tabs use the same clean two-user-var model panes already use — then extend the scene recipe model with the attributes daily use needs. This is the last cleanup before the macOS pass, so macOS verifies the redesigned behavior.
+
+**Depends on:** Phase 6 (installer, complete)
+**Requirements**: refines PANE-* / SCEN-* / TAB-* behavior (no new requirement IDs; supersedes the "tab color stored in tab-title prefix" decision).
+
+**Scope (decisions locked with the maintainer):**
+
+- [ ] **Decouple color/title (full unification)** — tab color is carried as the `WEZTERM_TAB_COLOR` user var emitted on the tab's panes; tab title is pure text via `set-tab-title`. The `format-tab-title` handler reads color by scanning all panes in the tab. Drop `parse_stored`/`merge_title` + the `<color>:<title>` encoding (parse-and-warn once for migration). Applies to BOTH scenes AND standalone `wez tab`/`wez pane`.
+- [ ] **Scene TOML schema redesign** — tab attributes as top-level keys (`title`, `color`, `cwd`, optional `icon`); panes as `[[pane]]` arrays (`command`, `color`, `title`, `cwd`, `focus`, `size`). Tab vs pane scope is enforced by the table grammar; same attribute names, identical semantics. Deprecated top-level `color`/`title` accepted as aliases during migration.
+- [ ] **New fields `cwd` / `focus` / `size`** — `cwd` resolves flexibly and safely (literal, `~`/`$ENV` expansion, and relative-to-launch where `.` = launch dir and `..` = `dirname $(pwd)`); NO shell `$(...)` evaluation. Same grammar for `--cwd` CLI flags and the `.toml` field. `focus` selects the active pane on spawn; `size` sets split fraction. Tested, with examples in recipes + docs.
+- [ ] **Color model accepts alpha** — `#RRGGBBAA` / `rgba()` are accepted (stop stripping the 8th digit) so an IDE-inserted rgba never breaks; the opaque named palette stays the DEFAULT; document that alpha only renders with window transparency (cross-platform caveat, D-18).
+- [ ] **Migrate the prototype `wezterm.lua`** — remove the inline `format-tab-title` handler + duplicate keybindings that shadow the managed block (root cause of the `cyan:`/no-color/no-cwd bug), keeping genuine personal settings. Backup is written by the installer.
+- [ ] **`wez doctor` shadow-detection** — add a check that DETECTS a user-defined `format-tab-title` handler or duplicate keybindings shadowing wezterm-setup, so this class of bug surfaces loudly instead of silently.
+- [ ] **Arrange actions (layout switching)** — bind `RotatePanes` (Clockwise/CounterClockwise), keep the zoom toggle, and frame scenes as launchable layout presets. NO kitty-style layout engine. Documented as "Arrange" (live) vs "Scenes" (presets).
+- [ ] **Embrace the search overlay** — keep WezTerm's `Ctrl+Shift+F` search and document `Ctrl+R` (CopyMode `CycleMatchType`) to cycle case-sensitive / case-insensitive / regex. Relaxes the prior "no less-style search overlays" philosophy rule.
+- [ ] **Refresh ai + dev seed scenes** — give them per-pane + tab colors (like the new docker scene).
+
+Plans:
+
+- [ ] TBD (run /gsd-discuss-phase 06.1 then /gsd-plan-phase 06.1 to break down)
+
+### Phase 06.2: User Documentation Audit and Refactor (INSERTED)
+
+**Goal:** Audit ALL user-facing documentation for accuracy and clarity against the shipped v0.1.0 reality and the Phase 6.1 redesign, then refactor it — starting with README.md — into clear, progressive-disclosure structure.
+
+**Depends on:** Phase 6.1 (so docs describe the redesigned tab/scene model, not the legacy encoding)
+**Requirements**: documentation quality (no new requirement IDs).
+
+**Scope:**
+
+- [ ] **README.md** — audit against actually-shipped behavior (the `curl|bash` one-liner, `wez` subcommands, keybindings incl. the new `Ctrl+Shift+K`, scenes, `wez doctor`/`wez keys`, `wez update`), then refactor it with the `/agent-md-refactor:agent-md-refactor` skill (progressive disclosure: lean top-level README linking to focused docs).
+- [ ] **Other docs** — `docs/` (e.g. `docs/agent-iteration.md`, `docs/macos-verification.md`, `docs/plans/`), top-level guides, and any `*.md` a user reads: audit for staleness and accuracy; refactor/split where bloated.
+- [ ] **Drift check** — verify every documented command/flag/keybinding/scene field actually exists, cross-checked against `cli/spec.lua` + `config/wezterm-setup/keybindings.lua` + the 6.1 scene schema. No documented-but-unimplemented (or implemented-but-undocumented) surface.
+- [ ] **Reflect 6.1** — decoupled `color`/`title`, new scene schema (`cwd`/`focus`/`size`, alpha), arrange/RotatePanes, embraced search overlay (`Ctrl+R` case toggle) are all documented correctly.
+
+Plans:
+
+- [ ] TBD (run /gsd-discuss-phase 06.2 then /gsd-plan-phase 06.2 to break down)
 
 ### Phase 7: macOS Parity Pass (D-18)
 
