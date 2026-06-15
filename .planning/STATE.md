@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 06 complete (verified passed-with-concerns) — Phase 07 (macOS) remaining
+status: Phase 06 reopened + fixed (Linux bootstrap tar regression) — re-verified live; Phase 07 (macOS) remaining
 last_updated: "2026-06-15T12:41:07.841Z"
 progress:
   total_phases: 8
@@ -26,7 +26,8 @@ progress:
 
 ## Current Position
 
-Phase: 06 (installer) — COMPLETE + verified (passed-with-concerns)
+Phase: 06 (installer) — REOPENED + FIXED 2026-06-15 (Linux bootstrap tar regression), re-verified live
+**Reopen fix:** `tools/bootstrap-wezterm.sh install_linux` used `tar --no-absolute-names` (BSD-tar idiom GNU tar rejects) → live `curl|bash` aborted on every Linux box with `tar: unrecognized option '--no-absolute-names'`. Root cause: SC#2's WezTerm-install half was grep/structure-verified, never run live. Removed the flag (safety already covered by `assert_safe_members` + tar's default leading-'/' strip); added a regression guard in `tests/cli/bootstrap_update_test.lua`. Re-verified by a real sandboxed `install_linux nightly` (download→extract→symlink→`wezterm --version` rc=0) + full 21-file suite green. **Remaining:** full remote one-liner e2e needs the fix pushed to `main` first (same chicken/egg as the first `v*` tag).
 Plan: 6 of 6 executed, verified, committed
 **Current Phase**: Phase 6 — Ergonomic Installer SHIPPED (INST-07 + INST-08 + INST-09)
 **Next action**: `/gsd-plan-phase 7` (macOS Parity Pass) — requires a real Mac; or cut the first `v*` release tag (Open Q3) to light up the live binary download.

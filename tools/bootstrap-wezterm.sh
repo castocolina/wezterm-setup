@@ -374,8 +374,13 @@ install_linux() {
   release_dir="${PREFIX}/${tag}"
   rm -rf "${release_dir}"
   mkdir -p "${release_dir}"
-  # --no-absolute-names belt-and-suspenders alongside assert_safe_members.
-  tar -xJf "${archive}" --no-absolute-names -C "${release_dir}"
+  # Extract into the fresh per-release dir. Path-traversal safety is already
+  # enforced by assert_safe_members() above (rejects absolute / '..' members),
+  # and both GNU tar and macOS/BSD tar strip a leading '/' by default — so no
+  # extra flag is needed here. (A previous BSD-only absolute-names guard flag was
+  # removed: GNU tar rejected it as an unrecognized option and broke every Linux
+  # install; it went uncaught because the e2e curl|bash path was never run.)
+  tar -xJf "${archive}" -C "${release_dir}"
 
   # Probe 01: the binary lives at <release_dir>/wezterm/usr/bin/wezterm.
   local rel_bin

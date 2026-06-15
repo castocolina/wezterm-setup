@@ -4,6 +4,13 @@ verified: 2026-06-15T11:50:18Z
 status: passed-with-concerns
 score: 8/8 success criteria verified (2 deferred-by-design concerns noted)
 overrides_applied: 0
+reopened:
+  - date: 2026-06-15
+    trigger: "User-reported live `curl|bash` failure on Linux: `tar: unrecognized option '--no-absolute-names'` during the WezTerm asset extraction (bootstrap-wezterm.sh install_linux)."
+    root_cause: "SC#2's WezTerm-install half was verified by structure/grep only, never run live on Linux. `--no-absolute-names` is a BSD/macOS-tar idiom that GNU tar rejects, so the bootstrap aborted on every GNU-tar (i.e. every standard Linux) machine. Path-traversal safety was already covered by assert_safe_members() + tar's default leading-'/' strip, so the flag was redundant as well as broken."
+    fix: "Removed `--no-absolute-names` from the `tar -xJf` extraction (bootstrap-wezterm.sh install_linux). Added a regression guard in tests/cli/bootstrap_update_test.lua asserting the flag never returns."
+    verification: "Real e2e: sourced bootstrap-wezterm.sh and ran `install_linux nightly` into a throwaway WEZTERM_BOOTSTRAP_PREFIX/WEZTERM_BIN_DIR — real nightly download, integrity gate, FIXED extraction, symlink, and `wezterm --version` → 20260614-191620-69d1fb3e (rc=0). Full 21-file suite green."
+    still_open: "The full REMOTE one-liner e2e (curl|bash from GitHub main) requires the fix pushed to main first — same chicken/egg as the first `v*` tag concern below."
 concerns:
   - item: "Live download of a published wez release binary is not yet exercised end-to-end"
     reason: "The first `v*` release tag is not cut (a maintainer action, RESEARCH Open Q3). Until then the one-liner's wez-binary half resolves via the documented dev source-launcher fallback in build.sh main(). The fetch+handoff+cleanup mechanics were hermetically dogfooded against real codeload; the release-download path is verified for correctness (checksum-before-chmod, portable shasum) but not via a live published asset."

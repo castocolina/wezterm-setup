@@ -188,5 +188,23 @@ check("select_release (no-TTY, WEZTERM_TARGET=pinned) prints the pinned release"
     == "20260604-145453")
 
 -- ----------------------------------------------------------------------------
+-- REGRESSION: tar extraction must use only flags GNU tar accepts. The BSD-tar
+-- idiom `--no-absolute-names` makes GNU tar abort with "unrecognized option",
+-- which broke every Linux curl|bash install (path-traversal safety is already
+-- enforced by assert_safe_members + tar's default leading-'/' stripping). This
+-- gate fails if that flag — or any other known GNU-incompatible long flag we've
+-- been bitten by — creeps back into the script.
+-- ----------------------------------------------------------------------------
+do
+  check("bootstrap-wezterm.sh uses NO `--no-absolute-names` (GNU tar rejects it)",
+    not has("--no-absolute-names"))
+  local body = SRC:match("install_linux%(%)%s*{(.-)\n}") or ""
+  check("install_linux still extracts the asset with `tar -xJf` into the release dir",
+    body:find("tar -xJf", 1, true) ~= nil)
+  check("install_linux's `tar -xJf` line carries no `--no-absolute-names`",
+    (body:match("tar %-xJf[^\n]*") or ""):find("--no-absolute-names", 1, true) == nil)
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
