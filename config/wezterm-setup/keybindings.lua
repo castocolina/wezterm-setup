@@ -53,9 +53,24 @@ end
 -- FOUND-03 categories covered: tabs, panes, font zoom, word navigation.
 -- ---------------------------------------------------------------------------
 M.keys = {
-  -- == Locked clear binding (FOUND-02, D-11) ==
+  -- == Clear binding (FOUND-02, D-11) — DUAL chord for cross-platform sanity ==
   -- Clears the visible screen AND the scrollback in one chord.
-  { key = mapped("k"), mods = M.super_mod, action = { type = "ClearScreenAndScrollback" } },
+  --   * Super+K (= Cmd+K on macOS): the conventional macOS clear chord.
+  --   * Ctrl+Shift+K (both platforms): on Linux the Super/Win key is owned by the
+  --     desktop/WM (e.g. Pop!_OS grabs Super+K and it never reaches WezTerm), so
+  --     the terminal-standard Ctrl+Shift chord is the reliable Linux clear. It is
+  --     also readline-safe (plain Ctrl+K is kill-line; the SHIFT lifts it clear of
+  --     the shell) and layout-stable (letter key, D-10). Both fire the SAME action;
+  --     `wez keys` lists both, which is truthful, not a conflict.
+  --   * Both the lowercase `k` AND uppercase `K` Ctrl+Shift entries are declared:
+  --     under `key_map_preference = "Mapped"` a Shift+letter produces the UPPERCASE
+  --     char, so the chord that actually fires is `CTRL|SHIFT+K`; WezTerm's own
+  --     defaults register both cases (e.g. `SHIFT|CTRL c` AND `SHIFT|CTRL C` for
+  --     copy), and we mirror that so the binding fires regardless of how the
+  --     produced character is reported.
+  { key = mapped("k"), mods = M.super_mod,   action = { type = "ClearScreenAndScrollback" } },
+  { key = mapped("k"), mods = "CTRL|SHIFT",  action = { type = "ClearScreenAndScrollback" } },
+  { key = mapped("K"), mods = "CTRL|SHIFT",  action = { type = "ClearScreenAndScrollback" } },
 
   -- == Tabs (FOUND-03) ==
   { key = mapped("t"), mods = "SUPER",            action = { type = "SpawnTab", arg = "CurrentPaneDomain" } }, -- new tab

@@ -75,6 +75,15 @@ check(any(function(b)
     and action_type(b) == "ClearScreenAndScrollback"
 end), "locked Super+K clear binding exists")
 
+-- 4b. Linux-friendly clear binding: Ctrl+Shift+K -> clear screen + scrollback.
+-- On Linux the Super/Win key is owned by the desktop/WM, so the terminal-standard
+-- Ctrl+Shift chord is the reliable clear there (and harmless on macOS).
+check(any(function(b)
+  return b.key == "mapped:k"
+    and b.mods == "CTRL|SHIFT"
+    and action_type(b) == "ClearScreenAndScrollback"
+end), "Linux-friendly Ctrl+Shift+K clear binding exists")
+
 -- 5. No forbidden punctuation keys (D-10): [ ] { } / \ ;
 local forbidden = { ["["] = true, ["]"] = true, ["{"] = true, ["}"] = true,
                     ["/"] = true, ["\\"] = true, [";"] = true }

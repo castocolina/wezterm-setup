@@ -1,18 +1,26 @@
 # docker — seeded example scene recipe (SCEN-06).
-# A 4-pane grid for container work: live stats, container list, compose logs,
-# and a free shell. Edit freely; the installer uses copy-if-absent and will
-# NEVER overwrite your changes.
-layout = "grid"
-color = "teal"
-
-[[panes]]
-command = "docker stats"
-
-[[panes]]
-command = "docker ps"
-
-[[panes]]
-command = "docker compose logs -f"
+# Container monitoring: a live `docker ps` watch and a `docker stats` watch
+# stacked on the LEFT, with a free shell taking the full-height RIGHT side.
+# Edit freely; the installer uses copy-if-absent and will NEVER overwrite this.
+#
+# Layout note: `tall:mirrored` puts the MAIN pane (pane 1) on the RIGHT and stacks
+# the rest down the LEFT, so pane order is [shell(right), ps(top-left), mem(bottom-left)].
+# Per-pane `color` tints the pane background using the muted scene palette
+# (named colors only — cyan / blue / navy / teal / ...; raw hex is not applied).
+#
+# docker-ps / docker-memory are personal SHELL ALIASES (docker ps / docker stats
+# with a custom --format inside `watch`); WezTerm panes run an interactive shell,
+# so your ~/.zshrc / ~/.bashrc aliases resolve normally.
+layout = "tall:mirrored"
+color = "cyan"
 
 [[panes]]
 command = "shell"
+
+[[panes]]
+command = "docker-ps"
+color = "cyan"
+
+[[panes]]
+command = "docker-memory"
+color = "blue"
