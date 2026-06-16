@@ -1,11 +1,38 @@
-# dev — seeded example scene recipe (SCEN-06).
-# Two side-by-side shell panes for general development. Edit freely; the
-# installer uses copy-if-absent and will NEVER overwrite your changes.
-layout = "tall"
+# dev — seeded example scene recipe (SCEN-06 / D-13).
+# A three-pane development workspace: an editor on one side and a working shell
+# stacked over a live git status on the other. Edit freely; the installer uses
+# copy-if-absent and will NEVER overwrite your changes (D-15).
+#
+# Layout note: `tall:mirrored` puts the MAIN pane (pane 1, the editor) on the
+# RIGHT and stacks the rest down the LEFT, so pane order is
+# [editor(right), shell(top-left), git(bottom-left)].
+# Per-pane `color` tints the pane background using the muted scene palette
+# (named colors only — green / teal / yellow / ...; the tab accent is `color` below).
+#
+# cwd is OMITTED on every pane, so each pane inherits the launch dir (D-07/D-08):
+# `wez scene launch dev` from a repo opens all three panes IN that repo with no
+# visible `cd` line. The editor pane runs your `$EDITOR`.
+#
+# `title` uses the {cwd} token — it expands (in pure Lua, NO shell eval) to the
+# basename of the launch dir. So `wez scene launch dev` from ~/git/myproject gives
+# the tab title "dev myproject" and per-pane titles "✏️ myproject" / "🔀 myproject"
+# (a leading icon name like `edit`/`git` becomes its glyph). This is the safe
+# equivalent of `$(basename "$PWD")`, which a static recipe can't run.
+layout = "tall:mirrored"
 color = "green"
+title = "dev {cwd}"
+
+[[panes]]
+command = "$EDITOR"
+color = "green"
+title = "edit {cwd}"
 
 [[panes]]
 command = "shell"
+color = "teal"
+title = "shell {cwd}"
 
 [[panes]]
-command = "shell"
+command = "git status"
+color = "yellow"
+title = "git {cwd}"

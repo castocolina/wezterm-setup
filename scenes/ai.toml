@@ -1,11 +1,24 @@
-# ai — seeded example scene recipe (SCEN-06).
-# Two side-by-side shell panes for AI/agent work. Edit freely; the installer
-# uses copy-if-absent and will NEVER overwrite your changes.
+# ai — seeded example scene recipe (SCEN-06 / D-14).
+# A two-pane AI/agent workspace: the AI CLI alongside a free working shell. Edit
+# freely; the installer uses copy-if-absent and will NEVER overwrite your
+# changes (D-15).
+#
+# Layout note: `tall` puts the MAIN pane (pane 1, the AI CLI) on the LEFT and the
+# working shell on the RIGHT.
+# Per-pane `color` tints the pane background using the muted scene palette
+# (named colors only — purple / teal / ...; the tab accent is `color` below).
+#
+# cwd is OMITTED on both panes, so each inherits the launch dir (D-07/D-08):
+# `wez scene launch ai` from a project opens both panes IN that project with no
+# visible `cd` line. The AI pane runs `claude` (commands are kept comma-free so
+# the multi-field color round-trip stays safe — Pitfall 5).
 layout = "tall"
 color = "purple"
 
 [[panes]]
-command = "shell"
+command = "claude"
+color = "purple"
 
 [[panes]]
 command = "shell"
+color = "teal"
