@@ -52,13 +52,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 title = "@{cwd} Docker"
 layout = "tall:mirrored"
-color = "cyan"
+color = "blue"
 icon = "docker"
 # follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
 
 [[panes]]
 title = "@{cwd} Docker Shell"
 command = "shell"
+color = "navy"
 icon = "shell"
 
 [[panes]]
@@ -70,5 +71,5 @@ icon = "docker"
 [[panes]]
 title = "@{cwd} Docker Memory"
 command = "docker-memory"
-color = "blue"
+color = "teal"
 icon = "docker"

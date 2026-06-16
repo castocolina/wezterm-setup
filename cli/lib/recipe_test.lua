@@ -368,12 +368,12 @@ do
   local docker, docker_err = load_seed("scenes/docker.toml")
   check("2.9e docker.toml round-trips, no err", docker_err == nil and type(docker) == "table")
   teq("2.9f docker.toml maps to the D-03/D-05 args", docker, {
-    layout = "tall:mirrored", color = "cyan", title = "@{cwd} Docker", cwd = nil,
+    layout = "tall:mirrored", color = "blue", title = "@{cwd} Docker", cwd = nil,
     icon = "docker", follow_pane_color = nil,
     pane = {
-      "cmd=shell, title=@{cwd} Docker Shell, icon=shell",
+      "cmd=shell, color=navy, title=@{cwd} Docker Shell, icon=shell",
       "cmd=docker-ps, color=cyan, title=@{cwd} Docker PS, icon=docker",
-      "cmd=docker-memory, color=blue, title=@{cwd} Docker Memory, icon=docker",
+      "cmd=docker-memory, color=teal, title=@{cwd} Docker Memory, icon=docker",
     },
   })
 end
