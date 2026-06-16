@@ -50,6 +50,15 @@ check(any(function(b)
   return t:find("Tab")
 end), "category: tabs has at least one binding")
 
+-- Close-tab must have a Ctrl+Shift+W fallback, not Super-only: many Linux WMs grab
+-- the Super key (Pop!_OS/GNOME), so a SUPER-only close-tab is dead on Linux.
+check(any(function(b)
+  return action_type(b) == "CloseCurrentTab"
+    and tostring(b.mods or ""):find("CTRL")
+    and tostring(b.mods or ""):find("SHIFT")
+    and tostring(b.key or ""):find("w", 1, true) ~= nil
+end), "close tab has a Ctrl+Shift+W binding (Linux Super-grab fallback)")
+
 -- Panes: split/close/zoom/navigate pane actions.
 check(any(function(b)
   local t = action_type(b)

@@ -81,8 +81,15 @@ M.keys = {
   { key = mapped("K"), mods = "CTRL|SHIFT",  action = { type = "ClearScreenAndScrollback" } },
 
   -- == Tabs (FOUND-03) ==
-  { key = mapped("t"), mods = "SUPER",            action = { type = "SpawnTab", arg = "CurrentPaneDomain" } }, -- new tab
-  { key = mapped("w"), mods = "SUPER",            action = { type = "CloseCurrentTab", confirm = false } },     -- close tab
+  { key = mapped("t"), mods = "SUPER",            action = { type = "SpawnTab", arg = "CurrentPaneDomain" } }, -- new tab (mac: Cmd+T)
+  { key = mapped("w"), mods = "SUPER",            action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (mac: Cmd+W)
+  -- Linux fallback: many Linux WMs/DEs grab the Super key (e.g. Pop!_OS/GNOME bind
+  -- Super+W/T to the shell), so a SUPER-only close-tab never reaches WezTerm. Ship a
+  -- Ctrl+Shift+W variant too (mirrors the clear-screen dual binding above; lower +
+  -- upper produced char, since Shift yields "W"). New-tab already has a working
+  -- default Ctrl+Shift+T, so only close-tab needs the explicit Linux fallback.
+  { key = mapped("w"), mods = "CTRL|SHIFT",       action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (Linux)
+  { key = mapped("W"), mods = "CTRL|SHIFT",       action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (Linux, shifted char)
   { key = mapped("Tab"), mods = "CTRL",           action = { type = "ActivateTabRelative", arg = 1 } },         -- next tab
   { key = mapped("Tab"), mods = "CTRL|SHIFT",     action = { type = "ActivateTabRelative", arg = -1 } },        -- prev tab
   { key = mapped("PageUp"), mods = "CTRL|SHIFT",  action = { type = "MoveTabRelative", arg = -1 } },            -- move tab left
