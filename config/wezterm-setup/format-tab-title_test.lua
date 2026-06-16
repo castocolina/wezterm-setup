@@ -26,6 +26,14 @@ check("3 resolve nil -> default", M.resolve_profile(nil).bg == "#333333" and M.r
 check("4 resolve unknown -> default", M.resolve_profile("fuschia").bg == "#333333")
 check("5 resolve raw hex -> hex bg + default fg",
   M.resolve_profile("#1a2040").bg == "#1a2040" and M.resolve_profile("#1a2040").fg == "#c0c0c0")
+-- D-09: an 8-digit #RRGGBBAA accent is accepted (alpha not stripped), NOT default-fallback.
+-- (Alpha only RENDERS with window transparency — Pitfall 4 — but the value must resolve.)
+check("5a resolve #RRGGBBAA (8-digit alpha) -> accepted, not default",
+  M.resolve_profile("#1a2040cc").bg == "#1a2040cc" and M.resolve_profile("#1a2040cc").fg == "#c0c0c0")
+check("5b resolve #RRGGBBAA case-insensitive",
+  M.resolve_profile("#1A2040CC").bg == "#1a2040cc")
+-- A malformed/too-long hex still falls back to the default (tamper safety, T-06.1-12).
+check("5c resolve 10-digit garbage -> default", M.resolve_profile("#1a2040ccff").bg == "#333333")
 
 -- format_label
 local l6 = M.format_label(0, "build", 40)
@@ -126,32 +134,40 @@ check("22 nil -> color=nil, title=nil", p22c == nil and p22t == nil)
 local p23c, p23t = M.parse_tab_title(":onlytitle")
 check("23 ':onlytitle' (empty color, title set) -> color=nil, title=onlytitle", p23c == nil and p23t == "onlytitle")
 
--- D-03a handler precedence: tab-prefix color/title resolution via parse_tab_title
--- (pane var > tab prefix > default/active_pane.title), TAB-05 indicator preserved.
+-- D-02/D-04 steady-state precedence: the ACCENT derives from the active pane's
+-- WEZTERM_TAB_COLOR ONLY. The legacy `<color>:<title>` prefix is NO LONGER consulted
+-- for the accent in the steady state — it is migration grace for the DISPLAYED title
+-- text only (a legacy stored title still renders, prefix stripped, no per-paint warning).
 
--- tab-prefix color+title, no pane vars: own accent + own title (TAB-02/TAB-04 baseline)
+-- legacy stored "blue:api", no pane vars: accent is DEFAULT (prefix color NOT consulted),
+-- but the title text "api" still renders (migration grace — display only, no crash).
 local r24 = captured(fake_tab({}, false, "blue:api", "", 0), {}, {}, {}, false, 40)
-check("24 tab-prefix 'blue:api' -> blue accent", r24[1].Background.Color == "#1e3a5f")
-check("24b tab-prefix 'blue:api' -> label 'api'", find_text(r24):find("api", 1, true) ~= nil)
+check("24 legacy 'blue:api' -> default accent (prefix color dropped, D-02/D-04)", r24[1].Background.Color == "#333333")
+check("24b legacy 'blue:api' -> display title 'api' (migration grace)", find_text(r24):find("api", 1, true) ~= nil)
 
--- empty-color prefix -> default accent, title still applied
+-- legacy ":api" -> default accent, title still applied
 local r25 = captured(fake_tab({}, false, ":api", "", 0), {}, {}, {}, false, 40)
-check("25 tab-prefix ':api' -> default accent", r25[1].Background.Color == "#333333")
-check("25b tab-prefix ':api' -> label 'api'", find_text(r25):find("api", 1, true) ~= nil)
+check("25 legacy ':api' -> default accent", r25[1].Background.Color == "#333333")
+check("25b legacy ':api' -> display title 'api'", find_text(r25):find("api", 1, true) ~= nil)
 
--- empty-title prefix -> blue accent, falls back to active_pane.title for label
+-- legacy "blue:" -> default accent (prefix color dropped), falls back to active_pane.title
 local r26 = captured(fake_tab({}, false, "blue:", "myshell", 0), {}, {}, {}, false, 40)
-check("26 tab-prefix 'blue:' -> blue accent", r26[1].Background.Color == "#1e3a5f")
-check("26b tab-prefix 'blue:' -> falls back to pane title", find_text(r26):find("myshell", 1, true) ~= nil)
+check("26 legacy 'blue:' -> default accent (prefix color dropped)", r26[1].Background.Color == "#333333")
+check("26b legacy 'blue:' -> falls back to pane title", find_text(r26):find("myshell", 1, true) ~= nil)
 
--- pane WEZTERM_TAB_COLOR overrides tab-prefix color (TAB-04), tab-prefix title still wins
+-- pane WEZTERM_TAB_COLOR is the ONLY accent source; a legacy prefix is ignored for color
+-- but its title text still shows (migration grace).
 local r27 = captured(fake_tab({ WEZTERM_TAB_COLOR = "navy" }, false, "blue:api", "", 0), {}, {}, {}, false, 40)
-check("27 pane color overrides tab-prefix -> navy accent", r27[1].Background.Color == "#1a2040")
-check("27b pane color override keeps tab-prefix title 'api'", find_text(r27):find("api", 1, true) ~= nil)
+check("27 pane WEZTERM_TAB_COLOR is the accent (navy), prefix ignored", r27[1].Background.Color == "#1a2040")
+check("27b legacy prefix title 'api' still displays under migration grace", find_text(r27):find("api", 1, true) ~= nil)
 
--- active tab with tab-prefix still shows the TAB-05 indicator
+-- active legacy-prefix tab still shows the TAB-05 indicator
 local r28 = captured(fake_tab({}, true, "blue:api", "", 0), {}, {}, {}, false, 40)
-check("28 active tab-prefix tab shows indicator", find_text(r28):find("●%->") ~= nil)
+check("28 active legacy-prefix tab shows indicator", find_text(r28):find("●%->") ~= nil)
+
+-- D-09 end-to-end: an active pane carrying a #RRGGBBAA accent paints that 8-digit color.
+local r29 = captured(fake_tab({ WEZTERM_TAB_COLOR = "#1a2040cc" }, false, "", "sh", 0), {}, {}, {}, false, 40)
+check("29 pane #RRGGBBAA accent paints the 8-digit color", r29[1].Background.Color == "#1a2040cc")
 
 io.write(string.format("\nformat-tab-title_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

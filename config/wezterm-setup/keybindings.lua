@@ -29,6 +29,14 @@
 -- chord is a FORBIDDEN punctuation key under D-10 and was replaced with the
 -- layout-stable letter chords `Alt+Shift+H` / `Alt+Shift+V`. Font zoom keeps
 -- `+`/`-`/`0` (named/digit keys, layout-stable and allowed by D-10).
+--
+-- Embraced WezTerm search defaults (item 8, 6.1): WezTerm ships
+--   * `Ctrl+Shift+F` -> Search (scrollback search overlay), and
+--   * `Ctrl+R` (inside CopyMode) -> CopyMode 'CycleMatchType' (cycle the match kind).
+-- Both already fire today; we add NO binding for them — they are intentionally KEPT.
+-- This relaxes the older "no less-style search overlays" philosophy rule: the
+-- scrollback search overlay is now embraced rather than disabled, so we neither
+-- rebind nor disable `Ctrl+Shift+F` / `Ctrl+R`. (No vi-modal bindings are added.)
 
 local M = {}
 
@@ -86,6 +94,13 @@ M.keys = {
   { key = mapped("v"), mods = "ALT|SHIFT", action = { type = "SplitVertical", arg = "CurrentPaneDomain" } },   -- split vertical
   { key = mapped("x"), mods = "ALT|SHIFT", action = { type = "CloseCurrentPane", confirm = false } },          -- close pane
   { key = mapped("z"), mods = "ALT|SHIFT", action = { type = "TogglePaneZoomState" } },                        -- zoom toggle
+  -- == Arrange (D-12) ==
+  -- RotatePanes presets join the Alt+Shift pane family ("R" for Rotate; "E" sits left of R
+  -- for the counter direction). Each declarative RotatePanes spec MUST have a matching arm in
+  -- init.lua resolve_action — the switch error()s on an unknown type, crashing config load
+  -- (Pitfall 3). Add/remove both in lockstep. RotatePanes needs WezTerm >= 20220624.
+  { key = mapped("r"), mods = "ALT|SHIFT", action = { type = "RotatePanes", arg = "Clockwise" } },        -- rotate panes clockwise
+  { key = mapped("e"), mods = "ALT|SHIFT", action = { type = "RotatePanes", arg = "CounterClockwise" } }, -- rotate panes counter-clockwise
   -- Directional pane navigation (arrow named keys are layout-stable, D-10).
   { key = mapped("LeftArrow"),  mods = "ALT", action = { type = "ActivatePaneDirection", arg = "Left" } },
   { key = mapped("RightArrow"), mods = "ALT", action = { type = "ActivatePaneDirection", arg = "Right" } },
@@ -119,6 +134,12 @@ M.disabled_defaults = {
   { key = "+", mods = "SUPER" },        -- default IncreaseFontSize
   { key = "-", mods = "SUPER" },        -- default DecreaseFontSize
   { key = "0", mods = "SUPER" },        -- default ResetFontSize
+  -- D-12 truthfulness note: the Arrange chords Alt+Shift+R / Alt+Shift+E (RotatePanes)
+  -- and the rest of the Alt+Shift pane family (H/V/X/Z) do NOT shadow a WezTerm default
+  -- assignment (`wezterm show-keys` carries no ALT|SHIFT R/E/H/V/X/Z default), so they
+  -- need NO DisableDefaultAssignment entry — one binding still maps to one action and
+  -- `wez keys` stays truthful. The embraced search defaults (Ctrl+Shift+F / Ctrl+R) are
+  -- deliberately KEPT, so they are likewise absent here.
 }
 
 -- D-09: the printed key fires the action; report this preference so WezTerm

@@ -36,7 +36,13 @@ M.DEFAULT_PROFILE = { bg = "#333333", fg = "#c0c0c0" }
 
 --- Resolve a WEZTERM_TAB_COLOR value to a {bg,fg} accent pair.
 -- nil/empty/unknown -> default; named profile -> its pair (case-insensitive);
--- raw hex (#rgb / #rrggbb, alpha already stripped upstream) -> {bg=hex, default fg}.
+-- raw hex (#rgb / #rrggbb / #rrggbbaa) -> {bg=hex, default fg}.
+-- D-09: an 8-digit #RRGGBBAA accent is ACCEPTED (alpha no longer stripped upstream)
+-- so an IDE-inserted alpha never falls back to the default profile. Caveat (Pitfall 4):
+-- WezTerm ignores the alpha channel except for selection_fg/selection_bg — the 8th hex
+-- digit only RENDERS with window transparency; it is accepted/stored, not promised to paint.
+-- A non-matching value (malformed/over-long hex, unknown name) falls back to the default
+-- profile (T-06.1-12 tamper safety: only a name or a well-formed hex is honored).
 function M.resolve_profile(color_name)
   if not color_name or color_name == "" then
     return M.DEFAULT_PROFILE
@@ -46,13 +52,19 @@ function M.resolve_profile(color_name)
   if profile then
     return profile
   end
-  if key:match("^#%x%x%x$") or key:match("^#%x%x%x%x%x%x$") then
+  if key:match("^#%x%x%x$")
+      or key:match("^#%x%x%x%x%x%x$")
+      or key:match("^#%x%x%x%x%x%x%x%x$") then
     return { bg = key, fg = M.DEFAULT_PROFILE.fg }
   end
   return M.DEFAULT_PROFILE
 end
 
 --- Parse a stored `tab.tab_title` of the form "<color>:<title>" into (color, title).
+-- MIGRATION-ONLY (D-04): the steady-state renderer no longer uses the COLOR half — the
+-- accent comes from the active pane's WEZTERM_TAB_COLOR (D-02). This parser survives only
+-- so a LEGACY stored title still strips its prefix for display instead of showing
+-- "cyan:api" verbatim. Drop it once no legacy `<color>:<title>` titles remain in the wild.
 -- Locked encoding (tab-title-format.md): split on the FIRST ":". Left is the color
 -- (may be empty -> nil), right is the title (may be empty -> nil, may itself contain
 -- ":"). A no-colon NON-EMPTY token is the color name with no title (bare-token-is-a-
@@ -121,16 +133,22 @@ function M.apply(config)
 
   wezterm.on("format-tab-title", function(tab, _tabs, _panes, _cfg, _hover, max_width)
     local uv = (tab.active_pane and tab.active_pane.user_vars) or {}
-    local tabColor, tabTitle = M.parse_tab_title(tab.tab_title)
+    -- MIGRATION-ONLY (D-04): parse_tab_title is consulted SOLELY to strip a legacy
+    -- `<color>:<title>` prefix from the DISPLAYED title text so an old stored title still
+    -- renders gracefully (no per-paint warning, Open Q3). Its color half (_legacyColor) is
+    -- intentionally discarded — the steady-state accent comes from the active pane's
+    -- WEZTERM_TAB_COLOR only (D-02 active-pane-wins). Remove once no legacy titles remain.
+    local _legacyColor, migratedTitle = M.parse_tab_title(tab.tab_title)
 
-    -- accent: pane WEZTERM_TAB_COLOR > tab-prefix color > default (TAB-04)
-    local accent_color = (uv.WEZTERM_TAB_COLOR ~= "" and uv.WEZTERM_TAB_COLOR) or tabColor
+    -- accent: active pane WEZTERM_TAB_COLOR > default (D-02/D-04). The legacy tab-prefix
+    -- color is NO LONGER consulted in the steady state.
+    local accent_color = (uv.WEZTERM_TAB_COLOR ~= "" and uv.WEZTERM_TAB_COLOR) or nil
     local profile = M.resolve_profile(accent_color)
 
-    -- title: pane WEZTERM_TAB_TITLE > tab-prefix title > active_pane.title > ""
+    -- title: pane WEZTERM_TAB_TITLE > legacy migrated title > active_pane.title > ""
     local title = uv.WEZTERM_TAB_TITLE
     if not title or title == "" then
-      title = tabTitle
+      title = migratedTitle
       if not title or title == "" then
         title = tab.active_pane and tab.active_pane.title or ""
       end

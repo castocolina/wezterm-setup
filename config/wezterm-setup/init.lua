@@ -75,6 +75,11 @@ local function resolve_action(wezterm, spec)
     return act.CloseCurrentPane({ confirm = spec.confirm and true or false })
   elseif t == "TogglePaneZoomState" then
     return act.TogglePaneZoomState
+  elseif t == "RotatePanes" then
+    -- LOCKSTEP with keybindings.lua Alt+Shift+R/E (D-12). spec.arg is
+    -- "Clockwise" | "CounterClockwise". Without this arm the closed switch below
+    -- error()s on load and WezTerm pops a config-error window (Pitfall 3).
+    return act.RotatePanes(spec.arg)
   elseif t == "ActivatePaneDirection" then
     return act.ActivatePaneDirection(spec.arg)
   elseif t == "IncreaseFontSize" then

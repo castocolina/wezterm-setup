@@ -84,6 +84,28 @@ check(any(function(b)
     and action_type(b) == "ClearScreenAndScrollback"
 end), "Linux-friendly Ctrl+Shift+K clear binding exists")
 
+-- 4c. Arrange keys (D-12): Alt+Shift+R = RotatePanes Clockwise,
+-- Alt+Shift+E = RotatePanes CounterClockwise. The Alt+Shift+Z zoom toggle is retained.
+check(any(function(b)
+  return b.key == "mapped:r"
+    and b.mods == "ALT|SHIFT"
+    and action_type(b) == "RotatePanes"
+    and b.action.arg == "Clockwise"
+end), "Alt+Shift+R = RotatePanes Clockwise binding exists (D-12)")
+
+check(any(function(b)
+  return b.key == "mapped:e"
+    and b.mods == "ALT|SHIFT"
+    and action_type(b) == "RotatePanes"
+    and b.action.arg == "CounterClockwise"
+end), "Alt+Shift+E = RotatePanes CounterClockwise binding exists (D-12)")
+
+check(any(function(b)
+  return b.key == "mapped:z"
+    and b.mods == "ALT|SHIFT"
+    and action_type(b) == "TogglePaneZoomState"
+end), "Alt+Shift+Z zoom toggle retained (D-12)")
+
 -- 5. No forbidden punctuation keys (D-10): [ ] { } / \ ;
 local forbidden = { ["["] = true, ["]"] = true, ["{"] = true, ["}"] = true,
                     ["/"] = true, ["\\"] = true, [";"] = true }

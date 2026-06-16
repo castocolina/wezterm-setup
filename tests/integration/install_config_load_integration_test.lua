@@ -139,6 +139,23 @@ do
     "debug = nil",
     -- WezTerm-like resolution: config dir only, ?.lua then ?/init.lua.
     'package.path = cfgdir.."/?.lua;"..cfgdir.."/?/init.lua"',
+    -- RENDER-LAYER GUARD (06.1-07): install a `wezterm` stub so apply() actually
+    -- REGISTERS the format-tab-title handler (Plan 05 active-pane-color render),
+    -- and so the registered callback can be invoked here. Without a wezterm
+    -- global, init.lua's `pcall(require,"wezterm")` no-ops and the render path is
+    -- never exercised — a Plan 05 regression in format-tab-title would slip past.
+    -- The stub captures every registered event callback + provides the minimal
+    -- wezterm surface the renderer touches (format/format-tab-title helpers).
+    "local _handlers = {}",
+    "local wez = {}",
+    "wez.on = function(name, cb) _handlers[name] = cb end",
+    "wez.format = function(runs) local s={} for _,r in ipairs(runs) do if r.Text then s[#s+1]=r.Text end end return table.concat(s) end",
+    "wez.truncate_right = function(s, n) s=tostring(s); if #s<=n then return s end return s:sub(1, math.max(1,n)) end",
+    "wez.nerdfonts = setmetatable({}, { __index = function() return '' end })",
+    "wez.config_builder = function() return { keys = {} } end",
+    "wez.action = setmetatable({}, { __index = function(_, k) return setmetatable({ __action = k }, { __call = function(_, ...) return { __action = k, args = {...} } end }) end })",
+    "wez.action_callback = function(fn) return fn end",
+    "package.loaded['wezterm'] = wez",
     -- A stub config table standing in for wezterm.config_builder()'s output.
     "local config = { keys = {} }",
     -- The managed block (Shape A) refers to `config` and calls apply on it.
@@ -147,6 +164,21 @@ do
     'io.write("APPLY_OK\\n")',
     "assert(type(config.keys) == 'table', 'apply should have populated config.keys')",
     'io.write("KEYS_OK\\n")',
+    -- RENDER-LAYER GUARD: the format-tab-title handler MUST have registered (the
+    -- managed block wired it via wez.on). Drive it with a synthetic active pane
+    -- carrying a WEZTERM_TAB_COLOR user var and assert it returns a non-empty
+    -- render with no error — proving the Plan 05 active-pane-color path loads.
+    "local fmt = _handlers['format-tab-title']",
+    "assert(type(fmt) == 'function', 'format-tab-title handler was not registered')",
+    "local tab = { tab_index = 0, is_active = true, active_pane = { title = 'api', user_vars = { WEZTERM_TAB_COLOR = 'green' } } }",
+    "local out = fmt(tab, {}, {}, {}, {}, 80)",
+    "assert(out ~= nil, 'format-tab-title returned nil')",
+    'io.write("RENDER_OK\\n")',
+    -- Also prove a #RRGGBBAA user var (D-09) renders without error (Plan 05).
+    "tab.active_pane.user_vars.WEZTERM_TAB_COLOR = '#1a204080'",
+    "local out2 = fmt(tab, {}, {}, {}, {}, 80)",
+    "assert(out2 ~= nil, 'format-tab-title returned nil for #RRGGBBAA')",
+    'io.write("RENDER_ALPHA_OK\\n")',
   }, "\n")
   -- Escape any `%` in the replacement (gsub treats `%` specially) and TRUNCATE
   -- the inner gsub to a single value with extra parens — otherwise its second
@@ -167,6 +199,13 @@ do
   check("apply() populated config.keys", out:find("KEYS_OK", 1, true) ~= nil, out)
   check("no 'module not found' regression (BUG 2)",
     out:find("not found", 1, true) == nil, out)
+
+  -- RENDER-LAYER GUARD (06.1-07): the Plan 05 format-tab-title handler registers
+  -- and renders the active pane's WEZTERM_TAB_COLOR (named + #RRGGBBAA) cleanly.
+  check("format-tab-title registers + renders active-pane color (Plan 05 render layer)",
+    out:find("RENDER_OK", 1, true) ~= nil, out)
+  check("format-tab-title renders a #RRGGBBAA accent without error (D-09)",
+    out:find("RENDER_ALPHA_OK", 1, true) ~= nil, out)
 
   rmrf(scratch)
 end

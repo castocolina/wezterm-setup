@@ -62,6 +62,69 @@ for _, b in ipairs(returned.keys) do
 end
 check(user_key_present, "pre-existing user key binding preserved (append, not reassign)")
 
+-- 6. RotatePanes spec reached the merged key table (D-12). Under plain lua5.4 there is no
+--    `wezterm` global, so resolve_action leaves the declarative spec in place — the Alt+Shift+R
+--    Clockwise entry must be present with its spec intact.
+local rotate_present = false
+for _, b in ipairs(returned.keys) do
+  if b.key == "mapped:r" and b.mods == "ALT|SHIFT"
+      and type(b.action) == "table" and b.action.type == "RotatePanes"
+      and b.action.arg == "Clockwise" then
+    rotate_present = true
+    break
+  end
+end
+check(rotate_present, "RotatePanes Alt+Shift+R spec merged into config.keys (D-12)")
+
+-- 7. resolve_action maps a RotatePanes spec to a real wezterm action when `wezterm` is present
+--    (Pitfall 3 lockstep: the closed switch must NOT error() on RotatePanes). We exercise the
+--    SAME init.lua under a wezterm stub via package.preload to prove the arm exists.
+package.loaded["init"] = nil
+package.loaded["wezterm-setup.keybindings"] = nil
+package.loaded["wezterm-setup.cwd"] = nil
+package.loaded["wezterm-setup.format-tab-title"] = nil
+package.preload["wezterm"] = function()
+  return {
+    action = {
+      RotatePanes = function(arg) return { __action = "RotatePanes", arg = arg } end,
+      ClearScrollback = function(a) return { __action = "ClearScrollback", arg = a } end,
+      SpawnTab = function(a) return { __action = "SpawnTab", arg = a } end,
+      CloseCurrentTab = function(a) return { __action = "CloseCurrentTab", arg = a } end,
+      ActivateTabRelative = function(a) return { __action = "ActivateTabRelative", arg = a } end,
+      MoveTabRelative = function(a) return { __action = "MoveTabRelative", arg = a } end,
+      SplitHorizontal = function(a) return { __action = "SplitHorizontal", arg = a } end,
+      SplitVertical = function(a) return { __action = "SplitVertical", arg = a } end,
+      CloseCurrentPane = function(a) return { __action = "CloseCurrentPane", arg = a } end,
+      TogglePaneZoomState = { __action = "TogglePaneZoomState" },
+      ActivatePaneDirection = function(a) return { __action = "ActivatePaneDirection", arg = a } end,
+      IncreaseFontSize = { __action = "IncreaseFontSize" },
+      DecreaseFontSize = { __action = "DecreaseFontSize" },
+      ResetFontSize = { __action = "ResetFontSize" },
+      SendString = function(a) return { __action = "SendString", arg = a } end,
+      DisableDefaultAssignment = { __action = "DisableDefaultAssignment" },
+    },
+    on = function() end,
+    truncate_right = function(s, n) return s:sub(1, n) end,
+  }
+end
+
+local ok_stub, stubbed = pcall(require, "init")
+check(ok_stub, "init.lua loads under a wezterm stub without error (Pitfall 3 lockstep)")
+if ok_stub then
+  local cfg2 = { keys = {} }
+  local ok_apply = pcall(stubbed.apply, cfg2)
+  check(ok_apply, "apply() runs under wezterm stub without resolve_action error()")
+  local resolved_rotate = false
+  for _, b in ipairs(cfg2.keys) do
+    if b.key == "mapped:r" and type(b.action) == "table" and b.action.__action == "RotatePanes"
+        and b.action.arg == "Clockwise" then
+      resolved_rotate = true
+      break
+    end
+  end
+  check(resolved_rotate, "resolve_action maps RotatePanes spec to wezterm.action.RotatePanes (D-12)")
+end
+
 if failures > 0 then
   io.stderr:write(string.format("\n%d assertion(s) failed\n", failures))
   os.exit(1)
