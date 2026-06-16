@@ -58,4 +58,31 @@ function M.resolve_title_str(s)
   return s:match("^%s*(.-)%s*$")
 end
 
+--- Basename of a path string (last non-empty segment). Pure; trailing slashes
+-- ignored. "/" -> "/", "" -> "/". Used by expand_cwd; exposed for testing.
+function M.basename(path)
+  local stripped = tostring(path or ""):gsub("/+$", "")
+  local base = stripped:match("[^/]+$") or stripped
+  if base == "" then base = "/" end
+  return base
+end
+
+--- Replace the literal `{cwd}` token in a title with the basename of launch_dir.
+-- This is the SANCTIONED, shell-free way to put the launch directory name in a
+-- title (recipes + `--pane title=` + `--title`): a recipe/title MUST NOT run
+-- `$(...)` (D-08 security forbids shell eval), so `{cwd}` is the safe equivalent
+-- of `$(basename "$PWD")`. Pure: no `wezterm`, no I/O — the caller supplies the
+-- launch dir. All occurrences are replaced; non-token text is untouched.
+function M.expand_cwd(s, launch_dir)
+  if s == nil then
+    return s
+  end
+  s = tostring(s)
+  if not s:find("{cwd}", 1, true) then
+    return s
+  end
+  local base = M.basename(launch_dir)
+  return (s:gsub("{cwd}", function() return base end))
+end
+
 return M

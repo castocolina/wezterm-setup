@@ -40,5 +40,21 @@ eq("12 str non-icon single word", M.resolve_title_str("foo"), "foo")
 eq("13 str case-insensitive icon", M.resolve_title_str("Docker x"), "🐳 x")
 eq("14 str icon only", M.resolve_title_str("docker"), "🐳")
 
+-- basename(path) — pure last-segment helper for the {cwd} token
+eq("15 basename plain", M.basename("/home/u/git/myproj"), "myproj")
+eq("16 basename trailing slash", M.basename("/home/u/git/myproj/"), "myproj")
+eq("17 basename single segment", M.basename("myproj"), "myproj")
+eq("18 basename root", M.basename("/"), "/")
+eq("19 basename empty -> /", M.basename(""), "/")
+
+-- expand_cwd(s, launch_dir) — {cwd} token = basename(launch_dir); shell-free (D-08)
+eq("20 expand tab title", M.expand_cwd("rust {cwd}", "/home/u/git/rustthing"), "rust rustthing")
+eq("21 expand mid-string", M.expand_cwd("docker stats @ {cwd}", "/srv/app"), "docker stats @ app")
+eq("22 expand no token untouched", M.expand_cwd("plain title", "/x/y"), "plain title")
+eq("23 expand all occurrences", M.expand_cwd("{cwd}/{cwd}", "/a/b/proj"), "proj/proj")
+eq("24 expand nil passthrough", M.expand_cwd(nil, "/x/y"), nil)
+-- {cwd} is NOT shell: a $(...) in a title is left literal, never evaluated (D-08).
+eq("25 no shell eval", M.expand_cwd("x $(rm -rf /) {cwd}", "/a/safe"), "x $(rm -rf /) safe")
+
 io.write(string.format("\ntitle_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
