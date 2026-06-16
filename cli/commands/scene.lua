@@ -142,10 +142,13 @@ local DIR_FLAG = {
 -- defined — it reuses titlelib.resolve_icon + titlelib.fallback_title + the OSC
 -- builders. The caller octal-renders this array into the SAME self-erasing printf.
 --
--- opts fields:
---   is_pane1         : boolean — pane 1 carries the tab-level accent + follow carrier.
+-- opts fields (the tab-level carriers ride EVERY pane so the tab identity is
+-- stable regardless of which pane is focused — format-tab-title reads the ACTIVE
+-- pane's user_vars):
 --   tab_color_value  : tab's own color name (lowercased) or nil (-> WEZTERM_TAB_COLOR).
---   follow_pane_color: truthy -> emit WEZTERM_TAB_FOLLOW_PANE="1" on pane 1 (D-09).
+--   tab_icon_value   : tab's resolved icon GLYPH or nil; a pane with no own icon
+--                      falls back to it (-> WEZTERM_TAB_ICON) so a glyph always renders.
+--   follow_pane_color: truthy -> emit WEZTERM_TAB_FOLLOW_PANE="1" (D-09).
 --   ldir             : launch dir for the {cwd} expand + the empty-title basename.
 -- ---------------------------------------------------------------------------
 function M.build_pane_escapes(spec_parsed, opts)
@@ -170,6 +173,13 @@ function M.build_pane_escapes(spec_parsed, opts)
   local resolved_icon = nil
   if spec_parsed.icon ~= nil and tostring(spec_parsed.icon) ~= "" then
     resolved_icon = titlelib.resolve_icon(spec_parsed.icon)
+  elseif opts.tab_icon_value ~= nil and opts.tab_icon_value ~= "" then
+    -- Tab-icon fallback (D-03): a pane with no own icon inherits the tab-level
+    -- icon (already resolved to a glyph by the caller). format-tab-title reads
+    -- the ACTIVE pane's WEZTERM_TAB_ICON, so without this the tab's identity
+    -- glyph would vanish whenever a pane that set no icon is focused — the tab
+    -- icon must ride every pane to render consistently.
+    resolved_icon = opts.tab_icon_value
   end
 
   -- Title: explicit title= wins (D-11); else derive an auto-title from the startup
@@ -209,17 +219,20 @@ function M.build_pane_escapes(spec_parsed, opts)
     escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_PANE_COLOR", resolved_color)
   end
 
-  -- Pane 1 carries the tab's OWN accent (D-07: WEZTERM_TAB_COLOR, distinct from the
-  -- per-pane WEZTERM_PANE_COLOR above) plus the follow opt-in carrier (D-09).
-  if opts.is_pane1 then
-    if opts.tab_color_value ~= nil then
-      escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_COLOR", opts.tab_color_value)
-    end
-    -- D-09: follow_pane_color emits the LOCKED carrier WEZTERM_TAB_FOLLOW_PANE="1"
-    -- (W3). Default OFF -> nothing emitted when unset.
-    if opts.follow_pane_color then
-      escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_FOLLOW_PANE", "1")
-    end
+  -- Tab-level accent (D-07: WEZTERM_TAB_COLOR) + the follow opt-in carrier (D-09)
+  -- ride EVERY pane, not just pane 1. WezTerm's format-tab-title reads the ACTIVE
+  -- pane's user_vars, so a tab color / follow carrier emitted on pane 1 alone
+  -- disappears the instant another pane is focused, flipping the tab to neutral
+  -- (the "tab color permutes with the panes" defect). Emitting the tab's own
+  -- identity on every pane keeps it stable across focus changes; the per-pane
+  -- WEZTERM_PANE_COLOR above is still distinct (used only when following).
+  if opts.tab_color_value ~= nil then
+    escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_COLOR", opts.tab_color_value)
+  end
+  -- D-09: follow_pane_color emits the LOCKED carrier WEZTERM_TAB_FOLLOW_PANE="1"
+  -- (W3). Default OFF -> nothing emitted when unset.
+  if opts.follow_pane_color then
+    escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_FOLLOW_PANE", "1")
   end
 
   return escapes
@@ -416,6 +429,14 @@ function M.run_new(args)
   if args.color ~= nil then
     tab_color_value = tostring(args.color):lower()
   end
+  -- D-03: resolve the tab-level icon ONCE to a glyph. Panes that set no icon of
+  -- their own inherit it (build_pane_escapes), so the tab's identity glyph rides
+  -- every pane and renders no matter which pane is focused. Previously args.icon
+  -- was dropped entirely — the tab icon never showed.
+  local tab_icon_value = nil
+  if args.icon ~= nil and tostring(args.icon) ~= "" then
+    tab_icon_value = titlelib.resolve_icon(args.icon)
+  end
 
   for i = 1, #pane_ids do
     local pid = pane_ids[i]
@@ -428,8 +449,8 @@ function M.run_new(args)
       -- WEZTERM_TAB_FOLLOW_PANE opt-in D-09) come from the PURE builder so they
       -- stay one testable rule. They ride the same self-erasing printf below.
       local escapes = M.build_pane_escapes(spec_parsed, {
-        is_pane1 = (i == 1),
         tab_color_value = tab_color_value,
+        tab_icon_value = tab_icon_value,
         follow_pane_color = args.follow_pane_color,
         ldir = ldir,
       })

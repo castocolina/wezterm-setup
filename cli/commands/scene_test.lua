@@ -4,10 +4,11 @@
 --
 -- These cover the split identity carriers + the per-pane cwd-basename title
 -- fallback added in Plan 06.2-04 (D-03/D-07/D-09/D-12/D-13) WITHOUT a live mux:
---   * a pane with icon= emits WEZTERM_TAB_ICON (resolved glyph, base64'd)
+--   * a pane with icon= emits WEZTERM_TAB_ICON (resolved glyph, base64'd); a pane
+--     with no own icon inherits the tab icon glyph (tab_icon_value fallback)
 --   * a per-pane color emits WEZTERM_PANE_COLOR (distinct from the tab accent)
---   * pane 1 with a tab color emits WEZTERM_TAB_COLOR (the tab's OWN accent)
---   * follow_pane_color emits WEZTERM_TAB_FOLLOW_PANE="1" on pane 1 (else nothing)
+--   * the tab's OWN color (tab_color_value) + the follow carrier ride EVERY pane
+--     (not pane-1-only) so the tab identity is stable across focus changes
 --   * an empty-title pane self-labels by basename(ldir); with an icon -> glyph+base
 --   * an explicit title always wins over the fallback
 --   * every value flows through build_osc1337 (base64) — no raw-byte injection
@@ -124,12 +125,42 @@ do
     not has_uservar_name(esc, "WEZTERM_TAB_FOLLOW_PANE"))
 end
 
--- 3c follow_pane_color is a PANE-1-ONLY carrier (not emitted on other panes).
+-- 3c the follow carrier rides EVERY pane (was pane-1-only — the defect that made
+-- the tab flip to neutral the moment a non-pane-1 was focused). A non-pane-1 pane
+-- with follow_pane_color set now emits WEZTERM_TAB_FOLLOW_PANE="1".
 do
   local esc = M.build_pane_escapes({ cmd = "top", shell = false },
-    { is_pane1 = false, follow_pane_color = true, ldir = "/home/u/repo" })
-  check("3c follow carrier only on pane 1",
-    not has_uservar_name(esc, "WEZTERM_TAB_FOLLOW_PANE"))
+    { follow_pane_color = true, ldir = "/home/u/repo" })
+  check("3c follow carrier rides every pane (not pane-1-only)",
+    has_uservar(esc, "WEZTERM_TAB_FOLLOW_PANE", "1"))
+end
+
+-- 3d the tab's OWN color rides every pane too, so the tab accent is stable across
+-- focus changes (the "tab color permutes with the panes" regression).
+do
+  local esc = M.build_pane_escapes({ cmd = "top", color = "teal", shell = false },
+    { tab_color_value = "green", ldir = "/home/u/repo" })
+  check("3d tab color rides a non-pane-1 pane -> WEZTERM_TAB_COLOR=green",
+    has_uservar(esc, "WEZTERM_TAB_COLOR", "green"))
+  check("3d2 the pane keeps its own WEZTERM_PANE_COLOR distinct",
+    has_uservar(esc, "WEZTERM_PANE_COLOR", "teal"))
+end
+
+-- 3e tab-icon fallback (D-03): a pane with NO own icon inherits the tab icon glyph,
+-- so an icon always renders regardless of which pane is focused.
+do
+  local esc = M.build_pane_escapes({ cmd = "top", shell = false },
+    { tab_icon_value = "🔨", ldir = "/home/u/repo" })
+  check("3e iconless pane inherits the tab icon -> WEZTERM_TAB_ICON=🔨",
+    has_uservar(esc, "WEZTERM_TAB_ICON", "🔨"))
+end
+
+-- 3f a pane's OWN icon wins over the tab-icon fallback.
+do
+  local esc = M.build_pane_escapes({ cmd = "top", icon = "git", shell = false },
+    { tab_icon_value = "🔨", ldir = "/home/u/repo" })
+  check("3f pane's own icon wins over the tab fallback -> WEZTERM_TAB_ICON=🔀",
+    has_uservar(esc, "WEZTERM_TAB_ICON", "🔀"))
 end
 
 -- ============================================================================
