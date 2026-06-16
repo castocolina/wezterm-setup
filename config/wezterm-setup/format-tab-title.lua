@@ -1,14 +1,17 @@
 -- wezterm-setup :: format-tab-title
 --
--- The config-layer renderer for pane/tab identity (Phase 2). Holds the tab-bar
+-- The config-layer renderer for pane/tab identity (Phase 2 / 6.2). Holds the tab-bar
 -- color-profile table and registers the `format-tab-title` event handler that
 -- reads the focused pane's user vars:
---   WEZTERM_TAB_COLOR -> accent profile name (or raw hex) for the tab-bar segment
---   WEZTERM_TAB_TITLE -> custom title shown while that pane is focused
+--   WEZTERM_TAB_COLOR       -> the tab's own accent (name or raw hex) — wins (D-08 step 1)
+--   WEZTERM_PANE_COLOR      -> the active pane's accent, used only when following (D-07/D-08 step 2)
+--   WEZTERM_TAB_FOLLOW_PANE -> "1" opts the tab into following the pane's accent (D-09, default OFF)
+--   WEZTERM_TAB_ICON        -> glyph composed left of the title (one carrier, tab+pane, D-01/D-04)
+--   WEZTERM_TAB_TITLE       -> custom title shown while that pane is focused (literal, D-05/D-06)
 --
--- The `wez pane color`/`title` CLI (plans 02-03/02-04) emits those user vars via
--- OSC 1337 SetUserVar; this module is their consumer. Pane user vars override the
--- tab's own title (D-02 priority).
+-- The `wez tab`/`pane` CLI emits those user vars via OSC 1337 SetUserVar; this module
+-- is their consumer. Pane user vars override the tab's own title (D-02 priority). An
+-- empty title self-labels by the launch-dir basename (D-11/D-13).
 --
 -- Pure helpers (resolve_profile / format_label / build_runs) take no dependency
 -- on the `wezterm` global so they are unit-testable under plain lua5.4. M.apply
@@ -60,42 +63,98 @@ function M.resolve_profile(color_name)
   return M.DEFAULT_PROFILE
 end
 
---- Parse a stored `tab.tab_title` of the form "<color>:<title>" into (color, title).
--- MIGRATION-ONLY (D-04): the steady-state renderer no longer uses the COLOR half — the
--- accent comes from the active pane's WEZTERM_TAB_COLOR (D-02). This parser survives only
--- so a LEGACY stored title still strips its prefix for display instead of showing
--- "cyan:api" verbatim. Drop it once no legacy `<color>:<title>` titles remain in the wild.
--- Locked encoding (tab-title-format.md): split on the FIRST ":". Left is the color
--- (may be empty -> nil), right is the title (may be empty -> nil, may itself contain
--- ":"). A no-colon NON-EMPTY token is the color name with no title (bare-token-is-a-
--- color rule); resolve_profile maps an unknown color to the default downstream.
--- Pure: no `wezterm` dependency, unit-testable under plain lua5.4.
--- INVARIANT: this logic MUST stay in lockstep with the CLI-side parser
--- `M.parse_stored` in cli/commands/tab.lua (separate Lua bundle, same encoding) —
--- change both together.
-function M.parse_tab_title(tab_title)
-  if not tab_title or tab_title == "" then
-    return nil, nil
+--- Resolve the tab-bar accent from the active pane user vars by the D-08 three-step
+-- precedence (pure; takes the user_vars table, returns a {bg,fg} via resolve_profile):
+--   (1) the tab's OWN WEZTERM_TAB_COLOR, if non-empty, ALWAYS wins (D-08 step 1);
+--   (2) else if WEZTERM_TAB_FOLLOW_PANE == "1" (the LOCKED opt-in carrier, W3) and the
+--       active pane's WEZTERM_PANE_COLOR is non-empty, follow that pane accent (D-08 step 2);
+--   (3) else neutral M.DEFAULT_PROFILE (D-08 step 3 / D-10 = WezTerm default, no sticky state).
+-- D-09: follow-pane is OPT-IN — only the exact value "1" turns it ON; unset/empty/any
+-- other value is OFF, so a pane color alone never bleeds into the tab. resolve_profile
+-- (unchanged) keeps the malformed/over-long tamper fallback (T-06.2-06).
+function M.resolve_accent(uv)
+  uv = uv or {}
+  local tab_color = uv.WEZTERM_TAB_COLOR
+  if tab_color and tab_color ~= "" then
+    return M.resolve_profile(tab_color)
   end
-  local pos = tab_title:find(":", 1, true)
-  if not pos then
-    return tab_title, nil
+  local pane_color = uv.WEZTERM_PANE_COLOR
+  if uv.WEZTERM_TAB_FOLLOW_PANE == "1" and pane_color and pane_color ~= "" then
+    return M.resolve_profile(pane_color)
   end
-  local color = tab_title:sub(1, pos - 1)
-  local title = tab_title:sub(pos + 1)
-  if color == "" then color = nil end
-  if title == "" then title = nil end
-  return color, title
+  return M.DEFAULT_PROFILE
+end
+
+-- D-05/D-06: the legacy `<color>:<title>` parse_tab_title was REMOVED here. With the
+-- icon as its own carrier (WEZTERM_TAB_ICON, D-01) and the accent on its own user var
+-- (WEZTERM_TAB_COLOR / WEZTERM_PANE_COLOR, D-07), a stored title needs no prefix split:
+-- a colon now carries no special meaning and a legacy "cyan:api" renders verbatim
+-- (no doctor gate, no migration tracking — CONTEXT D-06).
+
+--- Basename of a path string (last non-empty segment). Pure; trailing slashes
+-- ignored. "/" -> "/", "" -> "/", nil -> "/".
+-- INVARIANT (deliberate standalone-bundle duplicate): this is the SAME logic as
+-- `M.basename` in cli/lib/title.lua:68-73. format-tab-title.lua loads inside WezTerm's
+-- Lua (NOT the luastatic CLI bundle) and has no `cli/lib` require, so the helper is
+-- duplicated here on purpose (the one justified reuse exception, per 06.2-PATTERNS.md).
+-- Keep both copies in lockstep — change them together.
+function M.basename(path)
+  local stripped = tostring(path or ""):gsub("/+$", "")
+  local base = stripped:match("[^/]+$") or stripped
+  if base == "" then base = "/" end
+  return base
+end
+
+--- Compose the displayed label text: icon left of the (literal) title, single space
+-- between (D-04). Empty/nil icon -> title only. Empty/nil title with an icon -> icon
+-- only (no trailing space). Empty both -> "". Pure, unit-testable under plain lua5.4.
+function M.compose_label_text(icon, title)
+  icon = icon or ""
+  title = title or ""
+  if icon == "" then
+    return title
+  end
+  if title == "" then
+    return icon
+  end
+  return icon .. " " .. title
+end
+
+--- Resolve the displayed text with the empty-title cwd fallback (D-11/D-13). A
+-- non-empty title wins (D-11). An empty title falls back to the launch-dir basename;
+-- with an icon present this yields "icon basename", icon-only fallback otherwise (D-13).
+-- Pure: launch_dir is supplied by the caller (the handler sources it from the active
+-- pane cwd / title). No `wezterm` dependency.
+function M.title_with_fallback(title, icon, launch_dir)
+  title = title or ""
+  if title ~= "" then
+    return M.compose_label_text(icon, title)
+  end
+  return M.compose_label_text(icon, M.basename(launch_dir))
 end
 
 --- Build the tab label string: "<n>: <title> ", 1-based index, right-truncated
--- to max_width-4 (byte-based fallback; the live handler additionally applies
+-- to max_width-4 on a CODEPOINT boundary (the live handler additionally applies
 -- wezterm.truncate_right for proper column width).
+-- WR-03: the label now routinely begins with a multibyte icon glyph (D-04 composes
+-- `icon .. " " .. title`). A byte-based `label:sub(1, limit)` could cut INSIDE a
+-- UTF-8 sequence, emitting a bare continuation byte. Truncate on a codepoint
+-- boundary via utf8.offset so a narrow tab never splits a glyph. The byte length
+-- is still the fallback guard for any value utf8.len cannot measure (invalid UTF-8).
 function M.format_label(index, title, max_width)
   local label = tostring((index or 0) + 1) .. ": " .. (title or "") .. " "
   local limit = (max_width or 0) - 4
-  if limit > 0 and #label > limit then
-    label = label:sub(1, limit)
+  if limit > 0 then
+    local cp_len = utf8.len(label)
+    if cp_len and cp_len > limit then
+      -- Cut just before the (limit+1)-th codepoint; offset returns the byte index
+      -- of that codepoint's first byte, so sub(1, offset-1) keeps `limit` glyphs.
+      local cut = utf8.offset(label, limit + 1)
+      label = cut and label:sub(1, cut - 1) or label
+    elseif not cp_len and #label > limit then
+      -- Invalid UTF-8 (no codepoint count) — fall back to the byte truncation.
+      label = label:sub(1, limit)
+    end
   end
   return label
 end
@@ -133,28 +192,39 @@ function M.apply(config)
 
   wezterm.on("format-tab-title", function(tab, _tabs, _panes, _cfg, _hover, max_width)
     local uv = (tab.active_pane and tab.active_pane.user_vars) or {}
-    -- MIGRATION-ONLY (D-04): parse_tab_title is consulted SOLELY to strip a legacy
-    -- `<color>:<title>` prefix from the DISPLAYED title text so an old stored title still
-    -- renders gracefully (no per-paint warning, Open Q3). Its color half (_legacyColor) is
-    -- intentionally discarded — the steady-state accent comes from the active pane's
-    -- WEZTERM_TAB_COLOR only (D-02 active-pane-wins). Remove once no legacy titles remain.
-    local _legacyColor, migratedTitle = M.parse_tab_title(tab.tab_title)
 
-    -- accent: active pane WEZTERM_TAB_COLOR > default (D-02/D-04). The legacy tab-prefix
-    -- color is NO LONGER consulted in the steady state.
-    local accent_color = (uv.WEZTERM_TAB_COLOR ~= "" and uv.WEZTERM_TAB_COLOR) or nil
-    local profile = M.resolve_profile(accent_color)
+    -- accent (D-08 three-step): tab's own WEZTERM_TAB_COLOR > followed pane
+    -- WEZTERM_PANE_COLOR (when WEZTERM_TAB_FOLLOW_PANE == "1") > neutral default.
+    local profile = M.resolve_accent(uv)
 
-    -- title: pane WEZTERM_TAB_TITLE > legacy migrated title > active_pane.title > ""
+    -- icon carrier (D-01/D-04): one user var shared tab+pane, composed left of the title.
+    local icon = uv.WEZTERM_TAB_ICON or ""
+
+    -- title: pane WEZTERM_TAB_TITLE > explicit tab.tab_title > active_pane.title > ""
+    -- (literal — no `<color>:` split anymore, D-05/D-06). tab.tab_title is what
+    -- `wez tab title <text>` writes via set-tab-title; it sits ABOVE the inherited pane
+    -- PROCESS title so an explicit tab title is honored, while the pane user var stays
+    -- first so the active pane's own title still wins (active-pane precedence). launch_dir
+    -- feeds the empty-title cwd fallback (D-11/D-13): active pane cwd if WezTerm exposes it.
     local title = uv.WEZTERM_TAB_TITLE
     if not title or title == "" then
-      title = migratedTitle
-      if not title or title == "" then
-        title = tab.active_pane and tab.active_pane.title or ""
-      end
+      title = tab.tab_title
+    end
+    if not title or title == "" then
+      title = tab.active_pane and tab.active_pane.title or ""
+    end
+    local launch_dir = (tab.active_pane and tab.active_pane.current_working_dir)
+    if type(launch_dir) == "table" then
+      launch_dir = launch_dir.file_path or launch_dir.path
+    end
+    if not launch_dir or launch_dir == "" then
+      launch_dir = tab.active_pane and tab.active_pane.title or ""
     end
 
-    local label = M.format_label(tab.tab_index, title, max_width)
+    -- compose displayed text: icon left of the title, with the empty-title cwd fallback.
+    local display = M.title_with_fallback(title, icon, launch_dir)
+
+    local label = M.format_label(tab.tab_index, display, max_width)
     label = wezterm.truncate_right(label, math.max(1, (max_width or 8) - 4))
     return M.build_runs(tab.is_active, profile, label)
   end)
