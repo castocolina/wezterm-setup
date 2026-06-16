@@ -7,8 +7,8 @@
 -- Per D-01 all of the health DECISIONS live here in Lua; the Makefile `doctor`
 -- target is decision-free glue that just shells out to `wez doctor`.
 --
--- D-15 — what gates the EXIT CODE (the headless / CI install-health gate, R2):
--- exactly FOUR CORE integrity gates, each contributing to the exit code:
+-- D-15 / D-11 — what gates the EXIT CODE (the headless / CI install-health gate,
+-- R2): exactly FIVE CORE integrity gates, each contributing to the exit code:
 --   1. the `wez` binary is on PATH
 --   2. the managed sentinel block in wezterm.lua is well-formed (reuse the
 --      install_state PARSE contract — same LOCKED markers, no variants)
@@ -17,7 +17,11 @@
 --      pcall — T-06-02: doctor never executes the user's wezterm.lua side effects,
 --      only loads the managed init.lua chunk to test it parses/loads)
 --   4. a timestamped backup (wezterm.lua.bak.<ts>) exists
--- If ALL four pass -> exit 0; if ANY fails -> non-zero, printing each failed gate.
+--   5. no shadowing tab-bar handler: the user's wezterm.lua has NO inline
+--      `wezterm.on("format-tab-title", ...)` registration (or duplicate
+--      keybindings) OUTSIDE the managed block — detected by a PURE text grep that
+--      never executes the user's wezterm.lua (T-06-02 preserved) (D-11)
+-- If ALL five pass -> exit 0; if ANY fails -> non-zero, printing each failed gate.
 --
 -- ADVISORY probes (PRINTED, but NEVER change the exit code — D-15): the
 -- completions-installed check and a live-session reachability probe
@@ -189,6 +193,76 @@ function M.gate_backup_exists(target, opts)
     "no wezterm.lua.bak.<timestamp> backup found")
 end
 
+-- GATE 5 — no shadowing tab-bar handler / duplicate keybindings (D-11). The
+-- prototype wezterm.lua's OWN inline `wezterm.on("format-tab-title", ...)`
+-- registration (or duplicate-shadowing keybindings) OUTSIDE the managed sentinel
+-- block silently overrides the managed renderer (wezterm.on APPENDS handlers; the
+-- user one shadows ours) — the root cause of the `cyan:` literal / no-color /
+-- no-cwd bug. This gate FAILS loudly (non-zero) when such a registration exists
+-- OUTSIDE the managed block.
+--
+-- The decision is a PURE text grep — it NEVER loadfile/dofile/executes the user's
+-- wezterm.lua (T-06-02 preserved); run() reads the file and passes the text in,
+-- exactly like gate_sentinel_well_formed. It reuses install_state.parse() (the
+-- SAME LOCKED markers GATE 2 uses) to know what is "inside" vs "outside" the
+-- managed block — one shared block-boundary parser, no second sentinel scanner
+-- (D-01 / reducing-entropy).
+--
+-- The duplicate-keybinding heuristic is intentionally CONSERVATIVE (T-06.1-15):
+-- it only flags a registration that lives OUTSIDE the managed block, so a managed-
+-- block-internal match (our own handler) is never a false failure.
+function M.gate_no_shadowing(text)
+  if not text then
+    -- No config to read is reported by GATE 2; here, absence of text means there
+    -- is nothing that could shadow — do not double-fail.
+    return gate(true, "no shadowing tab-bar handler")
+  end
+
+  -- Patterns that, when found OUTSIDE the managed block, indicate a user handler
+  -- shadowing the managed tab-bar renderer. Matched as PLAIN text (find(..., true))
+  -- so Lua pattern metacharacters in the needle are literal.
+  local needles = {
+    'wezterm.on("format-tab-title"',
+    "wezterm.on('format-tab-title'",
+  }
+
+  -- Locate the managed block range (byte offsets) via the shared parser. parse()
+  -- returns the block STRING when present; recover its offsets the same way GATE 2
+  -- conceptually does, using the LOCKED markers from install_state.
+  local block_open = text:find(install_state.OPEN_MARKER, 1, true)
+  local block_close
+  if block_open then
+    local close_at = text:find(install_state.CLOSE_MARKER, block_open, true)
+    if close_at then
+      local line_end = text:find("\n", close_at, true)
+      block_close = line_end or (#text + 1)
+    end
+  end
+
+  -- A match is "shadowing" iff it is NOT contained within [block_open, block_close).
+  local function inside_managed(at)
+    return block_open and block_close and at >= block_open and at < block_close
+  end
+
+  for _, needle in ipairs(needles) do
+    local from = 1
+    while true do
+      local at = text:find(needle, from, true)
+      if not at then break end
+      if not inside_managed(at) then
+        return gate(false, "no shadowing tab-bar handler",
+          "remove the inline format-tab-title handler (and any duplicate "
+          .. "keybindings) from your wezterm.lua — wezterm-setup's managed block "
+          .. "renders the tab bar; an inline handler shadows it (see "
+          .. "docs/migration-tab-color-decouple.md)")
+      end
+      from = at + #needle
+    end
+  end
+
+  return gate(true, "no shadowing tab-bar handler")
+end
+
 -- ---------------------------------------------------------------------------
 -- ADVISORY probes (PRINTED, never gate the exit code — D-15)
 -- ---------------------------------------------------------------------------
@@ -263,6 +337,7 @@ function M.run(_args)
     M.gate_sentinel_well_formed(cfg_text),
     M.gate_config_dofiles(init_path),
     M.gate_backup_exists(target),
+    M.gate_no_shadowing(cfg_text),
   }
 
   local advisory = {

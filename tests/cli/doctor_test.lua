@@ -193,5 +193,82 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- GATE 5 — shadow-detection (D-11). gate_no_shadowing(text) is a PURE text grep:
+-- it FAILS when the user's wezterm.lua registers its own
+-- `wezterm.on("format-tab-title", ...)` handler (or a shadowing keybinding block)
+-- OUTSIDE the wezterm-setup managed sentinel block — the root cause of the
+-- `cyan:` literal / no-color / no-cwd bug. A match INSIDE the managed block is the
+-- expected managed renderer and must NOT fail. The decision never executes the
+-- user's wezterm.lua (T-06-02 preserved) — it only inspects supplied text.
+-- ----------------------------------------------------------------------------
+do
+  check("gate_no_shadowing is a pure function", type(D.gate_no_shadowing) == "function")
+
+  -- (a) clean text — managed block present, no inline handler -> PASS.
+  local clean = table.concat({
+    "local config = {}",
+    "-- >>> wezterm-setup managed block >>>",
+    "require('wezterm-setup').apply(config)",
+    "-- <<< wezterm-setup managed block <<<",
+    "return config",
+  }, "\n")
+  local g_clean = D.gate_no_shadowing(clean)
+  check("shadow gate passes on a clean config (no inline handler)", g_clean.ok == true, g_clean.detail)
+
+  -- (b) an inline format-tab-title handler OUTSIDE the managed block -> FAIL,
+  -- with an actionable detail.
+  local shadow_dq = table.concat({
+    "local wezterm = require('wezterm')",
+    "local config = {}",
+    'wezterm.on("format-tab-title", function(tab) return tab.active_pane.title end)',
+    "-- >>> wezterm-setup managed block >>>",
+    "require('wezterm-setup').apply(config)",
+    "-- <<< wezterm-setup managed block <<<",
+    "return config",
+  }, "\n")
+  local g_dq = D.gate_no_shadowing(shadow_dq)
+  check("shadow gate fails on an inline format-tab-title handler (double quotes)",
+    g_dq.ok == false, tostring(g_dq.ok))
+  check("shadow gate failure carries an actionable detail mentioning format-tab-title",
+    type(g_dq.detail) == "string" and g_dq.detail:find("format-tab-title", 1, true) ~= nil,
+    g_dq.detail)
+
+  -- single-quote registration is detected too.
+  local shadow_sq = table.concat({
+    "local config = {}",
+    "wezterm.on('format-tab-title', function(tab) return '' end)",
+    "-- >>> wezterm-setup managed block >>>",
+    "require('wezterm-setup').apply(config)",
+    "-- <<< wezterm-setup managed block <<<",
+    "return config",
+  }, "\n")
+  check("shadow gate fails on an inline format-tab-title handler (single quotes)",
+    D.gate_no_shadowing(shadow_sq).ok == false, "expected FAIL")
+
+  -- (c) the SAME registration INSIDE the managed block -> PASS (managed handler
+  -- is expected; a managed-block-internal match is NOT a failure).
+  local managed_internal = table.concat({
+    "local config = {}",
+    "-- >>> wezterm-setup managed block >>>",
+    'wezterm.on("format-tab-title", function(tab) return tab.title end)',
+    "require('wezterm-setup').apply(config)",
+    "-- <<< wezterm-setup managed block <<<",
+    "return config",
+  }, "\n")
+  check("shadow gate passes when the only handler is INSIDE the managed block",
+    D.gate_no_shadowing(managed_internal).ok == true, "managed-internal handler must not fail")
+
+  -- (d) aggregate() with the shadow gate failing -> non-zero exit code (it gates
+  -- the exit code like the other core gates, D-11).
+  do
+    local core = all_core_pass()
+    core[#core + 1] = gate(false, "no shadowing handler", "inline format-tab-title found")
+    local res = D.aggregate(core, {})
+    check("a failing shadow gate in core returns non-zero", res.code ~= 0, "code=" .. tostring(res.code))
+  end
+
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
