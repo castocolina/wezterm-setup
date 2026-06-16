@@ -28,7 +28,7 @@ M.color_profiles = {
   yellow = { bg = "#5f5f1e", fg = "#f0f0c8" },
   green  = { bg = "#1e5f2e", fg = "#c8f0d0" },
   teal   = { bg = "#1e4f4a", fg = "#c8f0e8" },
-  cyan   = { bg = "#1e5f5f", fg = "#c8f0f0" },
+  cyan   = { bg = "#1e6f8a", fg = "#cdeefb" },
   blue   = { bg = "#1e3a5f", fg = "#c8ddf0" },
   navy   = { bg = "#1a2040", fg = "#c8cce0" },
   purple = { bg = "#3f1e5f", fg = "#d8c8f0" },

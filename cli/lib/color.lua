@@ -31,7 +31,7 @@ M.COLOR_NAMES = { "red", "orange", "yellow", "green", "teal", "cyan", "blue", "n
 -- Muted per-pane OSC-11 background hex per name (D-02, verbatim from pane.lua).
 M.MUTED_BG = {
   red = "#1f1617", orange = "#1f1916", yellow = "#1c1c16", green = "#161c17",
-  teal = "#151b1a", cyan = "#161c1c", blue = "#161a1f", navy = "#14151c",
+  teal = "#151b1a", cyan = "#142127", blue = "#161a1f", navy = "#14151c",
   purple = "#1a161f", pink = "#1f1619",
 }
 
