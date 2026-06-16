@@ -51,34 +51,56 @@ end
 -- (ratified planner decision):
 --   * no command/cmd (or command=="shell")     -> "shell"  (D-04 plain shell)
 --   * single-field command-only pane            -> the command string AS-IS (bare)
---   * multi-field pane (command + color/title)  -> "cmd=..., color=..., title=..."
--- Accepts `cmd` as an alias for `command` (kitty parity, Open Q2).
+--   * any extra field (color/title/cwd/focus/size)
+--                                               -> "cmd=..., color=..., title=...,
+--                                                   cwd=..., focus=true, size=N"
+-- Accepts `cmd` as an alias for `command` (kitty parity, Open Q2). The
+-- cwd/focus/size fields (D-05/D-06/D-07) are appended as their own segments and
+-- round-trip through scene.parse_pane_spec (order-independent).
 --
--- COMMA CAVEAT (Pitfall 3): a comma INSIDE a multi-field command value would
+-- COMMA CAVEAT (Pitfall 5): a comma INSIDE a multi-field command value would
 -- mis-split via parse_pane_spec (it splits on top-level commas). This is the v1
--- limitation — the 3 seed recipes never combine a comma'd command WITH
--- color=/title=, so they round-trip safely. The comma-safe fix is a structured
--- M.run_new entry point (deliberately NOT implemented here).
+-- limitation — the refreshed seed recipes (Plan 07) stay comma-safe by never
+-- combining a comma'd command WITH color=/title=/cwd=/focus=/size=. The
+-- comma-safe fix is a structured M.run_new entry point (deliberately NOT here).
 -- ---------------------------------------------------------------------------
 local function pane_table_to_spec(p)
   local cmd = p.cmd or p.command
-  if cmd == nil or cmd == "shell" then
+  local is_shell = (cmd == nil or cmd == "shell")
+  -- A shell pane with NO styling is the plain `shell` keyword (D-04 — truly
+  -- untouched, nothing sent). But a shell pane that ALSO carries
+  -- color/cwd/focus/size (D-13/D-14's teal working shell) must round-trip its
+  -- styling: emit the multi-field `cmd=shell, color=...` form, which
+  -- parse_pane_spec demotes back to a shell pane (shell=true) while keeping the
+  -- styling. Without this the bare-`shell` fast path would silently drop the tint.
+  if is_shell and p.color == nil and p.title == nil and p.cwd == nil
+    and p.focus == nil and p.size == nil then
     return "shell"
   end
-  if p.color == nil and p.title == nil then
-    return cmd -- bare command form (comma-safe for the seeds)
+  if is_shell then
+    cmd = "shell"
+  end
+  -- Bare-command fast path ONLY when no extra field is present (comma-safe seeds).
+  if p.color == nil and p.title == nil and p.cwd == nil
+    and p.focus == nil and p.size == nil then
+    return cmd
   end
   local segs = { "cmd=" .. cmd }
   if p.color then segs[#segs + 1] = "color=" .. p.color end
   if p.title then segs[#segs + 1] = "title=" .. p.title end
+  if p.cwd then segs[#segs + 1] = "cwd=" .. p.cwd end
+  if p.focus == true then segs[#segs + 1] = "focus=true" end
+  if p.size ~= nil then segs[#segs + 1] = "size=" .. tostring(p.size) end
   return table.concat(segs, ", ")
 end
 
 -- ---------------------------------------------------------------------------
 -- M.recipe_to_args(recipe) -> args table. PURE transform (05-RESEARCH Pattern 1).
 -- Reads panes from recipe.panes (the chosen key, matching README/UI-SPEC
--- `[[panes]]`), accepting recipe.pane as a fallback alias. Builds the exact
--- shape M.run_new consumes: { layout, color, title, pane = { <spec strings> } }.
+-- `[[panes]]`), accepting recipe.pane as a fallback alias ([[pane]], D-04). Carries
+-- the top-level tab keys (color/title + the new top-level cwd, D-07) so the
+-- IO-shell can apply a tab-level default cwd. Builds the exact shape M.run_new
+-- consumes: { layout, color, title, cwd, pane = { <spec strings> } }.
 -- ---------------------------------------------------------------------------
 function M.recipe_to_args(recipe)
   local panes = recipe.panes or recipe.pane or {}
@@ -86,6 +108,7 @@ function M.recipe_to_args(recipe)
     layout = recipe.layout,
     color = recipe.color,
     title = recipe.title,
+    cwd = recipe.cwd,
     pane = {},
   }
   for _, p in ipairs(panes) do

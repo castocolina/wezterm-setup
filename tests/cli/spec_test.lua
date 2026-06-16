@@ -74,6 +74,48 @@ do
   check("`install-state --force` parses", ok and res ~= nil, not ok and res or nil)
 end
 
+-- scene new must accept the tab-level --cwd flag (D-07) plus --color/--title and
+-- repeatable --pane, and the --pane help string must advertise the full segment
+-- grammar cwd/focus/size (D-16 — completion + `wez keys` read it).
+do
+  local ok, res = pcall(function()
+    return parser:parse({ "scene", "new", "--layout", "tall",
+      "--cwd", "~/proj", "--color", "teal", "--title", "Dev",
+      "--pane", "shell", "--pane", "cmd=top, cwd=~/x, focus=true, size=30" })
+  end)
+  check("`scene new --cwd ...` parses", ok and res ~= nil and res.cwd == "~/proj",
+    not ok and res or ("cwd=" .. tostring(res and res.cwd)))
+  check("`scene new` collects repeatable --pane into an array",
+    ok and type(res.pane) == "table" and #res.pane == 2,
+    ok and ("#pane=" .. tostring(res.pane and #res.pane)) or nil)
+  check("`scene new` carries tab-level color/title",
+    ok and res.color == "teal" and res.title == "Dev",
+    ok and ("color=" .. tostring(res.color) .. " title=" .. tostring(res.title)) or nil)
+end
+
+-- The registered --pane help string must list cwd/focus/size so the grammar is
+-- discoverable via completion + `wez keys` (D-16). We assert against the option's
+-- description text the parser holds.
+do
+  local found = false
+  local parser2 = spec.build_parser()
+  -- argparse stores commands/options in internal tables; walk for the scene_new
+  -- --pane option description mentioning cwd/focus/size.
+  local function walk(node)
+    if type(node) ~= "table" then return end
+    for _, opt in ipairs(node._options or {}) do
+      local desc = opt._description or opt.description
+      if type(desc) == "string" and desc:find("cwd")
+        and desc:find("focus") and desc:find("size") then
+        found = true
+      end
+    end
+    for _, cmd in ipairs(node._commands or {}) do walk(cmd) end
+  end
+  walk(parser2)
+  check("--pane help advertises cwd/focus/size segment grammar (D-16)", found)
+end
+
 -- Each subcommand carries a category tag the completion generator + keys read (D-16).
 check("spec.categories() returns a table", type(spec.categories) == "function" and type(spec.categories()) == "table")
 do

@@ -130,6 +130,95 @@ teq("2g parse spaced D-06 form", M.parse_pane_spec("cmd=docker stats, color=teal
   { cmd = "docker stats", color = "teal", title = "stats", shell = false })
 
 -- ============================================================================
+-- 2.5* parse_pane_spec gains cwd / focus / size (D-05/D-06/D-07)
+-- ============================================================================
+
+-- 2h cwd/focus/size carried alongside cmd/color (raw cwd kept; resolution is the
+-- IO-shell's job). focus coerces "true"->true, size coerces "30"->30 (integer).
+teq("2h parse cwd+focus+size",
+  M.parse_pane_spec("cmd=top, color=teal, cwd=~/x, focus=true, size=30"),
+  { cmd = "top", color = "teal", title = nil, cwd = "~/x", focus = true, size = 30, shell = false })
+
+-- 2i a plain shell pane still parses unchanged (cwd/focus/size absent -> nil).
+teq("2i parse shell still unchanged", M.parse_pane_spec("shell"),
+  { cmd = nil, color = nil, title = nil, shell = true })
+
+-- 2i2 STYLED shell pane (06.1-07): `cmd=shell, color=...` means a plain shell
+-- pane (no command sent) that ALSO carries styling — D-13/D-14's teal working
+-- shell. The cmd=shell is demoted to shell=true so no nested `shell` startup
+-- line runs, while color survives so the OSC-11 tint applies. WITHOUT this the
+-- seed loader would silently drop the teal on every shell pane.
+teq("2i2 parse cmd=shell, color=teal -> styled shell",
+  M.parse_pane_spec("cmd=shell, color=teal"),
+  { cmd = nil, color = "teal", title = nil, shell = true })
+
+-- 2j cwd alone (literal absolute) is carried raw.
+teq("2j parse cwd alone", M.parse_pane_spec("cmd=vim, cwd=/srv/app"),
+  { cmd = "vim", color = nil, title = nil, cwd = "/srv/app", focus = nil, size = nil, shell = false })
+
+-- 2k focus absent -> nil (NOT false); only an explicit focus=true sets it true.
+do
+  local p = M.parse_pane_spec("cmd=htop")
+  check("2k focus absent is nil", p ~= nil and p.focus == nil)
+end
+
+-- 2l size lower bound: size=1 accepted (integer 1).
+teq("2l parse size=1 ok", M.parse_pane_spec("cmd=x, size=1"),
+  { cmd = "x", color = nil, title = nil, cwd = nil, focus = nil, size = 1, shell = false })
+-- 2m size upper bound: size=100 accepted.
+teq("2m parse size=100 ok", M.parse_pane_spec("cmd=x, size=100"),
+  { cmd = "x", color = nil, title = nil, cwd = nil, focus = nil, size = 100, shell = false })
+
+-- 2n size out of range / non-integer -> validate-before-emit error.
+do
+  local res, err = M.parse_pane_spec("cmd=x, size=0")
+  check("2n size=0 rejected (nil result)", res == nil)
+  eq("2n2 size=0 message", err,
+    "error: invalid --pane value 'cmd=x, size=0' — size must be an integer 1..100")
+  res, err = M.parse_pane_spec("cmd=x, size=101")
+  check("2o size=101 rejected", res == nil and err ~= nil)
+  res, err = M.parse_pane_spec("cmd=x, size=abc")
+  check("2p size=abc rejected", res == nil and err ~= nil)
+end
+
+-- 2q unknown key error now lists the EXTENDED allowed set (cmd/color/title/cwd/focus/size).
+do
+  local res, err = M.parse_pane_spec("cmd=htop, bogus=1")
+  check("2q unknown key returns nil", res == nil)
+  eq("2q2 unknown key message lists extended set", err,
+    "error: invalid --pane value 'cmd=htop, bogus=1' — unknown key 'bogus' (expected cmd, color, title, cwd, focus, size)")
+end
+
+-- ============================================================================
+-- 2.6* validate_focus(parsed_list) — at most ONE focus=true pane (D-05)
+-- ============================================================================
+do
+  -- zero focus panes -> ok
+  local ok = M.validate_focus({ { focus = nil }, { focus = nil } })
+  check("2r validate_focus zero focus ok", ok == true)
+  -- exactly one focus pane -> ok
+  ok = M.validate_focus({ { focus = true }, { focus = nil } })
+  check("2s validate_focus one focus ok", ok == true)
+  -- two focus panes -> error (validate-before-emit)
+  local ok2, err = M.validate_focus({ { focus = true }, { focus = true } })
+  check("2t validate_focus two focus rejected", ok2 == false)
+  eq("2t2 validate_focus message", err,
+    "error: more than one pane marked focus=true")
+end
+
+-- ============================================================================
+-- 2.7* size_percent(parsed, default_pct) — size overrides the equal-share step
+-- ============================================================================
+do
+  eq("2u size_percent uses parsed.size when set",
+    M.size_percent({ size = 30 }, 50), 30)
+  eq("2v size_percent falls back to default when size nil",
+    M.size_percent({ size = nil }, 50), 50)
+  eq("2w size_percent default when parsed nil",
+    M.size_percent(nil, 33), 33)
+end
+
+-- ============================================================================
 -- 3* validate_layout(name)
 -- ============================================================================
 do
@@ -170,7 +259,7 @@ do
   local res, err = M.parse_pane_spec("cmd=htop,foo=bar")
   check("5a unknown key returns nil result", res == nil)
   eq("5b unknown key message", err,
-    "error: invalid --pane value 'cmd=htop,foo=bar' — unknown key 'foo' (expected cmd, color, title)")
+    "error: invalid --pane value 'cmd=htop,foo=bar' — unknown key 'foo' (expected cmd, color, title, cwd, focus, size)")
 end
 
 -- ============================================================================

@@ -17,24 +17,33 @@
 --                              array {pane_id, tab_id}; current pane from the
 --                              WEZTERM_PANE env var. Feeds decide_materialization.
 --   2. Phase A (spawn/split) : reuse pane 1 (mode=reuse) or spawn a new tab
---                              (mode=new-tab), then run plan_splits steps. Every
+--                              (mode=new-tab), then run plan_splits steps. Each
+--                              spawn/split passes `--cwd <resolved>` so the pane
+--                              opens DIRECTLY in its target dir with NO visible
+--                              `cd` line (D-08 clean pane); a per-pane `size=`
+--                              overrides the equal-share `--percent` (D-06). Every
 --                              pane id read back from mux output is int-validated
 --                              via scenelib.validate_pane_id BEFORE it is ever
 --                              interpolated into a later command line (T-04-01).
 --   3. Phase B (styling/cmd) : per-pane OSC-11 background + OSC-1337 title (reusing
 --                              pane.lua's builders + MUTED_BG, never re-derived),
---                              a `clear` for the D-09 clean-pane bar, then the
---                              startup command as a DISTINCT trailing line (never
---                              concatenated into an escape sequence — T-04-02).
---                              Tab-level color/title via set-tab-title --tab-id
---                              reuses tab.lua's parse_stored/merge_title encoding.
---   4. Focus                 : activate-pane on the layout's main pane (pane 1).
+--                              a ScrollbackAndViewport clear (the Ctrl+Shift+K
+--                              wipe) folded into the SAME printf so the setup line
+--                              self-erases, then the startup command as a DISTINCT
+--                              trailing line (never concatenated into an escape
+--                              sequence — T-04-02). Tab-level color rides
+--                              WEZTERM_TAB_COLOR, folded into pane 1's setup printf,
+--                              and the tab title is PURE text via set-tab-title —
+--                              no `<color>:<title>` encoding (D-02/D-03/D-04).
+--   4. Focus                 : activate-pane on the focus=true pane if any, else
+--                              the layout's main pane (pane 1) — D-05.
 --
--- Reuse discipline (no re-derived palettes / encodings):
+-- Reuse discipline (no re-derived palettes / encodings / resolvers — D-01):
 --   * per-pane background hex   -> panelib.MUTED_BG  (same table as `wez pane color`)
 --   * OSC builders              -> panelib.build_osc11 / build_osc1337
+--   * cwd grammar resolution     -> cwdlib.resolve / cwdlib.validate (ONE resolver)
 --   * title resolution          -> titlelib.resolve_title_str (shared D-03 resolver)
---   * tab color:title encoding  -> tablib.parse_stored / merge_title / write_tab_title
+--   * pure-text tab title sink   -> tablib.write_tab_title
 
 local M = {}
 
@@ -43,6 +52,7 @@ local recipelib = require("cli.lib.recipe")
 local panelib = require("cli.commands.pane")
 local tablib = require("cli.commands.tab")
 local titlelib = require("cli.lib.title")
+local cwdlib = require("cli.lib.cwd")
 
 -- ---------------------------------------------------------------------------
 -- Single-quote shell escaper (same proven helper as tab.lua's shquote / CR-02):
@@ -53,6 +63,26 @@ local titlelib = require("cli.lib.title")
 -- ---------------------------------------------------------------------------
 local function shquote(s)
   return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+-- ---------------------------------------------------------------------------
+-- cwd IO-shell boundary (D-07/D-08): the PURE cli/lib/cwd resolver needs the
+-- launch dir + an env snapshot, both of which are process state living ONLY here.
+--   * launch_dir = the CLI process $PWD (RESEARCH Open Q1) — the directory the
+--     user ran `wez scene new/launch` from. Each pane inherits it unless a cwd=
+--     overrides (D-07).
+--   * env snapshot = the variables the cwd grammar may reference ($NAME / ~).
+--     We snapshot HOME + every $NAME the values actually reference lazily via
+--     os.getenv at validate/resolve time (cwd.validate/resolve read env[NAME]).
+-- A tiny metatable-backed table defers os.getenv so cwd.lua stays pure while the
+-- IO-shell owns the single os.getenv trust boundary.
+-- ---------------------------------------------------------------------------
+local function launch_dir()
+  return os.getenv("PWD") or "."
+end
+
+local function env_snapshot()
+  return setmetatable({}, { __index = function(_, k) return os.getenv(k) end })
 end
 
 -- Decode JSON with the vendored dkjson, resolving both from source (CWD on
@@ -172,6 +202,36 @@ function M.run_new(args)
     end
   end
 
+  -- Validate every cwd value (per-pane + tab-level) BEFORE any mux call (D-08
+  -- clean-pane needs the resolved cwd at spawn, so a bad cwd must bail here with
+  -- ZERO panes built — T-06.1-08). cwdlib.validate rejects $(...)/backticks and
+  -- unset $ENV references; the env snapshot is the process env.
+  local env = env_snapshot()
+  for i = 1, #parsed do
+    if parsed[i].cwd ~= nil then
+      local ok_cwd, cwd_err = cwdlib.validate(parsed[i].cwd, env)
+      if not ok_cwd then
+        io.stderr:write(cwd_err .. "\n")
+        return 2
+      end
+    end
+  end
+  if args.cwd ~= nil then
+    local ok_tab_cwd, tab_cwd_err = cwdlib.validate(args.cwd, env)
+    if not ok_tab_cwd then
+      io.stderr:write(tab_cwd_err .. "\n")
+      return 2
+    end
+  end
+
+  -- D-05: at most ONE pane may carry focus=true (validate-before-emit). >1 bails
+  -- with ZERO mux calls.
+  local ok_focus, focus_err = scenelib.validate_focus(parsed)
+  if not ok_focus then
+    io.stderr:write(focus_err .. "\n")
+    return 2
+  end
+
   local n = #parsed
 
   -- =========================================================================
@@ -189,12 +249,27 @@ function M.run_new(args)
   -- =========================================================================
   local pane_ids = {}
 
+  -- D-07/D-08: resolve each pane's cwd to an ABSOLUTE path here (the only place
+  -- with the launch dir + env). A pane that omits cwd inherits the tab-level cwd
+  -- (args.cwd) and ultimately the launch dir. The resolved path is passed to the
+  -- spawn/split `--cwd` so the pane opens DIRECTLY in it (no visible `cd` line).
+  local ldir = launch_dir()
+  local tab_cwd_value = args.cwd -- tab-level default (may be nil -> launch dir)
+  local function resolved_cwd_for(idx)
+    local raw = parsed[idx] and parsed[idx].cwd or tab_cwd_value
+    return cwdlib.resolve(raw, ldir, env)
+  end
+
   if plan.mode == "reuse" then
+    -- Pane 1 already exists (the current pane), opened in the launch dir. D-07's
+    -- default IS the launch dir, so a reused pane with no explicit cwd is already
+    -- correct; no spawn happens, so no `--cwd` can be applied to it.
     pane_ids[1] = plan.first_pane_id
   else
-    -- new-tab: a flagless spawn makes a new tab in the SAME window (D-11/D-12)
-    -- and prints the new pane id.
-    local pid, spawn_err = run_capture_pane_id("wezterm cli spawn")
+    -- new-tab: a spawn makes a new tab in the SAME window (D-11/D-12), opened
+    -- DIRECTLY in pane 1's resolved cwd (D-08 clean pane), and prints the new id.
+    local pid, spawn_err = run_capture_pane_id(
+      "wezterm cli spawn --cwd " .. shquote(resolved_cwd_for(1)))
     if not pid then
       io.stderr:write((spawn_err or "error: spawn failed") .. "\n")
       return 1
@@ -203,7 +278,9 @@ function M.run_new(args)
   end
 
   -- Apply the layout's split plan. plan_splits targets are creation-order indices
-  -- (original pane = 0), so target t maps to pane_ids[t + 1].
+  -- (original pane = 0), so target t maps to pane_ids[t + 1]. The k-th split step
+  -- creates the pane whose parsed index is (#pane_ids + 1) at that moment, so its
+  -- cwd (D-07) and size override (D-06) come from that parsed entry.
   for _, step in ipairs(scenelib.plan_splits(args.layout, n)) do
     local target_pid = pane_ids[(step.target or 0) + 1]
     local flag = DIR_FLAG[step.direction]
@@ -211,9 +288,13 @@ function M.run_new(args)
       io.stderr:write("error: internal split plan produced an invalid step\n")
       return 1
     end
+    local new_idx = #pane_ids + 1
+    -- D-06: an explicit size= on the new pane overrides the equal-share percent.
+    local pct = scenelib.size_percent(parsed[new_idx], tonumber(step.percent) or 50)
+    -- D-08: the split pane opens DIRECTLY in its resolved cwd (clean pane).
     local cmd = string.format(
-      "wezterm cli split-pane --pane-id %d %s --percent %d",
-      target_pid, flag, tonumber(step.percent) or 50)
+      "wezterm cli split-pane --pane-id %d %s --percent %d --cwd %s",
+      target_pid, flag, pct, shquote(resolved_cwd_for(new_idx)))
     local new_pid, split_err = run_capture_pane_id(cmd)
     if not new_pid then
       io.stderr:write((split_err or "error: split-pane failed") .. "\n")
@@ -234,6 +315,15 @@ function M.run_new(args)
   -- Step 3: PHASE B -- per-pane styling + startup command (strict two-phase:
   -- runs only AFTER all of Phase A completed, never interleaved, per Pitfall 2).
   -- =========================================================================
+  -- Tab accent (D-02/D-03): the WEZTERM_TAB_COLOR user var rides pane 1's
+  -- self-erasing setup printf (folded in below) — NOT a separate post-spawn
+  -- send-text, which would leave its own `printf '...'` line in pane 1's
+  -- scrollback. Resolved once; scene colors are names-only + already validated.
+  local tab_color_value = nil
+  if args.color ~= nil then
+    tab_color_value = tostring(args.color):lower()
+  end
+
   for i = 1, #pane_ids do
     local pid = pane_ids[i]
     local spec_parsed = parsed[i]
@@ -265,33 +355,48 @@ function M.run_new(args)
           title_str = titlelib.resolve_title_str(first_word)
         end
       end
+      -- {cwd} token (shell-free): expand to the launch dir basename so a recipe or
+      -- `--pane title=` can read "docker @ myproject" without $(...) eval (D-08).
+      if title_str ~= nil then
+        title_str = titlelib.expand_cwd(title_str, ldir)
+      end
       if title_str ~= nil and title_str ~= "" then
         escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_TITLE", title_str)
+      end
+
+      -- Pane 1 carries the tab accent (D-02): fold WEZTERM_TAB_COLOR into its
+      -- self-erasing setup line so it never lands as a standalone scrollback line.
+      -- format-tab-title reads the active pane's WEZTERM_TAB_COLOR for the accent.
+      if i == 1 and tab_color_value ~= nil then
+        escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_COLOR", tab_color_value)
       end
 
       local has_styling = #escapes > 0
       local has_cmd = spec_parsed.cmd ~= nil and not spec_parsed.shell
 
       if has_styling or has_cmd then
-        -- D-09: the OSC escapes must reach the TERMINAL's output parser, not the
-        -- shell's line editor. send-text writes to the pane PTY (= shell stdin),
-        -- so raw control bytes are consumed by the line editor (zsh's zle silently
-        -- swallows them — so the color never even applies — while bash's readline
-        -- echoes the printable tail as `11;#...1337;...` garbage). Emit them via
-        -- `printf` instead: the shell EXECUTES printf and its OUTPUT carries the
-        -- bytes to the terminal, which interprets the OSC. Octal-escape every byte
-        -- so the typed line is pure printable ASCII (no raw ESC for readline to
-        -- mangle) needing no shell quoting; printf '\nnn' octal works in bash & zsh.
-        if has_styling then
-          local octal = table.concat(escapes):gsub(".", function(c)
-            return string.format("\\%03o", string.byte(c))
-          end)
-          payload[#payload + 1] = "printf '" .. octal .. "'\n"
-        end
-        -- D-09 clean-pane bar: a `clear` AFTER the escape injection but BEFORE the
-        -- startup command runs, so no residue / stray blank lines remain and the
-        -- command's own output is the first visible thing.
-        payload[#payload + 1] = "clear\n"
+        -- D-09 clean-pane: the styling OSCs AND the screen wipe are emitted as ONE
+        -- self-erasing `printf` line, then the user's command runs on a pristine
+        -- pane. The wipe is a ScrollbackAndViewport clear — the SAME wipe the
+        -- Ctrl+Shift+K binding (ClearScreenAndScrollback -> ClearScrollback
+        -- "ScrollbackAndViewport") performs: ED viewport (\27[2J) + ED scrollback
+        -- (\27[3J) + cursor home (\27[H). Plain `clear` only wiped the VIEWPORT, so
+        -- the injected setup line survived a scroll-up as scrollback garbage; the
+        -- \27[3J erases the scrollback too, including the setup line's own echo.
+        --
+        -- Why a `printf` and not raw bytes (Pitfall 2): send-text writes to the pane
+        -- PTY = the shell's stdin, so raw control bytes are eaten by the line editor
+        -- (zsh's zle swallows them; bash's readline echoes the printable tail as
+        -- `11;#...1337;...` garbage). The shell EXECUTES printf and ITS OUTPUT carries
+        -- the bytes to the terminal's output parser. Octal-escape every byte so the
+        -- typed line is pure printable ASCII (no raw ESC for readline to mangle) and
+        -- needs no shell quoting; printf '\nnn' octal works in bash & zsh.
+        local CLEAR_SCROLLBACK_AND_VIEWPORT = "\27[2J\27[3J\27[H"
+        escapes[#escapes + 1] = CLEAR_SCROLLBACK_AND_VIEWPORT
+        local octal = table.concat(escapes):gsub(".", function(c)
+          return string.format("\\%03o", string.byte(c))
+        end)
+        payload[#payload + 1] = "printf '" .. octal .. "'\n"
         -- Startup command as a DISTINCT trailing line (NOT concatenated into an
         -- escape sequence — prevents OSC injection/breakout, T-04-02). A `shell`
         -- pane (D-04) gets no command appended.
@@ -308,72 +413,57 @@ function M.run_new(args)
   end
 
   -- =========================================================================
-  -- Tab-level styling (D-05): set-tab-title --tab-id on the scene's tab, reusing
-  -- tab.lua's color:title encoding (parse_stored + merge_title). Only when a
-  -- tab-level --color or --title was given.
+  -- Tab-level styling (D-02/D-03/D-04): the scene tab accent rides
+  -- WEZTERM_TAB_COLOR via OSC (NO `<color>:<title>` prefix encoding) and the tab
+  -- title is written as PURE text via set-tab-title. scene.lua NO LONGER depends
+  -- on tablib.parse_stored/merge_title — the encoding dependency is removed. Only
+  -- runs when a tab-level --color or --title was given.
   -- =========================================================================
   if args.color ~= nil or args.title ~= nil then
-    local target_tab_id = plan.target_tab_id
-    if target_tab_id == nil then
-      -- new-tab path: re-read topology to find the tab that now owns pane 1.
-      for _, p in ipairs(M.read_topology()) do
-        if p.pane_id == pane_ids[1] then
-          target_tab_id = p.tab_id
+    -- COLOR (D-02/D-03): the WEZTERM_TAB_COLOR accent is emitted by pane 1's
+    -- self-erasing Phase B setup printf (folded in above via tab_color_value) — NOT
+    -- a separate post-spawn send-text, which left a `printf '...'` line in pane 1's
+    -- scrollback. format-tab-title reads the active pane's WEZTERM_TAB_COLOR.
+
+    -- TITLE: pure resolved text via set-tab-title --tab-id (no color prefix, no
+    -- read-modify-write). Reuses tab.lua's write_tab_title sink + the shared
+    -- title resolver. Resolve the target tab id from the built pane 1.
+    if args.title ~= nil then
+      local target_tab_id = plan.target_tab_id
+      if target_tab_id == nil then
+        for _, p in ipairs(M.read_topology()) do
+          if p.pane_id == pane_ids[1] then
+            target_tab_id = p.tab_id
+          end
         end
       end
-    end
-    if target_tab_id ~= nil then
-      -- Read-modify-write: preserve whichever half (color/title) was not given.
-      local cur = M.read_current_tab_title(target_tab_id)
-      local cur_color, cur_title = tablib.parse_stored(cur)
-      local opts = { cur_color = cur_color, cur_title = cur_title }
-      if args.color ~= nil then
-        local _, normalized = scenelib.validate_color(args.color)
-        opts.set_color = tostring(args.color):lower()
-        -- normalized is the lowercased name; keep it as the stored color half.
-        opts.set_color = normalized or opts.set_color
+      if target_tab_id ~= nil then
+        -- {cwd} token expands to the launch dir basename (shell-free, D-08).
+        local tab_title = titlelib.expand_cwd(
+          titlelib.resolve_title_str(args.title), ldir)
+        tablib.write_tab_title(tab_title, target_tab_id)
       end
-      if args.title ~= nil then
-        opts.set_title = titlelib.resolve_title_str(args.title)
-      end
-      local merged = tablib.merge_title(opts)
-      tablib.write_tab_title(merged, target_tab_id)
     end
   end
 
   -- =========================================================================
-  -- Step 4: FOCUS the layout's main pane (pane 1 in all 4 layouts).
+  -- Step 4: FOCUS (D-05). Activate the pane explicitly marked focus=true if one
+  -- exists (validate_focus already guaranteed at most one); otherwise default to
+  -- the layout's main pane (pane 1 in all 4 layouts).
   -- =========================================================================
-  if pane_ids[1] ~= nil then
-    os.execute("wezterm cli activate-pane --pane-id " .. tostring(pane_ids[1]))
+  local focus_pid = pane_ids[1]
+  for i = 1, #pane_ids do
+    if parsed[i] and parsed[i].focus == true then
+      focus_pid = pane_ids[i]
+      break
+    end
+  end
+  if focus_pid ~= nil then
+    os.execute("wezterm cli activate-pane --pane-id " .. tostring(focus_pid))
   end
 
   -- D-09 / UI-SPEC: success is silent on stdout.
   return 0
-end
-
--- ---------------------------------------------------------------------------
--- Read a specific tab's stored title from the mux list (for the tab-level
--- read-modify-write). Returns the stored "<color>:<title>" string, or "" if the
--- tab is not found / no session.
--- ---------------------------------------------------------------------------
-function M.read_current_tab_title(tab_id)
-  local fh = io.popen("wezterm cli list --format json 2>/dev/null")
-  if not fh then return "" end
-  local out = fh:read("*a")
-  fh:close()
-  if not out or out == "" then return "" end
-  local data = decode_json(out)
-  if type(data) ~= "table" then return "" end
-  for _, entry in ipairs(data) do
-    if type(entry) == "table" then
-      local _, tid = scenelib.validate_tab_id(entry.tab_id)
-      if tid == tab_id and entry.tab_title then
-        return entry.tab_title
-      end
-    end
-  end
-  return ""
 end
 
 -- ---------------------------------------------------------------------------

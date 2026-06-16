@@ -175,11 +175,16 @@ function M.build_parser()
   scene_new:option("--layout", "Layout: tall | tall:mirrored | grid | horizontal"):args(1)
   -- --pane: required (>=1, enforced in scene.lua for the exact UI-SPEC error),
   -- repeatable. count("*") makes argparse collect every occurrence into an array
-  -- (result.pane). Each value is a --pane spec string (shell | bare cmd | k=v,...).
-  scene_new:option("--pane", "A pane spec: 'shell' | '<cmd>' | 'cmd=..,color=..,title=..'"):args(1):count("*")
-  -- --color / --title: optional tab-level identity for the whole scene (D-05).
+  -- (result.pane). Each value is a --pane spec string. The segment keys
+  -- cmd/color/title/cwd/focus/size (D-05/D-06/D-07) are listed here so completion
+  -- + `wez keys` surface the full grammar (D-16).
+  scene_new:option("--pane",
+    "A pane spec: 'shell' | '<cmd>' | 'cmd=..,color=..,title=..,cwd=..,focus=true,size=N'"):args(1):count("*")
+  -- --color / --title / --cwd: optional tab-level identity + default cwd for the
+  -- whole scene (D-05/D-07). --cwd is the tab-level default cwd panes inherit.
   scene_new:option("--color", "Tab-level accent color for the scene"):args(1)
   scene_new:option("--title", "Tab-level title for the scene"):args(1)
+  scene_new:option("--cwd", "Tab-level default working dir panes inherit (D-07)"):args(1)
   -- scene launch <name> (Plan 05-03, SCEN-03/04) — the saved-recipe front door.
   -- A sibling subcommand under `scene` (scene_cmd target already set above), so
   -- the completion generator's spec-walk picks `launch` up automatically (D-16).

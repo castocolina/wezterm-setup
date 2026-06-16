@@ -132,11 +132,21 @@ function M.plan_splits(layout, n)
 end
 
 -- ---------------------------------------------------------------------------
--- M.parse_pane_spec(spec) -> {cmd, color, title, shell} | (nil, errmsg).
--- UI-SPEC Copywriting Contract --pane grammar (D-04/D-06):
+-- M.parse_pane_spec(spec) -> {cmd, color, title, cwd, focus, size, shell} |
+--   (nil, errmsg).
+-- UI-SPEC Copywriting Contract --pane grammar (D-04/D-05/D-06/D-07):
 --   "shell"            -> plain interactive shell (no command).
 --   bare (no '=')      -> the whole value is the command.
---   key=value,...      -> cmd=/color=/title= (optional, order-independent).
+--   key=value,...      -> cmd=/color=/title=/cwd=/focus=/size= (optional,
+--                         order-independent).
+-- The new fields (D-05/D-06/D-07):
+--   * cwd   : carried RAW (a ~-prefix/$ENV/relative/absolute string). Resolution
+--             needs the launch dir + env, which live in the IO-shell (Plan 04's
+--             cli/commands/scene.lua) — this PURE module never resolves it.
+--   * focus : boolean. `focus=true` -> true; absent -> nil (NOT false), so the
+--             IO-shell can tell "no focus given" from "focus=false".
+--   * size  : integer percent 1..100. Out-of-range / non-integer is a
+--             validate-before-emit error (D-06).
 -- Unknown key -> validate-before-emit error echoing the ORIGINAL spec + key.
 -- ---------------------------------------------------------------------------
 function M.parse_pane_spec(spec)
@@ -155,15 +165,68 @@ function M.parse_pane_spec(spec)
   local result = { cmd = nil, color = nil, title = nil, shell = false }
   for _, kv in ipairs(split_kv_segments(spec)) do
     local key, value = kv[1], kv[2]
-    if key == "cmd" or key == "color" or key == "title" then
+    if key == "cmd" or key == "color" or key == "title" or key == "cwd" then
       result[key] = value
+    elseif key == "focus" then
+      -- D-05: boolean coercion. Only the literal `true` enables focus; any other
+      -- value (including absent) leaves it nil so "no focus" is distinguishable.
+      result.focus = (value == "true") or nil
+    elseif key == "size" then
+      -- D-06: integer percent in 1..100. Reject out-of-range / non-integer.
+      local num = tonumber(value)
+      if num == nil or num ~= math.floor(num) or num < 1 or num > 100 then
+        return nil, string.format(
+          "error: invalid --pane value '%s' — size must be an integer 1..100", spec)
+      end
+      result.size = math.floor(num)
     else
       return nil, string.format(
-        "error: invalid --pane value '%s' — unknown key '%s' (expected cmd, color, title)",
+        "error: invalid --pane value '%s' — unknown key '%s' (expected cmd, color, title, cwd, focus, size)",
         spec, key)
     end
   end
+  -- D-04 parity for the key=value form: `cmd=shell` means a plain shell pane (no
+  -- command sent), EXACTLY like the bare `shell` keyword — but here it may ALSO
+  -- carry color/cwd/focus/size styling (D-13/D-14 want a teal-tinted working
+  -- shell). Demote the command to a shell flag so the IO-shell sends no `shell`
+  -- startup line while still applying the styling escapes (no nested `shell`
+  -- command, no broken auto-title).
+  if result.cmd == "shell" then
+    result.cmd = nil
+    result.shell = true
+  end
   return result
+end
+
+-- ---------------------------------------------------------------------------
+-- M.validate_focus(parsed_list) -> (true) | (false, errmsg).
+-- D-05: at most ONE pane may carry focus=true. `parsed_list` is the array of
+-- parse_pane_spec results. Validate-before-emit: more than one focused pane is a
+-- hard error (the IO-shell bails with ZERO mux calls). Zero/one focus -> ok.
+-- ---------------------------------------------------------------------------
+function M.validate_focus(parsed_list)
+  local count = 0
+  for _, p in ipairs(parsed_list or {}) do
+    if p and p.focus == true then
+      count = count + 1
+    end
+  end
+  if count > 1 then
+    return false, "error: more than one pane marked focus=true"
+  end
+  return true
+end
+
+-- ---------------------------------------------------------------------------
+-- M.size_percent(parsed, default_pct) -> int.
+-- D-06: a pane with an explicit size= overrides the equal-share split percent
+-- for ITS split step; a pane that omits size keeps the plan_splits default.
+-- ---------------------------------------------------------------------------
+function M.size_percent(parsed, default_pct)
+  if parsed and parsed.size ~= nil then
+    return parsed.size
+  end
+  return default_pct
 end
 
 -- ---------------------------------------------------------------------------
@@ -209,6 +272,15 @@ M.COLOR_NAMES = {
 local COLOR_SET = {}
 for _, name in ipairs(M.COLOR_NAMES) do COLOR_SET[name] = true end
 
+-- Scene colors are NAMES-ONLY by design — a deliberate boundary, NOT a D-01 miss.
+-- Standalone `wez pane/tab color` accept names + hex + #RRGGBBAA via the shared
+-- cli.lib.color.validate_color, because they paint an accent/background directly.
+-- A scene pane background, by contrast, is rendered from pane.lua's precomputed
+-- MUTED_BG[name] table (the muted tint that keeps scene panes readable); that
+-- muted variant exists ONLY for the 10 named palette colors, so arbitrary hex has
+-- nothing to resolve to here. Keeping this validator names-only is what makes the
+-- "names map to a muted background" contract truthful. Accepting hex in scenes is a
+-- future capability (derive a muted variant from any hex), deferred — not in 6.1.
 function M.validate_color(name)
   if COLOR_SET[tostring(name):lower()] then
     return true, nil
