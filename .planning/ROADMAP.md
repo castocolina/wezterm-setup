@@ -16,7 +16,7 @@
 - [x] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
 - [x] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs (completed 2026-06-15)
 - [x] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes (completed + UAT-verified 2026-06-15)
-- [ ] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback
+- [x] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback (completed 2026-06-16)
 - [ ] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full)
 - [ ] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
@@ -237,11 +237,28 @@ Plans:
 
 - [ ] **G-1 — Icon is its own attribute.** Add a dedicated `icon` attribute to BOTH the CLI (its own flag/position, like the old bash positional arg) and scene recipes (`icon` key at tab + `[[pane]]` level), decoupled from `title`. Render via a distinct carrier (e.g. `WEZTERM_TAB_ICON`) composed as `icon + title` so title text stays literal. Decide the fate of the first-word ICONS shortcut in `cli/lib/title.lua` (recommend: drop it; keep a parse-and-warn migration). Revises D-03/D-04.
 - [ ] **G-2a — Split tab color from pane color.** Today `wez tab color` and `wez pane color` both write `WEZTERM_TAB_COLOR`, so the active pane clobbers an explicit tab color (confirmed our implementation, not a WezTerm limit). Split into `WEZTERM_TAB_COLOR` (tab's own, stable) + `WEZTERM_PANE_COLOR` (per-pane accent). `format-tab-title` precedence: an explicit tab color ALWAYS wins; the active pane's color is used only when the tab has none. Revises D-02.
-- [ ] **G-2b — Explicit "adopt active-pane color" toggle/flag.** The old auto-adopt behavior (tab follows the focused pane's color) becomes an OPT-IN, not a silent default: a `adopt_active_pane_color` boolean — settable as a scene-recipe key (tab level) AND a `wez tab color` CLI flag (e.g. `--adopt-active-pane` / `--follow-pane`), default OFF. When ON, a tab with no explicit color tracks its active pane; when OFF, a colorless tab stays neutral. Makes the behavior readable in the TOML/CLI instead of magic. (Optional sub-idea to evaluate during discuss: a "similar color family" palette so a tab's panes read as a related group.)
-- [ ] **`{cwd}`-in-title auto-fallback.** When a title resolves to empty text, auto-fall-back to the launch-dir basename (the `{cwd}` token's value) so panes self-label by directory without an explicit token. Builds on `cli/lib/title.lua expand_cwd`.
-- [ ] **Migration + doctor.** Parse-and-warn for any legacy icon-in-title / single-color usage; extend `wez doctor` if a new shadowing/coupling class emerges. Refresh seed scenes to use the explicit `icon` attribute.
+- [ ] **G-2b — Explicit "follow active-pane color" toggle/flag.** The old auto-adopt behavior (tab follows the focused pane's color) becomes an OPT-IN, not a silent default: settable as a scene-recipe key (tab level, `follow_pane_color`) AND a `wez tab color` CLI flag (`--follow-pane-color`), default OFF, carried by the locked user var `WEZTERM_TAB_FOLLOW_PANE` (payload `"1"`/unset). When ON, a tab with no explicit color tracks its active pane; when OFF, a colorless tab stays neutral. Makes the behavior readable in the TOML/CLI instead of magic. (Optional sub-idea — a "similar color family" palette so a tab's panes read as a related group — was evaluated during discuss and DEFERRED as not necessary for 6.2.)
+- [ ] **`{cwd}`-in-title auto-fallback.** When a title resolves to empty text, auto-fall-back to the launch-dir basename (the `{cwd}` token's value) so panes AND tabs self-label by directory without an explicit token. Builds on `cli/lib/title.lua expand_cwd`/`fallback_title`.
+- [ ] **Migration (parse-and-warn only — NO doctor gate).** Lightweight one-time CLI stderr warn when a known icon-name is typed as the leading word of a literal title (suggesting `wez tab icon`), without swapping it. Per CONTEXT D-06 this is the ENTIRE migration surface: the earlier "extend `wez doctor` if a new shadowing/coupling class emerges" idea is deliberately NOT built (no doctor gate, advisory probe, auto-fix, or migration tracking) — maintainer: "we can remove the legacy behavior and forget about someone using legacy config." Refresh seed scenes to use the explicit `icon` attribute.
 
-**Plans:** TBD (run `/gsd-discuss-phase 06.2` → `/gsd-plan-phase 06.2`)
+**Plans:** 5/5 plans complete
+Plans:
+**Wave 1**
+
+- [x] 06.2-01-PLAN.md — Pure-core: title.resolve_icon (named-or-literal) + drop first-word swap + shared cwd-empty fallback (tabs+panes) (D-02/D-05/D-11/D-12/D-13) [wave 1] ✅ 2026-06-16
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 06.2-02-PLAN.md — CLI: wez tab/pane icon + --icon on title + color carrier split (WEZTERM_PANE_COLOR) + --follow-pane-color (WEZTERM_TAB_FOLLOW_PANE) + legacy icon-in-title warn + spec (D-01/D-03/D-06/D-07/D-09/D-16) [wave 2]
+- [x] 06.2-03-PLAN.md — Render: format-tab-title icon compose + 3-step accent precedence + cwd fallback; drop legacy parser (D-04/D-08/D-10/D-11/D-13) [wave 2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 06.2-04-PLAN.md — Scene/recipe schema: icon + follow_pane_color keys, per-pane WEZTERM_TAB_ICON + WEZTERM_PANE_COLOR + per-pane cwd-basename fallback emit (D-03/D-07/D-09/D-12/D-13) [wave 3]
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 06.2-05-PLAN.md — Refresh seed scenes to explicit icon + full-suite gate + live-session repro (D-03/D-05; live D-04/D-08/D-09/D-11/D-13) [wave 4]
 
 ### Phase 06.3: Distribution Channels (INSERTED)
 
@@ -306,7 +323,7 @@ Plans:
 | 5. Named Scenes | 4/4 | Complete | 2026-06-14 |
 | 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
 | 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
-| 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 0/? | Not started (next) | - |
+| 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 0/? | Not started | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3) | - |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
