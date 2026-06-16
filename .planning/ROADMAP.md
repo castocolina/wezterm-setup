@@ -15,9 +15,13 @@
 - [x] **Phase 4: Ad-hoc Scenes** - `wez scene new` with layout and styled panes (completed 2026-06-13, Linux; macOS deferred)
 - [x] **Phase 5: Named Scenes** - Named recipes, `wez scene launch <name>`, shell completion
 - [x] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs (completed 2026-06-15)
-- [ ] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes
-- [ ] **Phase 6.2: User Documentation Audit and Refactor** *(INSERTED)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
+- [x] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes (completed + UAT-verified 2026-06-15)
+- [ ] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback
+- [ ] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full)
+- [ ] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
+
+> **Execution = numeric order:** 6.1 ✓ → **6.2 (identity orthogonality, next)** → **6.3 (distribution channels)** → **6.4 (doc audit — runs LAST so it documents the final icon/color/install reality)** → 7 (macOS close gate). 6.2 and 6.3 are independent and could run in either order; 6.4 depends on both. *(The old 6.2 "doc audit" is renumbered to 6.4 — it had not started, so no execution artifacts move.)*
 
 > **macOS parity is now Phase 7 (D-18).** All features are Linux-verified; the batched macOS pass
 > is scheduled as a real phase. Pending work (macOS gaps + UX backlog) is tracked in
@@ -192,7 +196,7 @@ Plans:
 
 ---
 
-### Phase 06.1: Tab and Scene Identity Redesign (INSERTED)
+### Phase 06.1: Tab and Scene Identity Redesign (INSERTED) — ✅ COMPLETE (UAT-verified 2026-06-15)
 
 **Goal:** Decouple tab COLOR from tab TITLE everywhere and remove the legacy `"<color>:<title>"` encoding (a pre-roadmap scripting shortcut), so tabs use the same clean two-user-var model panes already use — then extend the scene recipe model with the attributes daily use needs. This is the last cleanup before the macOS pass, so macOS verifies the redesigned behavior.
 
@@ -211,22 +215,54 @@ Plans:
 - [ ] **Embrace the search overlay** — keep WezTerm's `Ctrl+Shift+F` search and document `Ctrl+R` (CopyMode `CycleMatchType`) to cycle case-sensitive / case-insensitive / regex. Relaxes the prior "no less-style search overlays" philosophy rule.
 - [ ] **Refresh ai + dev seed scenes** — give them per-pane + tab colors (like the new docker scene).
 
-**Plans:** 5/7 plans executed
+**Plans:** 7/7 plans executed ✓ — compacted into 7 logical commits (`37d61cc`..`e184392`); UAT 8/8 happy-path PASS (`06.1-UAT.md`). Two follow-up design gaps deferred to Phase 6.3: G-1 (icon attr) + G-2 (tab/pane color split).
 Plans:
 
 - [x] 06.1-01-PLAN.md — Shared cli/lib/color.lua (consolidate normalize/validate + palette + OSC builders; accept #RRGGBBAA, D-01/D-09) [wave 1] ✓ 2026-06-15
-- [x] 06.1-02-PLAN.md — Shared cli/lib/cwd.lua resolver (locked grammar, no $(...) eval; D-01/D-07/D-08) [wave 1]
-- [x] 06.1-03-PLAN.md — Decouple tab color->WEZTERM_TAB_COLOR via OSC + title pure text; rewire pane/tab to shared color (D-01/D-02/D-03/D-04/D-09) [wave 2]
+- [x] 06.1-02-PLAN.md — Shared cli/lib/cwd.lua resolver (locked grammar, no $(...) eval; D-01/D-07/D-08) [wave 1] ✓ 2026-06-15
+- [x] 06.1-03-PLAN.md — Decouple tab color->WEZTERM_TAB_COLOR via OSC + title pure text; rewire pane/tab to shared color (D-01/D-02/D-03/D-04/D-09) [wave 2] ✓ 2026-06-15
 - [x] 06.1-04-PLAN.md — Scene/recipe cwd/focus/size + clean-pane --cwd spawn + OSC tab color + spec (D-01/D-05/D-06/D-07/D-08) [wave 3] ✓ 2026-06-15
 - [x] 06.1-05-PLAN.md — Render active-pane color + #RRGGBBAA + RotatePanes Alt+Shift+R/E + search overlay docs (D-02/D-04/D-09/D-12) [wave 3] ✓ 2026-06-15
-- [ ] 06.1-06-PLAN.md — wez doctor shadow-detection core gate + migration doc (D-10/D-11) [wave 3]
-- [ ] 06.1-07-PLAN.md — Refresh ai+dev seeds + live spawn --cwd integration test + recorded live repro (D-12/D-13/D-14/D-15) [wave 4]
+- [x] 06.1-06-PLAN.md — wez doctor shadow-detection core gate + migration doc (D-10/D-11) [wave 3] ✓ 2026-06-15
+- [x] 06.1-07-PLAN.md — Refresh ai+dev seeds + live spawn --cwd integration test + recorded live repro (D-12/D-13/D-14/D-15) [wave 4] ✓ 2026-06-15
 
-### Phase 06.2: User Documentation Audit and Refactor (INSERTED)
+### Phase 06.2: Identity Orthogonality (INSERTED)
 
-**Goal:** Audit ALL user-facing documentation for accuracy and clarity against the shipped v0.1.0 reality and the Phase 6.1 redesign, then refactor it — starting with README.md — into clear, progressive-disclosure structure.
+**Goal:** Finish the decoupling Phase 6.1 started. 6.1 separated tab COLOR from tab TITLE; 6.2 extends the same orthogonality principle to the two attributes that are still coupled — the icon (today inferred from the title's first word) and the tab-vs-pane color (today a single shared user var). After 6.2, color, title, and icon are three independent, explicit attributes, and a tab can hold a stable color of its own.
 
-**Depends on:** Phase 6.1 (so docs describe the redesigned tab/scene model, not the legacy encoding)
+**Depends on:** Phase 6.1 (complete) — revises locked decisions D-02/D-03/D-04.
+**Requirements**: refines PANE-* / TAB-* / SCEN-* identity behavior (no new requirement IDs; supersedes 6.1's D-02 active-pane-wins and D-03/D-04 icon-in-title).
+
+**Scope (from 6.1 UAT gaps G-1/G-2 + maintainer direction):**
+
+- [ ] **G-1 — Icon is its own attribute.** Add a dedicated `icon` attribute to BOTH the CLI (its own flag/position, like the old bash positional arg) and scene recipes (`icon` key at tab + `[[pane]]` level), decoupled from `title`. Render via a distinct carrier (e.g. `WEZTERM_TAB_ICON`) composed as `icon + title` so title text stays literal. Decide the fate of the first-word ICONS shortcut in `cli/lib/title.lua` (recommend: drop it; keep a parse-and-warn migration). Revises D-03/D-04.
+- [ ] **G-2a — Split tab color from pane color.** Today `wez tab color` and `wez pane color` both write `WEZTERM_TAB_COLOR`, so the active pane clobbers an explicit tab color (confirmed our implementation, not a WezTerm limit). Split into `WEZTERM_TAB_COLOR` (tab's own, stable) + `WEZTERM_PANE_COLOR` (per-pane accent). `format-tab-title` precedence: an explicit tab color ALWAYS wins; the active pane's color is used only when the tab has none. Revises D-02.
+- [ ] **G-2b — Explicit "adopt active-pane color" toggle/flag.** The old auto-adopt behavior (tab follows the focused pane's color) becomes an OPT-IN, not a silent default: a `adopt_active_pane_color` boolean — settable as a scene-recipe key (tab level) AND a `wez tab color` CLI flag (e.g. `--adopt-active-pane` / `--follow-pane`), default OFF. When ON, a tab with no explicit color tracks its active pane; when OFF, a colorless tab stays neutral. Makes the behavior readable in the TOML/CLI instead of magic. (Optional sub-idea to evaluate during discuss: a "similar color family" palette so a tab's panes read as a related group.)
+- [ ] **`{cwd}`-in-title auto-fallback.** When a title resolves to empty text, auto-fall-back to the launch-dir basename (the `{cwd}` token's value) so panes self-label by directory without an explicit token. Builds on `cli/lib/title.lua expand_cwd`.
+- [ ] **Migration + doctor.** Parse-and-warn for any legacy icon-in-title / single-color usage; extend `wez doctor` if a new shadowing/coupling class emerges. Refresh seed scenes to use the explicit `icon` attribute.
+
+**Plans:** TBD (run `/gsd-discuss-phase 06.2` → `/gsd-plan-phase 06.2`)
+
+### Phase 06.3: Distribution Channels (INSERTED)
+
+**Goal:** Make releases self-renewing and reversible: a scheduled rolling nightly/latest channel alongside pinned `v*` tags, a bootstrapper that lets the user choose which channel to install, and a first-class uninstall path that works even when only the binary was downloaded (no repo checkout).
+
+**Depends on:** Phase 6 (installer/release infra, complete). Independent of 6.2.
+**Requirements**: extends INST-07/08/09 distribution behavior (no new requirement IDs).
+
+**Scope:**
+
+- [ ] **Nightly/latest rolling channel.** A scheduled GitHub Actions workflow (cron) builds and publishes a rolling `nightly`/`latest` release (release assets persist; only Actions *artifacts* expire at 90 days). Pinned `v*` tags remain the stable channel.
+- [ ] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin.
+- [ ] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup.
+
+**Plans:** TBD (run `/gsd-discuss-phase 06.3` → `/gsd-plan-phase 06.3`)
+
+### Phase 06.4: User Documentation Audit and Refactor (INSERTED, renumbered from 06.2)
+
+**Goal:** Audit ALL user-facing documentation for accuracy and clarity against the shipped v0.1.0 reality and the Phase 6.1/6.2/6.3 redesign, then refactor it — starting with README.md — into clear, progressive-disclosure structure.
+
+**Depends on:** Phase 6.1 + 6.2 + 6.3 (so docs describe the final decoupled icon/color model, scene schema, and install channels — not soon-to-change behavior). **Runs LAST among the 6.x deltas.**
 **Requirements**: documentation quality (no new requirement IDs).
 
 **Scope:**
@@ -269,8 +305,11 @@ Plans:
 | 4. Ad-hoc Scenes | 3/3 | Complete | 2026-06-13 |
 | 5. Named Scenes | 4/4 | Complete | 2026-06-14 |
 | 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
-| 6.1 Tab and Scene Identity Redesign | 5/7 | In Progress|  |
-| 7. macOS Parity Pass (D-18) | 0/? | Not started | - |
+| 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
+| 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 0/? | Not started (next) | - |
+| 6.3 Distribution Channels (nightly/latest + uninstall) | 0/? | Not started | - |
+| 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3) | - |
+| 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
 
 ---
 
