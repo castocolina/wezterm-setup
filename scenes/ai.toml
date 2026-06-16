@@ -5,20 +5,62 @@
 #
 # Layout note: `tall` puts the MAIN pane (pane 1, the AI CLI) on the LEFT and the
 # working shell on the RIGHT.
-# Per-pane `color` tints the pane background using the muted scene palette
-# (named colors only — purple / teal / ...; the tab accent is `color` below).
 #
-# cwd is OMITTED on both panes, so each inherits the launch dir (D-07/D-08):
-# `wez scene launch ai` from a project opens both panes IN that project with no
-# visible `cd` line. The AI pane runs `claude` (commands are kept comma-free so
-# the multi-field color round-trip stays safe — Pitfall 5).
+# ─────────────────────────────────────────────────────────────────────────────
+# RECIPE SCHEMA REFERENCE — every key a scene recipe accepts (this seed uses a
+# subset; the rest are shown as commented examples below). color/title/icon are
+# three INDEPENDENT attributes (6.2): setting one never touches the others.
+#
+# TAB-LEVEL keys (top of file, before any [[panes]]):
+#   layout            REQUIRED. tall | tall:mirrored | grid | horizontal.
+#   color             Tab accent. Named: red orange yellow green teal cyan blue
+#                     navy purple pink — OR hex #rgb / #rrggbb / #rrggbbaa. Alpha
+#                     (8-digit) is accepted but only paints with window
+#                     transparency. Omit -> neutral tab.
+#   icon              Tab glyph, its OWN attribute (D-03). A named ICONS key
+#                     (ai shell build edit git docker node python rust go k8s
+#                     server db ssh deploy test debug log config search fire
+#                     alert ...) OR any literal emoji. Rendered LEFT of the title
+#                     (D-04) — never folded into the title text.
+#   title             Tab title (literal). The {cwd} token expands (pure Lua, NO
+#                     shell) to the launch-dir basename. Omit -> self-labels by
+#                     the focused pane / cwd basename (D-11/D-13).
+#   cwd               Default launch dir panes inherit. literal | ~ | $ENV |
+#                     relative. NO $(...) and NO ${NAME} brace form. Omit -> the
+#                     dir you ran `wez scene launch` from (D-07/D-08).
+#   follow_pane_color OPT-IN (D-09), default OFF. true = a tab with NO color of
+#                     its own tracks the FOCUSED pane's color; an explicit tab
+#                     `color` always wins. (Commented example below.)
+#
+# PER-PANE keys (each [[panes]] block):
+#   command / cmd     Program to run. "shell" (or omit) = a plain login shell.
+#   color             Pane background tint + accent (same value space as tab color).
+#   icon              Pane glyph (same value space as tab icon).
+#   title             Pane title (literal; {cwd} supported).
+#   cwd               Per-pane dir (same grammar as tab cwd); omit -> inherit.
+#   focus = true      Open focused on THIS pane. At most one pane may set it.
+#   size  = N         This pane gets N% (1..100) of its split; the rest share the
+#                     remainder.
+#
+# Every value must be COMMA-FREE: the CLI --pane grammar uses commas as field
+# delimiters, so a comma in any value is rejected at load with a clear error
+# (Pitfall 5). The AI pane runs `claude` (kept comma-free). cwd is OMITTED on both
+# panes, so each inherits the launch dir (D-07/D-08): `wez scene launch ai` from a
+# project opens both panes IN that project with no visible `cd` line. With no
+# title set, each pane self-labels by its icon + cwd-basename.
+# ─────────────────────────────────────────────────────────────────────────────
 layout = "tall"
 color = "purple"
+icon = "ai"
+# follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
 
 [[panes]]
 command = "claude"
 color = "purple"
+icon = "ai"
+# focus = true                # uncomment to start focused on the AI pane
 
 [[panes]]
 command = "shell"
 color = "teal"
+icon = "shell"
