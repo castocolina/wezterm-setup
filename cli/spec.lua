@@ -143,6 +143,13 @@ function M.build_parser()
   pane_color:flag("--opacity", "Apply the color's alpha as pane opacity if supported")
   local pane_title = pane:command("title", "Set or clear this pane's custom tab title")
   pane_title:argument("words", "Title text, or an icon name + text, or empty / 'reset' to clear"):args("*")
+  -- --icon (D-01): a convenience flag on `title` ONLY (takes a value, like --title).
+  -- `wez pane title api --icon python` sets the title AND the icon in one invocation.
+  pane_title:option("--icon", "Also set the pane icon (name or glyph)")
+  -- `wez pane icon <name|glyph>` (D-01/D-03): the dedicated icon subcommand, mirroring
+  -- `color`. One optional positional — empty / 'reset' clears the icon.
+  local pane_icon = pane:command("icon", "Set or clear this pane's icon")
+  pane_icon:argument("value", "Icon name (node/python/...) or any literal glyph, or empty / 'reset' to clear"):args("?")
 
   -- tab (Phase 3: Tab Identity) -------------------------------------------
   -- `wez tab color <value>` / `wez tab color reset`. The nested subcommand name
@@ -158,8 +165,19 @@ function M.build_parser()
   -- it via resolve_title_str), whereas standalone `tab title` below takes pre-split
   -- argv words (args("*"), resolved via resolve_title).
   tab_color:option("--title", "Also set the tab title (icon name + text allowed)")
+  -- --follow-pane-color (D-09): opt-in boolean on `tab color` ONLY. When set, a tab
+  -- with no explicit color tracks its active pane's WEZTERM_PANE_COLOR; default OFF.
+  -- Emits the LOCKED opt-in carrier WEZTERM_TAB_FOLLOW_PANE (payload "1" / unset).
+  tab_color:flag("--follow-pane-color", "Track the active pane's color when no tab color is set")
   local tab_title = tab:command("title", "Set or clear this tab's title")
   tab_title:argument("words", "Title text, an icon name + text, or empty / 'reset' to clear"):args("*")
+  -- --icon (D-01): convenience flag on `title` ONLY (takes a value). Color does NOT
+  -- get --icon. `wez tab title api --icon node` sets title AND icon in one call.
+  tab_title:option("--icon", "Also set the tab icon (name or glyph)")
+  -- `wez tab icon <name|glyph>` (D-01/D-03): the dedicated icon subcommand mirroring
+  -- `color`. One optional positional — empty / 'reset' clears the icon.
+  local tab_icon = tab:command("icon", "Set or clear this tab's icon")
+  tab_icon:argument("value", "Icon name (node/python/...) or any literal glyph, or empty / 'reset' to clear"):args("?")
 
   -- scene (Phase 4: Ad-hoc Scenes) ----------------------------------------
   -- `wez scene new --layout <L> --pane '<spec>' [--pane ...] [--color] [--title]`.
@@ -177,9 +195,9 @@ function M.build_parser()
   -- repeatable. count("*") makes argparse collect every occurrence into an array
   -- (result.pane). Each value is a --pane spec string. The segment keys
   -- cmd/color/title/cwd/focus/size (D-05/D-06/D-07) are listed here so completion
-  -- + `wez keys` surface the full grammar (D-16).
+  -- + `wez keys` surface the full grammar (D-16). icon= (6.2 D-03) is listed too.
   scene_new:option("--pane",
-    "A pane spec: 'shell' | '<cmd>' | 'cmd=..,color=..,title=..,cwd=..,focus=true,size=N'"):args(1):count("*")
+    "A pane spec: 'shell' | '<cmd>' | 'cmd=..,color=..,title=..,icon=..,cwd=..,focus=true,size=N'"):args(1):count("*")
   -- --color / --title / --cwd: optional tab-level identity + default cwd for the
   -- whole scene (D-05/D-07). --cwd is the tab-level default cwd panes inherit.
   scene_new:option("--color", "Tab-level accent color for the scene"):args(1)

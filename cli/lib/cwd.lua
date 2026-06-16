@@ -65,6 +65,16 @@ function M.validate(value, env)
       "error: invalid cwd '%s' — command substitution is not allowed", value)
   end
 
+  -- WR-02: reject the unsupported ${NAME} brace form up front. Only the bare
+  -- $NAME form is expanded by resolve(); a braced reference like ${PWD}/x would
+  -- otherwise slip past the unset-var check below AND fall through resolve() to
+  -- the relative-path branch, producing a literal "launch/${PWD}/x" directory.
+  -- Failing here makes the unsupported form visible instead of a broken path.
+  if value:match("^%${") then
+    return false, string.format(
+      "error: invalid cwd '%s' — use $NAME (not ${NAME}); the brace form is not expanded", value)
+  end
+
   -- A leading $NAME (not $(...), already rejected above) must be a set env var.
   local name = value:match("^%$([%w_]+)")
   if name then

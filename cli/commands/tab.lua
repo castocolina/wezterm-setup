@@ -16,10 +16,11 @@
 -- D-01 / `/reducing-entropy`: the palette + normalize/validate + base64 + OSC builders
 -- are NOT defined here — they live ONCE in cli/lib/color.lua and are re-exported.
 --
--- D-04 migration: parse_stored / merge_title survive ONLY as a one-time parse-and-warn
--- migration helper (and scene.lua still calls them until Plan 04 rewires it). They are
--- removed from this module's OWN steady-state write path — run_color/run_title never
--- emit the "<color>:<title>" prefix.
+-- D-04 migration: parse_stored survives ONLY for the one-time warn_legacy_prefix_once
+-- parse (run_color detects a legacy-prefixed live tab and warns once). The dead
+-- merge_title read-modify-write builder was REMOVED (IN-03): 6.2 dropped the
+-- color:title encoding (D-04/D-05) and scene.lua no longer calls it. run_color/
+-- run_title never emit the "<color>:<title>" prefix in the steady-state write path.
 --
 -- All subprocess calls are confined to the read/write sinks (D-05 seam).
 
@@ -32,19 +33,24 @@ local color = require("cli.lib.color")
 -- Shared icon-name title resolver (D-03), consumed by both pane and tab.
 local title = require("cli.lib.title")
 
+-- IN-02: shquote + decode_json now live ONCE in cli/lib/shell.lua (the
+-- security-sensitive escaper must have a single source of truth, shared with
+-- scene.lua). Local aliases keep the call sites below unchanged.
+local shelllib = require("cli.lib.shell")
+
 -- Public surface re-exported from the shared module (no local re-definition, D-01).
 M.COLOR_NAMES = color.COLOR_NAMES
 M.validate_color = color.validate_color
 M.build_osc1337 = color.build_osc1337
+-- Icon resolver re-exported from the shared lib (D-01, no local copy — PATTERNS C).
+M.resolve_icon = title.resolve_icon
 
 --- Parse a stored tab title "<color>:<title>" into (color, title). MIGRATION-ONLY
 -- (D-04): split on the FIRST ":"; empty sides -> nil; a no-colon NON-EMPTY token is
--- the color with no title. Retained because (a) `run_color` uses it to detect a
--- legacy-prefixed live tab and warn once, and (b) scene.lua still calls it until
--- Plan 04 rewires scene styling onto the OSC user-var path. NOT used by the
--- steady-state write path of this module.
--- INVARIANT: stays in lockstep with the config-layer parser `M.parse_tab_title` in
--- config/wezterm-setup/format-tab-title.lua (separate Lua bundle, same encoding).
+-- the color with no title. Retained ONLY because `run_color` uses it (via
+-- warn_legacy_prefix_once) to detect a legacy-prefixed live tab and warn once. NOT
+-- used by the steady-state write path of this module (the color:title encoding was
+-- dropped in 6.2, D-04/D-05; scene.lua no longer depends on it).
 function M.parse_stored(s)
   if not s or s == "" then
     return nil, nil
@@ -60,38 +66,15 @@ function M.parse_stored(s)
   return color_part, title_part
 end
 
---- MIGRATION-ONLY (D-04) read-modify-write builder for the legacy "<color>:<title>"
--- encoding. KEPT callable because scene.lua still depends on it until Plan 04; this
--- module no longer calls it from run_color/run_title (the encoding is dropped from
--- the steady state). opts carries cur_color/cur_title plus exactly one of
--- set_color/set_title; the unset side is preserved.
-function M.merge_title(opts)
-  local color_part = opts.set_color ~= nil and opts.set_color or opts.cur_color
-  local title_part = opts.set_title ~= nil and opts.set_title or opts.cur_title
-  return (color_part or "") .. ":" .. (title_part or "")
-end
-
 -- ---------------------------------------------------------------------------
 -- I/O layer (D-05 seam): the ONLY functions that shell out / write escapes. The
 -- pure helpers above stay subprocess-free so they remain unit-testable.
 -- ---------------------------------------------------------------------------
 
--- Single-quote shell escaper (same proven helper as install_state.M.shquote,
--- CR-02): a single quote is rewritten as '\'' so a value containing a quote or
--- any shell metacharacter cannot break out of the quoting and inject a command.
-local function shquote(s)
-  return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
-end
-
--- Decode JSON with the vendored dkjson, resolving both from source (CWD on
--- package.path) and inside the luastatic bundle (module baked as cli.vendor.dkjson).
-local function decode_json(text)
-  local ok, dkjson = pcall(require, "cli.vendor.dkjson")
-  if not ok then ok, dkjson = pcall(require, "dkjson") end
-  if not ok or type(dkjson) ~= "table" then return nil end
-  local data = dkjson.decode(text)
-  return data
-end
+-- IN-02: shquote + decode_json are re-exported from the single shared
+-- cli/lib/shell.lua (no local re-definition — one escaping rule, one decoder).
+local shquote = shelllib.shquote
+local decode_json = shelllib.decode_json
 
 --- Read the active tab's id + stored title from `wezterm cli list --format json`.
 -- Returns { tab_id = <id|nil>, tab_title = <string> }. On no session / decode
@@ -165,6 +148,14 @@ function M.run_color(args)
   local accent = (normalized == "reset") and "" or normalized
   emit(color.build_osc1337("WEZTERM_TAB_COLOR", accent))
 
+  -- --follow-pane-color (D-09): opt-in, default OFF. When set, ALSO emit the LOCKED
+  -- opt-in carrier WEZTERM_TAB_FOLLOW_PANE="1" (W3 cross-plan literal) so the render
+  -- handler tracks the active pane's color when no tab color is set. Absent the flag
+  -- NO WEZTERM_TAB_FOLLOW_PANE byte is emitted (the render handler treats unset as OFF).
+  if args.follow_pane_color then
+    emit(color.build_osc1337("WEZTERM_TAB_FOLLOW_PANE", "1"))
+  end
+
   -- Combined form (TAB-03): `wez tab color <c> --title "<text>"` ALSO sets the title
   -- as PURE text in a second, independent write — no encoding.
   if args.title ~= nil then
@@ -173,12 +164,32 @@ function M.run_color(args)
   return 0
 end
 
---- Handle `wez tab title <words...>` / `wez tab title reset` (TAB-03).
--- Writes PURE resolved title text via set-tab-title (D-01/D-04) — NO color prefix,
--- NO read-modify-write. An empty/reset resolution clears the title ("").
+--- Handle `wez tab icon <name|glyph>` / `wez tab icon reset` (D-01/D-03). Resolves
+-- the positional value (nil / "reset" / empty -> "") via the shared title.resolve_icon
+-- and emits WEZTERM_TAB_ICON via OSC 1337 (D-03), the same channel as the color accent.
+function M.run_icon(args)
+  -- IN-01/D-01: ONE shared icon-emit body (reset normalization + resolve + OSC),
+  -- reused by `wez pane icon`. The io.write sink stays local (the emit closure).
+  title.emit_icon(emit, args and args.value)
+  return 0
+end
+
+--- Handle `wez tab title <words...> [--icon <name|glyph>]` / `wez tab title reset`
+-- (TAB-03). Writes PURE resolved title text via set-tab-title (D-01/D-04) — NO color
+-- prefix, NO read-modify-write. An empty/reset resolution clears the title (""). When
+-- a known icon-name is the LEADING word of the literal title, warn ONCE (D-06) WITHOUT
+-- swapping it. With --icon, a second independent WEZTERM_TAB_ICON write follows (D-01).
 function M.run_title(args)
   local resolved = title.resolve_title(args.words)
-  return M.write_tab_title(resolved, nil)
+  -- Legacy icon-in-title parse-and-warn (D-06): warn on the resolved literal title
+  -- BEFORE the pure-text write; the title text is left fully literal (D-05).
+  title.warn_legacy_icon_title(resolved, "wez tab title", "wez tab icon")
+  local code = M.write_tab_title(resolved, nil)
+  -- --icon convenience (D-01): a second, independent WEZTERM_TAB_ICON emit.
+  if args.icon ~= nil then
+    emit(color.build_osc1337("WEZTERM_TAB_ICON", title.resolve_icon(args.icon)))
+  end
+  return code
 end
 
 --- Command entry. Branches on the selected `tab` subcommand.
@@ -188,8 +199,10 @@ function M.run(args)
     return M.run_color(args)
   elseif sub == "title" then
     return M.run_title(args)
+  elseif sub == "icon" then
+    return M.run_icon(args)
   end
-  io.stderr:write("wez tab: expected a subcommand (color | title)\n")
+  io.stderr:write("wez tab: expected a subcommand (color | title | icon)\n")
   return 2
 end
 

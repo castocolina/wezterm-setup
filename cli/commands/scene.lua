@@ -54,16 +54,13 @@ local tablib = require("cli.commands.tab")
 local titlelib = require("cli.lib.title")
 local cwdlib = require("cli.lib.cwd")
 
--- ---------------------------------------------------------------------------
--- Single-quote shell escaper (same proven helper as tab.lua's shquote / CR-02):
--- a single quote is rewritten as '\'' so a value containing a quote or any shell
--- metacharacter cannot break out of the quoting and inject a command. EVERY
--- user-derived string (pane payloads, etc.) passed to os.execute/io.popen goes
--- through this.
--- ---------------------------------------------------------------------------
-local function shquote(s)
-  return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
-end
+-- IN-02: shquote + decode_json live ONCE in cli/lib/shell.lua now (the
+-- security-sensitive escaper must be single-sourced, shared with tab.lua). Local
+-- aliases keep the call sites below unchanged. EVERY user-derived string passed to
+-- os.execute / io.popen flows through shquote.
+local shelllib = require("cli.lib.shell")
+local shquote = shelllib.shquote
+local decode_json = shelllib.decode_json
 
 -- ---------------------------------------------------------------------------
 -- cwd IO-shell boundary (D-07/D-08): the PURE cli/lib/cwd resolver needs the
@@ -83,16 +80,6 @@ end
 
 local function env_snapshot()
   return setmetatable({}, { __index = function(_, k) return os.getenv(k) end })
-end
-
--- Decode JSON with the vendored dkjson, resolving both from source (CWD on
--- package.path) and inside the luastatic bundle (module baked as cli.vendor.dkjson).
--- Mirrors tab.lua's decode_json.
-local function decode_json(text)
-  local ok, dkjson = pcall(require, "cli.vendor.dkjson")
-  if not ok then ok, dkjson = pcall(require, "dkjson") end
-  if not ok or type(dkjson) ~= "table" then return nil end
-  return dkjson.decode(text)
 end
 
 -- ---------------------------------------------------------------------------
@@ -143,6 +130,100 @@ end
 local DIR_FLAG = {
   left = "--left", right = "--right", top = "--top", bottom = "--bottom",
 }
+
+-- ---------------------------------------------------------------------------
+-- M.build_pane_escapes(spec_parsed, opts) -> array of escape strings.
+--
+-- PURE (no io/os/mux) per-pane escape builder, extracted from the Phase B loop so
+-- the split carriers (D-03/D-07/D-09) and the per-pane cwd-basename title fallback
+-- (D-12/D-13) are unit-testable WITHOUT a live session. Every value still flows
+-- through panelib.build_osc1337 (base64) so a malicious recipe value cannot break
+-- out of the escape (T-06.2-08), and NO new emitter / resolver / basename is
+-- defined — it reuses titlelib.resolve_icon + titlelib.fallback_title + the OSC
+-- builders. The caller octal-renders this array into the SAME self-erasing printf.
+--
+-- opts fields:
+--   is_pane1         : boolean — pane 1 carries the tab-level accent + follow carrier.
+--   tab_color_value  : tab's own color name (lowercased) or nil (-> WEZTERM_TAB_COLOR).
+--   follow_pane_color: truthy -> emit WEZTERM_TAB_FOLLOW_PANE="1" on pane 1 (D-09).
+--   ldir             : launch dir for the {cwd} expand + the empty-title basename.
+-- ---------------------------------------------------------------------------
+function M.build_pane_escapes(spec_parsed, opts)
+  opts = opts or {}
+  local ldir = opts.ldir
+  local escapes = {}
+
+  -- Per-pane OSC-11 muted background (reuse pane.lua's MUTED_BG + build_osc11;
+  -- never a re-derived hex). color was already validated upstream.
+  local resolved_color = nil
+  if spec_parsed.color ~= nil then
+    resolved_color = tostring(spec_parsed.color):lower()
+    local hex = panelib.MUTED_BG[resolved_color]
+    if hex then
+      escapes[#escapes + 1] = panelib.build_osc11(hex)
+    end
+  end
+
+  -- D-03: resolve the per-pane icon ONCE (name -> glyph, or literal pass-through)
+  -- via the shared resolver. Used by BOTH the icon emit and the icon-aware
+  -- empty-title fallback (D-13) so a pane shows `<glyph> <basename>` consistently.
+  local resolved_icon = nil
+  if spec_parsed.icon ~= nil and tostring(spec_parsed.icon) ~= "" then
+    resolved_icon = titlelib.resolve_icon(spec_parsed.icon)
+  end
+
+  -- Title: explicit title= wins (D-11); else derive an auto-title from the startup
+  -- command's first word. Both go through the shared resolver so icon-name
+  -- shortcuts behave exactly like `wez pane title`.
+  local title_str = nil
+  if spec_parsed.title ~= nil then
+    title_str = titlelib.resolve_title_str(spec_parsed.title)
+  elseif spec_parsed.cmd ~= nil and not spec_parsed.shell then
+    local first_word = tostring(spec_parsed.cmd):match("%S+")
+    if first_word then
+      title_str = titlelib.resolve_title_str(first_word)
+    end
+  end
+  -- {cwd} token (shell-free): expand to the launch dir basename (D-08).
+  if title_str ~= nil then
+    title_str = titlelib.expand_cwd(title_str, ldir)
+  end
+  -- D-12/D-13: a pane whose resolved title is empty self-labels by its launch-dir
+  -- basename via the SHARED fallback_title (icon-aware: `<glyph> <basename>` when
+  -- the pane carries an icon). An explicit non-empty title is returned unchanged.
+  -- Reuse the SAME ldir as the rest of the pane setup — no re-derived basename.
+  local emit_title = titlelib.fallback_title(title_str or "", resolved_icon, ldir)
+  if emit_title ~= nil and emit_title ~= "" then
+    escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_TITLE", emit_title)
+  end
+
+  -- D-03: per-pane icon carrier. Folded into the same self-erasing printf line so
+  -- it leaves no standalone scrollback line. base64'd (T-06.2-08).
+  if resolved_icon ~= nil and resolved_icon ~= "" then
+    escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_ICON", resolved_icon)
+  end
+
+  -- D-07: a per-pane color accent writes WEZTERM_PANE_COLOR (split from the tab's
+  -- own WEZTERM_TAB_COLOR). format-tab-title reads it for the active-pane accent.
+  if resolved_color ~= nil then
+    escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_PANE_COLOR", resolved_color)
+  end
+
+  -- Pane 1 carries the tab's OWN accent (D-07: WEZTERM_TAB_COLOR, distinct from the
+  -- per-pane WEZTERM_PANE_COLOR above) plus the follow opt-in carrier (D-09).
+  if opts.is_pane1 then
+    if opts.tab_color_value ~= nil then
+      escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_COLOR", opts.tab_color_value)
+    end
+    -- D-09: follow_pane_color emits the LOCKED carrier WEZTERM_TAB_FOLLOW_PANE="1"
+    -- (W3). Default OFF -> nothing emitted when unset.
+    if opts.follow_pane_color then
+      escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_FOLLOW_PANE", "1")
+    end
+  end
+
+  return escapes
+end
 
 -- ---------------------------------------------------------------------------
 -- M.run_new(args) -> exit code.
@@ -238,7 +319,19 @@ function M.run_new(args)
   -- Step 1: TOPOLOGY READ + materialization decision.
   -- =========================================================================
   local panes = M.read_topology()
-  local current_pane_id = tonumber(os.getenv("WEZTERM_PANE"))
+  -- WR-05: distinguish a legitimate "not in a pane" (WEZTERM_PANE unset -> a fresh
+  -- new-tab build is the right default) from "in a pane but WEZTERM_PANE is garbage"
+  -- (a non-numeric value silently degrades to new-tab, masking a real environment
+  -- problem when the user expected an in-place reuse build). Only the latter gets a
+  -- one-line note so the soft-degrade is auditable (the project's verify-don't-assume
+  -- posture); an unset var stays silent.
+  local raw_pane = os.getenv("WEZTERM_PANE")
+  local current_pane_id = tonumber(raw_pane)
+  if raw_pane ~= nil and raw_pane ~= "" and current_pane_id == nil then
+    io.stderr:write(string.format(
+      "warning: WEZTERM_PANE is set but not a valid pane id (%q); "
+      .. "building a new tab instead of reusing the current pane\n", raw_pane))
+  end
   local plan = scenelib.decide_materialization(panes, current_pane_id, n)
 
   -- =========================================================================
@@ -329,47 +422,17 @@ function M.run_new(args)
     local spec_parsed = parsed[i]
     if spec_parsed then
       local payload = {}
-      local escapes = {}
-
-      -- Per-pane OSC-11 muted background (reuse pane.lua's MUTED_BG + build_osc11;
-      -- never a re-derived hex). color was already validated above.
-      if spec_parsed.color ~= nil then
-        local hex = panelib.MUTED_BG[tostring(spec_parsed.color):lower()]
-        if hex then
-          escapes[#escapes + 1] = panelib.build_osc11(hex)
-        end
-      end
-
-      -- Title: explicit title= wins (D-07); else derive an auto-title from the
-      -- startup command's first word. Both go through the shared resolver so
-      -- icon-name shortcuts behave exactly like `wez pane title`.
-      local title_str = nil
-      if spec_parsed.title ~= nil then
-        title_str = titlelib.resolve_title_str(spec_parsed.title)
-      elseif spec_parsed.cmd ~= nil and not spec_parsed.shell then
-        -- D-07 auto-title: cli/lib/title.lua has no command->title heuristic, so
-        -- the auto-title is the command's first word (resolved through the same
-        -- icon map for parity with explicit titles).
-        local first_word = tostring(spec_parsed.cmd):match("%S+")
-        if first_word then
-          title_str = titlelib.resolve_title_str(first_word)
-        end
-      end
-      -- {cwd} token (shell-free): expand to the launch dir basename so a recipe or
-      -- `--pane title=` can read "docker @ myproject" without $(...) eval (D-08).
-      if title_str ~= nil then
-        title_str = titlelib.expand_cwd(title_str, ldir)
-      end
-      if title_str ~= nil and title_str ~= "" then
-        escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_TITLE", title_str)
-      end
-
-      -- Pane 1 carries the tab accent (D-02): fold WEZTERM_TAB_COLOR into its
-      -- self-erasing setup line so it never lands as a standalone scrollback line.
-      -- format-tab-title reads the active pane's WEZTERM_TAB_COLOR for the accent.
-      if i == 1 and tab_color_value ~= nil then
-        escapes[#escapes + 1] = panelib.build_osc1337("WEZTERM_TAB_COLOR", tab_color_value)
-      end
+      -- All per-pane styling escapes (background + title incl. the D-12/D-13
+      -- cwd-basename fallback, per-pane icon D-03, per-pane WEZTERM_PANE_COLOR
+      -- accent D-07, and on pane 1 the tab's own WEZTERM_TAB_COLOR + the
+      -- WEZTERM_TAB_FOLLOW_PANE opt-in D-09) come from the PURE builder so they
+      -- stay one testable rule. They ride the same self-erasing printf below.
+      local escapes = M.build_pane_escapes(spec_parsed, {
+        is_pane1 = (i == 1),
+        tab_color_value = tab_color_value,
+        follow_pane_color = args.follow_pane_color,
+        ldir = ldir,
+      })
 
       local has_styling = #escapes > 0
       local has_cmd = spec_parsed.cmd ~= nil and not spec_parsed.shell
@@ -416,8 +479,8 @@ function M.run_new(args)
   -- Tab-level styling (D-02/D-03/D-04): the scene tab accent rides
   -- WEZTERM_TAB_COLOR via OSC (NO `<color>:<title>` prefix encoding) and the tab
   -- title is written as PURE text via set-tab-title. scene.lua NO LONGER depends
-  -- on tablib.parse_stored/merge_title — the encoding dependency is removed. Only
-  -- runs when a tab-level --color or --title was given.
+  -- on the legacy color:title encoding (the dead tablib.merge_title builder was
+  -- removed in IN-03). Only runs when a tab-level --color or --title was given.
   -- =========================================================================
   if args.color ~= nil or args.title ~= nil then
     -- COLOR (D-02/D-03): the WEZTERM_TAB_COLOR accent is emitted by pane 1's
@@ -431,6 +494,12 @@ function M.run_new(args)
     if args.title ~= nil then
       local target_tab_id = plan.target_tab_id
       if target_tab_id == nil then
+        -- The new-tab path leaves plan.target_tab_id nil because the tab did not
+        -- exist at decide_materialization time. pane_ids[1] here is the NEWLY
+        -- spawned pane (absent from the pre-spawn topology), so resolving its tab
+        -- genuinely requires a POST-spawn read — the cached pre-spawn `panes`
+        -- cannot contain it (WR-04: the reuse path already has target_tab_id, so
+        -- this is the ONE remaining read, not a redundant duplicate of line ~334).
         for _, p in ipairs(M.read_topology()) do
           if p.pane_id == pane_ids[1] then
             target_tab_id = p.tab_id
@@ -442,6 +511,13 @@ function M.run_new(args)
         local tab_title = titlelib.expand_cwd(
           titlelib.resolve_title_str(args.title), ldir)
         tablib.write_tab_title(tab_title, target_tab_id)
+      else
+        -- WR-04: make the silent drop observable. When neither the plan nor the
+        -- post-spawn topology yields the new tab's id (race / mux quirk), the
+        -- requested --title cannot be applied; surface a one-line note instead of
+        -- building the scene mute so the dropped title is auditable.
+        io.stderr:write(
+          "warning: could not resolve the new tab id; --title was not applied\n")
       end
     end
   end

@@ -12,8 +12,11 @@
 --
 -- Rendering is a dual write (D-02), because each pane is its own terminal:
 --   OSC 11   -> the real per-pane background tint (a muted variant of the color)
---   OSC 1337 SetUserVar=WEZTERM_TAB_COLOR -> the tab-bar accent, read by the
---            config-layer format-tab-title handler (plan 02-02).
+--   OSC 1337 SetUserVar=WEZTERM_PANE_COLOR -> the per-pane tab-bar accent, read by
+--            the config-layer format-tab-title handler. 6.2 D-07 SPLITS the carrier:
+--            `wez pane color` writes WEZTERM_PANE_COLOR (the pane's own accent) while
+--            `wez tab color` writes WEZTERM_TAB_COLOR (the tab's own, stable color),
+--            so an explicit tab color is no longer clobbered by the active pane.
 -- There is NO `wezterm cli set-user-var`; the OSC escape is the only path.
 --
 -- D-01 / `/reducing-entropy`: the palette, normalize/validate, base64 and the OSC
@@ -78,7 +81,7 @@ function M.run_color(args)
   end
 
   if normalized == "reset" then
-    emit(M.build_reset_osc11() .. M.build_osc1337("WEZTERM_TAB_COLOR", ""))
+    emit(M.build_reset_osc11() .. M.build_osc1337("WEZTERM_PANE_COLOR", ""))
     return 0
   end
 
@@ -93,20 +96,42 @@ function M.run_color(args)
     io.stderr:write(OPACITY_WARNING)
   end
 
-  emit(M.build_osc11(bg_hex) .. M.build_osc1337("WEZTERM_TAB_COLOR", normalized))
+  emit(M.build_osc11(bg_hex) .. M.build_osc1337("WEZTERM_PANE_COLOR", normalized))
   return 0
 end
 
--- Icon map + title resolver re-exported from the shared lib (D-03) so the pane
--- public surface (M.ICONS / M.resolve_title) and M.run_title are unchanged while
--- the single source of truth lives in cli/lib/title.lua.
+-- Icon map + title/icon resolvers re-exported from the shared lib (D-01/D-03) so the
+-- pane public surface (M.ICONS / M.resolve_title / M.resolve_icon) stays here while
+-- the single source of truth lives in cli/lib/title.lua. No local copy (D-01).
 M.ICONS = title.ICONS
 M.resolve_title = title.resolve_title
+M.resolve_icon = title.resolve_icon
 
---- Handle `wez pane title <words...>` / `wez pane title reset`.
+--- Handle `wez pane icon <name|glyph>` / `wez pane icon reset` (D-01/D-03). Resolves
+-- the positional value (nil / "reset" / empty -> "") via the shared title.resolve_icon
+-- and emits WEZTERM_TAB_ICON via OSC 1337 — icon shares ONE carrier across tab + pane.
+function M.run_icon(args)
+  -- IN-01/D-01: ONE shared icon-emit body (reset normalization + resolve + OSC),
+  -- reused by `wez tab icon`. The io.write sink stays local (the emit closure).
+  title.emit_icon(emit, args and args.value)
+  return 0
+end
+
+--- Handle `wez pane title <words...> [--icon <name|glyph>]` / `wez pane title reset`.
+-- Emits PURE resolved title text via WEZTERM_TAB_TITLE (D-05 literal). When a known
+-- icon-name is the LEADING word of the literal title, warn ONCE (D-06, shared helper)
+-- WITHOUT swapping it. With --icon, a second independent WEZTERM_TAB_ICON write follows.
 function M.run_title(args)
-  local title = M.resolve_title(args.words)
-  emit(M.build_osc1337("WEZTERM_TAB_TITLE", title))
+  local resolved = M.resolve_title(args.words)
+  -- Legacy icon-in-title parse-and-warn (D-06): warn on the literal title BEFORE the
+  -- emit; the SAME shared helper `wez tab title` uses (D-01, one implementation). The
+  -- title text stays fully literal (D-05) — no swap, no exit-status change.
+  title.warn_legacy_icon_title(resolved, "wez pane title", "wez pane icon")
+  emit(M.build_osc1337("WEZTERM_TAB_TITLE", resolved))
+  -- --icon convenience (D-01): a second, independent WEZTERM_TAB_ICON emit.
+  if args.icon ~= nil then
+    emit(M.build_osc1337("WEZTERM_TAB_ICON", title.resolve_icon(args.icon)))
+  end
   return 0
 end
 
@@ -117,8 +142,10 @@ function M.run(args)
     return M.run_color(args)
   elseif sub == "title" then
     return M.run_title(args)
+  elseif sub == "icon" then
+    return M.run_icon(args)
   end
-  io.stderr:write("wez pane: expected a subcommand (color | title)\n")
+  io.stderr:write("wez pane: expected a subcommand (color | title | icon)\n")
   return 2
 end
 

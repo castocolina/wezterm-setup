@@ -3,8 +3,9 @@
 --
 -- 06.1-03 decouple (D-02/D-03/D-04): `wez tab color` now emits WEZTERM_TAB_COLOR via
 -- OSC 1337 (NO `<color>:<title>` prefix); `wez tab title` writes PURE title text via
--- set-tab-title. parse_stored/merge_title survive ONLY as migration helpers (scene.lua
--- still calls them until Plan 04) and are exercised here as the legacy parse-and-warn path.
+-- set-tab-title. parse_stored survives ONLY as the warn_legacy_prefix_once parse helper
+-- and is exercised here as the legacy parse-and-warn path. (The dead merge_title builder
+-- was removed in IN-03 — 6.2 dropped the color:title encoding and nothing calls it.)
 
 local M = require("cli.commands.tab")
 
@@ -46,10 +47,10 @@ do local c, t = ps(""); check("11 '' -> nil,nil", c == nil and t == nil) end
 do local c, t = ps(nil); check("12 nil -> nil,nil", c == nil and t == nil) end
 do local c, t = ps("blue"); check("13 'blue' (bare token is the color)", c == "blue" and t == nil) end
 
--- merge_title: SURVIVES as a migration helper (scene.lua dependency until Plan 04).
--- It is NO LONGER used by tab.lua's own steady-state write path (see run_color/run_title below).
-eq("14 merge_title still callable (migration helper)",
-  M.merge_title({ cur_color = "green", cur_title = "api", set_color = "blue" }), "blue:api")
+-- merge_title was REMOVED (IN-03): it was the dead read-modify-write builder for the
+-- legacy "<color>:<title>" encoding, which 6.2 dropped (D-04/D-05). Assert it is gone
+-- so a re-introduction is caught.
+check("14 merge_title is removed (IN-03)", M.merge_title == nil)
 
 -- ── I/O surface: stub the seams (read/write), capture io.write OSC ────────────
 
@@ -116,12 +117,12 @@ do
   check("18 combined: title write is PURE 'api' (no color prefix)", writes[1] == "api")
 end
 
--- 19: combined with icon name -> title resolved through the shared resolver
+-- 19: combined title is literal (D-05 — first word no longer swapped for a glyph)
 do
   local _, _, writes = with_seams(function()
     return M.run({ tab_cmd = "color", value = "blue", title = "docker build" })
   end)
-  check("19 combined icon: title resolved to glyph", writes[1] == "🐳 build")
+  check("19 combined: title is literal 'docker build' (D-05)", writes[1] == "docker build")
 end
 
 -- 20: `wez tab title api` -> set-tab-title 'api' PURE text, no color prefix, no OSC
@@ -134,12 +135,12 @@ do
   check("20 tab title api: NO color OSC emitted", osc == "")
 end
 
--- 21: `wez tab title docker compose up` -> icon resolved, pure text
+-- 21: `wez tab title docker compose up` -> literal pure text (D-05, no glyph swap)
 do
   local _, _, writes = with_seams(function()
     return M.run({ tab_cmd = "title", words = { "docker", "compose", "up" } })
   end)
-  check("21 tab title icon: '🐳 compose up'", writes[1] == "🐳 compose up")
+  check("21 tab title literal: 'docker compose up' (D-05)", writes[1] == "docker compose up")
 end
 
 -- 22: `wez tab title reset` -> set-tab-title '' (empty), no color prefix
@@ -180,6 +181,116 @@ do
   end)
   warned = err:find("legacy", 1, true) ~= nil or err:find("migrat", 1, true) ~= nil
   check("24 migration: legacy prefix triggers a one-time warn", warned)
+end
+
+-- ── 06.2-02: icon subcommand + --icon on title + --follow-pane-color + legacy warn ──
+
+local title = require("cli.lib.title")
+
+-- with_seams captures io.write OSC + set-tab-title writes; cap_stderr captures stderr.
+-- Several 6.2 cases need BOTH at once, so wrap with_seams inside cap_stderr.
+
+-- 25: `wez tab icon node` -> emits WEZTERM_TAB_ICON OSC for the node glyph, NO set-tab-title
+do
+  local code, osc, writes = with_seams(function() return M.run({ tab_cmd = "icon", value = "node" }) end)
+  check("25 tab icon node: exit 0", code == 0)
+  check("25 tab icon node: emits WEZTERM_TAB_ICON for the node glyph",
+    osc == M.build_osc1337("WEZTERM_TAB_ICON", title.resolve_icon("node")))
+  check("25 tab icon node: NO set-tab-title write", #writes == 0)
+end
+
+-- 26: `wez tab icon 🔥` (literal glyph, D-02) -> emits the literal verbatim
+do
+  local _, osc = with_seams(function() return M.run({ tab_cmd = "icon", value = "🔥" }) end)
+  check("26 tab icon literal glyph: emits the literal (D-02)",
+    osc == M.build_osc1337("WEZTERM_TAB_ICON", "🔥"))
+end
+
+-- 27: `wez tab icon reset` / empty -> clears the icon (empty payload)
+do
+  local _, osc1 = with_seams(function() return M.run({ tab_cmd = "icon", value = "reset" }) end)
+  check("27 tab icon reset: clears WEZTERM_TAB_ICON",
+    osc1 == M.build_osc1337("WEZTERM_TAB_ICON", ""))
+  local _, osc2 = with_seams(function() return M.run({ tab_cmd = "icon", value = nil }) end)
+  check("27 tab icon (no value): clears WEZTERM_TAB_ICON",
+    osc2 == M.build_osc1337("WEZTERM_TAB_ICON", ""))
+end
+
+-- 28: `wez tab title api --icon node` -> TWO writes: pure-text title 'api' AND a WEZTERM_TAB_ICON OSC
+do
+  local code, osc, writes = with_seams(function()
+    return M.run({ tab_cmd = "title", words = { "api" }, icon = "node" })
+  end)
+  check("28 title --icon: exit 0", code == 0)
+  check("28 title --icon: pure-text set-tab-title 'api'", #writes == 1 and writes[1] == "api")
+  check("28 title --icon: emits WEZTERM_TAB_ICON for the node glyph",
+    osc == M.build_osc1337("WEZTERM_TAB_ICON", title.resolve_icon("node")))
+end
+
+-- 29: `wez tab color green` emits ONLY WEZTERM_TAB_COLOR, never WEZTERM_TAB_FOLLOW_PANE (default OFF)
+do
+  local _, osc = with_seams(function() return M.run({ tab_cmd = "color", value = "green" }) end)
+  check("29 tab color (no flag): NO WEZTERM_TAB_FOLLOW_PANE emit (default OFF, D-09)",
+    osc:find("WEZTERM_TAB_FOLLOW_PANE", 1, true) == nil)
+end
+
+-- 30: `wez tab color green --follow-pane-color` ALSO emits WEZTERM_TAB_FOLLOW_PANE="1"
+do
+  local code, osc = with_seams(function()
+    return M.run({ tab_cmd = "color", value = "green", follow_pane_color = true })
+  end)
+  check("30 follow-pane-color: exit 0", code == 0)
+  check("30 follow-pane-color: emits WEZTERM_TAB_COLOR then WEZTERM_TAB_FOLLOW_PANE='1'",
+    osc == M.build_osc1337("WEZTERM_TAB_COLOR", "green")
+      .. M.build_osc1337("WEZTERM_TAB_FOLLOW_PANE", "1"))
+end
+
+-- 31: legacy-icon-name leading word in a literal title -> title stays literal AND a warn fires.
+--     `wez tab title node api`: title text is the literal "node api" (NO swap, D-05), warn to stderr.
+do
+  title.reset_legacy_icon_warn() -- one-time guard: reset so this case can observe the warn
+  local code, err, writes
+  code, err = cap_stderr(function()
+    local _, _, w = with_seams(function()
+      return M.run({ tab_cmd = "title", words = { "node", "api" } })
+    end)
+    writes = w
+    return 0
+  end)
+  check("31 legacy warn: title text stays literal 'node api' (NO swap, D-05)",
+    writes ~= nil and #writes == 1 and writes[1] == "node api")
+  check("31 legacy warn: a warn is written to stderr suggesting `wez tab icon`",
+    err:find("wez tab icon", 1, true) ~= nil)
+  check("31 legacy warn: the warn names the offending word 'node'", err:find("node", 1, true) ~= nil)
+  _ = code
+end
+
+-- 32: a non-icon leading word emits NO warn.
+do
+  title.reset_legacy_icon_warn()
+  local _, err = cap_stderr(function()
+    with_seams(function() return M.run({ tab_cmd = "title", words = { "deploy", "api" } }) end)
+    return 0
+  end)
+  -- "deploy" IS a known ICONS key, so use a truly unknown leading word instead.
+  local _, err2 = cap_stderr(function()
+    with_seams(function() return M.run({ tab_cmd = "title", words = { "frobnicate", "api" } }) end)
+    return 0
+  end)
+  check("32 non-icon leading word: NO warn", err2:find("looks like a legacy", 1, true) == nil)
+  _ = err
+end
+
+-- 33: the warn fires AT MOST once per process (one-time guard, D-06).
+do
+  title.reset_legacy_icon_warn()
+  local _, err = cap_stderr(function()
+    with_seams(function() return M.run({ tab_cmd = "title", words = { "node", "a" } }) end)
+    with_seams(function() return M.run({ tab_cmd = "title", words = { "python", "b" } }) end)
+    return 0
+  end)
+  local _, count = err:gsub("looks like a legacy", "")
+  check("33 one-time warn: at most one legacy warn per process", count <= 1)
 end
 
 io.write(string.format("\ntab_test: %d passed, %d failed\n", pass, fail))

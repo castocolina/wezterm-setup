@@ -125,6 +125,70 @@ teq("1l recipe_to_args focus-only pane", M.recipe_to_args({
 }), { layout = "tall", color = nil, title = nil, cwd = nil, pane = { "cmd=claude, focus=true" } })
 
 -- ============================================================================
+-- 1.6* icon (tab + [[pane]]) + follow_pane_color (tab) — D-03/D-09
+-- ============================================================================
+
+-- 1m per-pane icon maps to an icon= segment (alongside cmd/color), round-tripping
+-- through scene.parse_pane_spec (SCEN-04). A styled command pane keeps its icon.
+teq("1m recipe_to_args per-pane icon segment", M.recipe_to_args({
+  layout = "tall",
+  panes = { { command = "top", color = "teal", icon = "node" } },
+}), {
+  layout = "tall", color = nil, title = nil, cwd = nil, icon = nil, follow_pane_color = nil,
+  pane = { "cmd=top, color=teal, icon=node" },
+})
+
+-- 1n icon-only pane drops the bare-command fast path (icon is an extra field).
+teq("1n recipe_to_args icon-only pane forces keyed form", M.recipe_to_args({
+  layout = "tall", panes = { { command = "vim", icon = "edit" } },
+}), {
+  layout = "tall", color = nil, title = nil, cwd = nil, icon = nil, follow_pane_color = nil,
+  pane = { "cmd=vim, icon=edit" },
+})
+
+-- 1o a STYLED shell pane keeps its icon (cmd=shell multi-field form, mirror :76).
+teq("1o recipe_to_args styled shell keeps icon", M.recipe_to_args({
+  layout = "tall", panes = { { command = "shell", color = "teal", icon = "shell" } },
+}), {
+  layout = "tall", color = nil, title = nil, cwd = nil, icon = nil, follow_pane_color = nil,
+  pane = { "cmd=shell, color=teal, icon=shell" },
+})
+
+-- 1p tab-level icon + follow_pane_color carried into args (beside color/title/cwd).
+teq("1p recipe_to_args tab icon + follow_pane_color", M.recipe_to_args({
+  layout = "tall", icon = "node", follow_pane_color = true,
+  panes = { { command = "shell" } },
+}), {
+  layout = "tall", color = nil, title = nil, cwd = nil,
+  icon = "node", follow_pane_color = true, pane = { "shell" },
+})
+
+-- 1q follow_pane_color default is nil (absent) — opt-in only (D-09 default OFF).
+do
+  local args = M.recipe_to_args({ layout = "tall", panes = { { command = "shell" } } })
+  check("1q follow_pane_color absent -> nil (default OFF)", args.follow_pane_color == nil)
+  check("1q2 tab icon absent -> nil", args.icon == nil)
+end
+
+-- 1r SCEN-04 EQUIVALENCE: a recipe with a tab icon + a [[pane]] icon maps to the
+-- SAME args an equivalent `scene new --pane 'cmd=...,icon=...'` would produce.
+-- Proven by parsing the equivalent --pane string back through scene.parse_pane_spec
+-- and asserting the recipe's pane spec parses to that same table.
+do
+  local scene = require("cli.lib.scene")
+  local args = M.recipe_to_args({
+    layout = "grid", icon = "node",
+    panes = { { command = "ipython", color = "teal", icon = "python", title = "repl" } },
+  })
+  -- tab icon survives as args.icon (the launch≡new tab-level key).
+  eq("1r tab icon carried for launch≡new", args.icon, "node")
+  -- the per-pane spec string parses identically to the equivalent --pane invocation.
+  local from_recipe = scene.parse_pane_spec(args.pane[1])
+  local from_new = scene.parse_pane_spec("cmd=ipython, color=teal, icon=python, title=repl")
+  teq("1r2 recipe pane spec ≡ equivalent --pane parse (SCEN-04)", from_recipe, from_new)
+end
+
+-- ============================================================================
 -- 2* load_and_map(raw_string) -> (args | nil, errmsg)
 -- ============================================================================
 
@@ -270,29 +334,85 @@ do
     return M.load_and_map(raw)
   end
 
-  -- dev: tall:mirrored, green, 3 panes (editor green / shell teal / git yellow),
-  -- each titled with the {cwd} token (comma-free, so the --pane round-trip is safe).
+  -- dev: tall:mirrored, green, tab icon=build + literal {cwd} title, 3 panes
+  -- (editor green / shell teal / git yellow) each with an EXPLICIT icon attribute
+  -- (D-03/D-05) and a literal {cwd} title (comma-free, so the --pane round-trip is safe).
   local dev, dev_err = load_seed("scenes/dev.toml")
   check("2.9a dev.toml round-trips, no err", dev_err == nil and type(dev) == "table")
-  teq("2.9b dev.toml maps to the D-13 args", dev, {
-    layout = "tall:mirrored", color = "green", title = "dev {cwd}", cwd = nil,
+  teq("2.9b dev.toml maps to the D-03/D-05/D-13 args", dev, {
+    layout = "tall:mirrored", color = "green", title = "{cwd}", cwd = nil,
+    icon = "build", follow_pane_color = nil,
     pane = {
-      "cmd=$EDITOR, color=green, title=edit {cwd}",
-      "cmd=shell, color=teal, title=shell {cwd}",
-      "cmd=git status, color=yellow, title=git {cwd}",
+      "cmd=$EDITOR, color=green, title={cwd}, icon=edit",
+      "cmd=shell, color=teal, title={cwd}, icon=shell",
+      "cmd=git status, color=yellow, title={cwd}, icon=git",
     },
   })
 
-  -- ai: tall, purple, 2 panes (claude purple / shell teal).
+  -- ai: tall, purple, tab icon=ai, 2 panes (claude purple icon=ai / shell teal icon=shell).
   local ai, ai_err = load_seed("scenes/ai.toml")
   check("2.9c ai.toml round-trips, no err", ai_err == nil and type(ai) == "table")
-  teq("2.9d ai.toml maps to the D-14 args", ai, {
+  teq("2.9d ai.toml maps to the D-03/D-05/D-14 args", ai, {
     layout = "tall", color = "purple", title = nil, cwd = nil,
+    icon = "ai", follow_pane_color = nil,
     pane = {
-      "cmd=claude, color=purple",
-      "cmd=shell, color=teal",
+      "cmd=claude, color=purple, icon=ai",
+      "cmd=shell, color=teal, icon=shell",
     },
   })
+
+  -- docker: tall:mirrored, cyan, tab icon=docker, 3 panes (shell icon=shell /
+  -- docker-ps cyan icon=docker / docker-memory blue icon=docker).
+  local docker, docker_err = load_seed("scenes/docker.toml")
+  check("2.9e docker.toml round-trips, no err", docker_err == nil and type(docker) == "table")
+  teq("2.9f docker.toml maps to the D-03/D-05 args", docker, {
+    layout = "tall:mirrored", color = "cyan", title = nil, cwd = nil,
+    icon = "docker", follow_pane_color = nil,
+    pane = {
+      "cmd=shell, icon=shell",
+      "cmd=docker-ps, color=cyan, icon=docker",
+      "cmd=docker-memory, color=blue, icon=docker",
+    },
+  })
+end
+
+-- ============================================================================
+-- 2.10* WR-01: a comma in a field value is REJECTED at map time with a clear,
+-- attributable diagnostic (not a confusing downstream parse error).
+-- ============================================================================
+do
+  -- A multi-field pane with a comma in title= is rejected (the comma would
+  -- mis-split via parse_pane_spec into a bogus extra `b` segment).
+  local args, err = M.recipe_to_args({
+    layout = "tall",
+    panes = { { command = "vim", color = "teal", title = "a, b" } },
+  })
+  check("2.10a recipe_to_args rejects a comma in title", args == nil)
+  check("2.10b error is a string naming the offending value",
+    type(err) == "string" and err:find("comma", 1, true) ~= nil
+    and err:find("a, b", 1, true) ~= nil)
+
+  -- A comma in a bare command value is also rejected (the fast path is guarded).
+  local args2, err2 = M.recipe_to_args({
+    layout = "tall",
+    panes = { { command = "echo a, b" } },
+  })
+  check("2.10c recipe_to_args rejects a comma in a bare command", args2 == nil)
+  check("2.10d bare-command error is a string", type(err2) == "string")
+
+  -- A comma-free multi-field pane still maps cleanly (no false positive).
+  local args3, err3 = M.recipe_to_args({
+    layout = "tall",
+    panes = { { command = "vim", color = "teal", title = "ab" } },
+  })
+  check("2.10e comma-free pane still maps", type(args3) == "table" and err3 == nil)
+
+  -- load_and_map surfaces the same WR-01 error for a comma'd recipe string.
+  local mapped, map_err = M.load_and_map(
+    'layout = "tall"\n[[panes]]\ncommand = "vim"\ncolor = "teal"\ntitle = "a, b"\n')
+  check("2.10f load_and_map propagates the comma rejection", mapped == nil)
+  check("2.10g load_and_map error mentions the comma limitation",
+    type(map_err) == "string" and map_err:find("comma", 1, true) ~= nil)
 end
 
 -- ============================================================================

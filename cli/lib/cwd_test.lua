@@ -96,5 +96,20 @@ do
   check("2j error mentions HOME", type(err) == "string" and err:find("HOME", 1, true) ~= nil)
 end
 
+-- 2k WR-02: the unsupported ${NAME} brace form is REJECTED up front so it never
+-- slips past the unset-var check and resolves to a literal broken path. Rejected
+-- whether the named var is UNSET or SET — the brace form is simply not expanded.
+do
+  local ok, err = M.validate("${UNSET}/x", {})
+  check("2k validate('${UNSET}/x') rejected", ok == false)
+  check("2k2 error names the brace form", type(err) == "string"
+    and err:find("${NAME}", 1, true) ~= nil)
+
+  local ok2, err2 = M.validate("${PWD}/x", { PWD = "/home/u" })
+  check("2l validate('${PWD}/x') rejected even when set", ok2 == false)
+  check("2l2 error names the brace form", type(err2) == "string"
+    and err2:find("${NAME}", 1, true) ~= nil)
+end
+
 io.write(string.format("\ncwd_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

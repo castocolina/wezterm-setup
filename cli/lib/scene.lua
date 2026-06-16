@@ -165,7 +165,11 @@ function M.parse_pane_spec(spec)
   local result = { cmd = nil, color = nil, title = nil, shell = false }
   for _, kv in ipairs(split_kv_segments(spec)) do
     local key, value = kv[1], kv[2]
-    if key == "cmd" or key == "color" or key == "title" or key == "cwd" then
+    if key == "cmd" or key == "color" or key == "title" or key == "cwd"
+      or key == "icon" then
+      -- D-03: icon is carried RAW (a name like `node` or a literal glyph). The
+      -- IO-shell resolves it to a glyph via titlelib.resolve_icon at emit time —
+      -- this PURE parser keeps the original string, like cmd/color/title.
       result[key] = value
     elseif key == "focus" then
       -- D-05: boolean coercion. Only the literal `true` enables focus; any other
@@ -181,7 +185,7 @@ function M.parse_pane_spec(spec)
       result.size = math.floor(num)
     else
       return nil, string.format(
-        "error: invalid --pane value '%s' — unknown key '%s' (expected cmd, color, title, cwd, focus, size)",
+        "error: invalid --pane value '%s' — unknown key '%s' (expected cmd, color, title, cwd, focus, size, icon)",
         spec, key)
     end
   end

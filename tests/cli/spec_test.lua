@@ -116,6 +116,82 @@ do
   check("--pane help advertises cwd/focus/size segment grammar (D-16)", found)
 end
 
+-- ----------------------------------------------------------------------------
+-- 6.2 surface (Plan 02): icon subcommands, --icon on title only, --follow-pane-color
+-- on tab color only (D-01/D-09/D-16).
+-- ----------------------------------------------------------------------------
+
+-- tab/pane each gain an `icon` subcommand with one optional positional value.
+do
+  local ok, res = pcall(function() return parser:parse({ "tab", "icon", "node" }) end)
+  check("`tab icon node` parses", ok and res ~= nil and res.tab_cmd == "icon" and res.value == "node",
+    not ok and res or ("tab_cmd=" .. tostring(res and res.tab_cmd) .. " value=" .. tostring(res and res.value)))
+end
+do
+  local ok, res = pcall(function() return parser:parse({ "tab", "icon" }) end)
+  check("`tab icon` (no value, clear) parses", ok and res ~= nil and res.tab_cmd == "icon",
+    not ok and res or nil)
+end
+do
+  local ok, res = pcall(function() return parser:parse({ "pane", "icon", "python" }) end)
+  check("`pane icon python` parses", ok and res ~= nil and res.pane_cmd == "icon" and res.value == "python",
+    not ok and res or ("pane_cmd=" .. tostring(res and res.pane_cmd) .. " value=" .. tostring(res and res.value)))
+end
+
+-- --icon is carried on the `title` subcommands (a value option).
+do
+  local ok, res = pcall(function() return parser:parse({ "tab", "title", "api", "--icon", "node" }) end)
+  check("`tab title api --icon node` parses with icon=node",
+    ok and res ~= nil and res.tab_cmd == "title" and res.icon == "node",
+    not ok and res or ("icon=" .. tostring(res and res.icon)))
+end
+do
+  local ok, res = pcall(function() return parser:parse({ "pane", "title", "api", "--icon", "python" }) end)
+  check("`pane title api --icon python` parses with icon=python",
+    ok and res ~= nil and res.pane_cmd == "title" and res.icon == "python",
+    not ok and res or ("icon=" .. tostring(res and res.icon)))
+end
+
+-- Color subcommands do NOT carry --icon (D-01): the parse must FAIL. Use pparse so
+-- argparse returns (false, err) instead of printing usage + os.exit on the error.
+do
+  local ok = parser:pparse({ "tab", "color", "blue", "--icon", "node" })
+  check("`tab color --icon` is rejected (color has no --icon, D-01)", ok == false)
+end
+do
+  local ok = parser:pparse({ "pane", "color", "blue", "--icon", "python" })
+  check("`pane color --icon` is rejected (color has no --icon, D-01)", ok == false)
+end
+
+-- --follow-pane-color is a boolean flag on `tab color` only (D-09).
+do
+  local ok, res = pcall(function() return parser:parse({ "tab", "color", "blue", "--follow-pane-color" }) end)
+  check("`tab color blue --follow-pane-color` parses with follow_pane_color=true",
+    ok and res ~= nil and res.follow_pane_color == true,
+    not ok and res or ("follow_pane_color=" .. tostring(res and res.follow_pane_color)))
+end
+-- pane color does NOT carry --follow-pane-color.
+do
+  local ok = parser:pparse({ "pane", "color", "blue", "--follow-pane-color" })
+  check("`pane color --follow-pane-color` is rejected (tab-only, D-09)", ok == false)
+end
+
+-- The --pane help string must now also advertise icon= (D-16).
+do
+  local found = false
+  local parser3 = spec.build_parser()
+  local function walk(node)
+    if type(node) ~= "table" then return end
+    for _, opt in ipairs(node._options or {}) do
+      local desc = opt._description or opt.description
+      if type(desc) == "string" and desc:find("icon=") then found = true end
+    end
+    for _, cmd in ipairs(node._commands or {}) do walk(cmd) end
+  end
+  walk(parser3)
+  check("--pane help advertises icon= segment (D-16)", found)
+end
+
 -- Each subcommand carries a category tag the completion generator + keys read (D-16).
 check("spec.categories() returns a table", type(spec.categories) == "function" and type(spec.categories()) == "table")
 do

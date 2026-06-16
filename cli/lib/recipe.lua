@@ -58,12 +58,27 @@ end
 -- cwd/focus/size fields (D-05/D-06/D-07) are appended as their own segments and
 -- round-trip through scene.parse_pane_spec (order-independent).
 --
--- COMMA CAVEAT (Pitfall 5): a comma INSIDE a multi-field command value would
--- mis-split via parse_pane_spec (it splits on top-level commas). This is the v1
--- limitation — the refreshed seed recipes (Plan 07) stay comma-safe by never
--- combining a comma'd command WITH color=/title=/cwd=/focus=/size=. The
--- comma-safe fix is a structured M.run_new entry point (deliberately NOT here).
+-- COMMA CAVEAT (Pitfall 5 / WR-01): a comma INSIDE a multi-field field value
+-- would mis-split via parse_pane_spec (it splits on top-level commas), producing
+-- a downstream "unknown key 'b'" parse error attributed to the user's spec (or a
+-- silent field loss). v1's --pane mini-grammar uses `,` as the segment delimiter
+-- and `=` as the key/value separator, so neither may appear in a field value.
+-- Rather than let that surface as a confusing runtime parse error, we VALIDATE-
+-- BEFORE-EMIT at map time (the project's standing pattern): a field value with a
+-- comma is rejected with a clear, attributable diagnostic naming the field + value.
+-- The comma-safe long-term fix is a structured M.run_new entry point (NOT here).
 -- ---------------------------------------------------------------------------
+local function assert_comma_free(field, value)
+  if value ~= nil and tostring(value):find(",", 1, true) then
+    return nil, string.format(
+      "error: scene recipe is invalid: %s value must not contain a comma "
+      .. "(v1 --pane grammar limitation): '%s'", field, tostring(value))
+  end
+  return true
+end
+
+-- Returns (spec_string | nil, errmsg). nil+errmsg when a field value carries a
+-- comma the v1 --pane grammar cannot round-trip (WR-01).
 local function pane_table_to_spec(p)
   local cmd = p.cmd or p.command
   local is_shell = (cmd == nil or cmd == "shell")
@@ -74,15 +89,28 @@ local function pane_table_to_spec(p)
   -- parse_pane_spec demotes back to a shell pane (shell=true) while keeping the
   -- styling. Without this the bare-`shell` fast path would silently drop the tint.
   if is_shell and p.color == nil and p.title == nil and p.cwd == nil
-    and p.focus == nil and p.size == nil then
+    and p.focus == nil and p.size == nil and p.icon == nil then
     return "shell"
   end
   if is_shell then
     cmd = "shell"
   end
+  -- WR-01: reject a comma in ANY field value that round-trips through the
+  -- comma-delimited --pane spec, BEFORE building it. cmd is checked even on the
+  -- bare-command fast path (a comma there would split into a bogus extra segment).
+  for _, fv in ipairs({
+    { "command", cmd }, { "color", p.color }, { "title", p.title },
+    { "cwd", p.cwd }, { "icon", p.icon },
+  }) do
+    local ok_field, field_err = assert_comma_free(fv[1], fv[2])
+    if not ok_field then
+      return nil, field_err
+    end
+  end
   -- Bare-command fast path ONLY when no extra field is present (comma-safe seeds).
+  -- D-03: a per-pane `icon` is an extra field, so it drops the fast path too.
   if p.color == nil and p.title == nil and p.cwd == nil
-    and p.focus == nil and p.size == nil then
+    and p.focus == nil and p.size == nil and p.icon == nil then
     return cmd
   end
   local segs = { "cmd=" .. cmd }
@@ -91,16 +119,21 @@ local function pane_table_to_spec(p)
   if p.cwd then segs[#segs + 1] = "cwd=" .. p.cwd end
   if p.focus == true then segs[#segs + 1] = "focus=true" end
   if p.size ~= nil then segs[#segs + 1] = "size=" .. tostring(p.size) end
+  -- D-03: per-pane icon round-trips as an icon= segment (raw name/glyph) consumed
+  -- by scene.parse_pane_spec, mirroring the color= append above.
+  if p.icon then segs[#segs + 1] = "icon=" .. p.icon end
   return table.concat(segs, ", ")
 end
 
 -- ---------------------------------------------------------------------------
--- M.recipe_to_args(recipe) -> args table. PURE transform (05-RESEARCH Pattern 1).
--- Reads panes from recipe.panes (the chosen key, matching README/UI-SPEC
--- `[[panes]]`), accepting recipe.pane as a fallback alias ([[pane]], D-04). Carries
--- the top-level tab keys (color/title + the new top-level cwd, D-07) so the
--- IO-shell can apply a tab-level default cwd. Builds the exact shape M.run_new
--- consumes: { layout, color, title, cwd, pane = { <spec strings> } }.
+-- M.recipe_to_args(recipe) -> (args table | nil, errmsg). PURE transform
+-- (05-RESEARCH Pattern 1). Reads panes from recipe.panes (the chosen key, matching
+-- README/UI-SPEC `[[panes]]`), accepting recipe.pane as a fallback alias ([[pane]],
+-- D-04). Carries the top-level tab keys (color/title + the new top-level cwd, D-07)
+-- so the IO-shell can apply a tab-level default cwd. Builds the exact shape
+-- M.run_new consumes: { layout, color, title, cwd, pane = { <spec strings> } }.
+-- WR-01: returns (nil, errmsg) when a pane field value carries a comma the v1
+-- --pane grammar cannot round-trip.
 -- ---------------------------------------------------------------------------
 function M.recipe_to_args(recipe)
   local panes = recipe.panes or recipe.pane or {}
@@ -109,10 +142,19 @@ function M.recipe_to_args(recipe)
     color = recipe.color,
     title = recipe.title,
     cwd = recipe.cwd,
+    -- D-03/D-09: tab-level icon + the follow_pane_color opt-in (default OFF when
+    -- absent -> nil). Carried beside color/title/cwd so the IO-shell applies them
+    -- to pane 1 (icon + the WEZTERM_TAB_FOLLOW_PANE carrier). launch ≡ new.
+    icon = recipe.icon,
+    follow_pane_color = recipe.follow_pane_color,
     pane = {},
   }
   for _, p in ipairs(panes) do
-    args.pane[#args.pane + 1] = pane_table_to_spec(p)
+    local spec, spec_err = pane_table_to_spec(p)
+    if spec == nil then
+      return nil, spec_err
+    end
+    args.pane[#args.pane + 1] = spec
   end
   return args
 end

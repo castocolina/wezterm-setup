@@ -181,13 +181,37 @@ do
   check("2p size=abc rejected", res == nil and err ~= nil)
 end
 
--- 2q unknown key error now lists the EXTENDED allowed set (cmd/color/title/cwd/focus/size).
+-- 2q unknown key error now lists the EXTENDED allowed set (cmd/color/title/cwd/focus/size/icon).
 do
   local res, err = M.parse_pane_spec("cmd=htop, bogus=1")
   check("2q unknown key returns nil", res == nil)
   eq("2q2 unknown key message lists extended set", err,
-    "error: invalid --pane value 'cmd=htop, bogus=1' — unknown key 'bogus' (expected cmd, color, title, cwd, focus, size)")
+    "error: invalid --pane value 'cmd=htop, bogus=1' — unknown key 'bogus' (expected cmd, color, title, cwd, focus, size, icon)")
 end
+
+-- ============================================================================
+-- 2.8* parse_pane_spec gains icon= (D-03): a per-pane icon attribute, carried
+-- RAW (name or literal glyph) — resolution to a glyph is the IO-shell's job via
+-- titlelib.resolve_icon. icon joins the known-key branch beside cmd/color/title.
+-- ============================================================================
+
+-- 2x icon= alongside cmd parses into result.icon (raw name kept).
+teq("2x parse cmd+icon", M.parse_pane_spec("cmd=top, icon=node"),
+  { cmd = "top", color = nil, title = nil, icon = "node", shell = false })
+
+-- 2y icon= order-independent + alongside color/title.
+teq("2y parse icon+color+title order-independent",
+  M.parse_pane_spec("icon=python, cmd=ipython, color=teal, title=repl"),
+  { cmd = "ipython", color = "teal", title = "repl", icon = "python", shell = false })
+
+-- 2z a literal-glyph icon passes through raw (resolution happens in the IO-shell).
+teq("2z parse literal-glyph icon", M.parse_pane_spec("cmd=x, icon=🔥"),
+  { cmd = "x", color = nil, title = nil, icon = "🔥", shell = false })
+
+-- 2aa a styled shell pane keeps its icon (cmd=shell demoted to shell=true, icon survives).
+teq("2aa parse cmd=shell, icon=shell -> styled shell keeps icon",
+  M.parse_pane_spec("cmd=shell, icon=shell, color=teal"),
+  { cmd = nil, color = "teal", title = nil, icon = "shell", shell = true })
 
 -- ============================================================================
 -- 2.6* validate_focus(parsed_list) — at most ONE focus=true pane (D-05)
@@ -259,7 +283,7 @@ do
   local res, err = M.parse_pane_spec("cmd=htop,foo=bar")
   check("5a unknown key returns nil result", res == nil)
   eq("5b unknown key message", err,
-    "error: invalid --pane value 'cmd=htop,foo=bar' — unknown key 'foo' (expected cmd, color, title, cwd, focus, size)")
+    "error: invalid --pane value 'cmd=htop,foo=bar' — unknown key 'foo' (expected cmd, color, title, cwd, focus, size, icon)")
 end
 
 -- ============================================================================
