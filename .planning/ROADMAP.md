@@ -211,9 +211,16 @@ Plans:
 - [ ] **Embrace the search overlay** — keep WezTerm's `Ctrl+Shift+F` search and document `Ctrl+R` (CopyMode `CycleMatchType`) to cycle case-sensitive / case-insensitive / regex. Relaxes the prior "no less-style search overlays" philosophy rule.
 - [ ] **Refresh ai + dev seed scenes** — give them per-pane + tab colors (like the new docker scene).
 
+**Plans:** 5/7 plans executed
 Plans:
 
-- [ ] TBD (run /gsd-discuss-phase 06.1 then /gsd-plan-phase 06.1 to break down)
+- [x] 06.1-01-PLAN.md — Shared cli/lib/color.lua (consolidate normalize/validate + palette + OSC builders; accept #RRGGBBAA, D-01/D-09) [wave 1] ✓ 2026-06-15
+- [x] 06.1-02-PLAN.md — Shared cli/lib/cwd.lua resolver (locked grammar, no $(...) eval; D-01/D-07/D-08) [wave 1]
+- [x] 06.1-03-PLAN.md — Decouple tab color->WEZTERM_TAB_COLOR via OSC + title pure text; rewire pane/tab to shared color (D-01/D-02/D-03/D-04/D-09) [wave 2]
+- [x] 06.1-04-PLAN.md — Scene/recipe cwd/focus/size + clean-pane --cwd spawn + OSC tab color + spec (D-01/D-05/D-06/D-07/D-08) [wave 3] ✓ 2026-06-15
+- [x] 06.1-05-PLAN.md — Render active-pane color + #RRGGBBAA + RotatePanes Alt+Shift+R/E + search overlay docs (D-02/D-04/D-09/D-12) [wave 3] ✓ 2026-06-15
+- [ ] 06.1-06-PLAN.md — wez doctor shadow-detection core gate + migration doc (D-10/D-11) [wave 3]
+- [ ] 06.1-07-PLAN.md — Refresh ai+dev seeds + live spawn --cwd integration test + recorded live repro (D-12/D-13/D-14/D-15) [wave 4]
 
 ### Phase 06.2: User Documentation Audit and Refactor (INSERTED)
 
@@ -262,6 +269,7 @@ Plans:
 | 4. Ad-hoc Scenes | 3/3 | Complete | 2026-06-13 |
 | 5. Named Scenes | 4/4 | Complete | 2026-06-14 |
 | 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
+| 6.1 Tab and Scene Identity Redesign | 5/7 | In Progress|  |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started | - |
 
 ---
