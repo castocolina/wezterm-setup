@@ -14,28 +14,23 @@ local function eq(name, got, want)
   check(name .. " (got " .. tostring(got) .. ")", got == want)
 end
 
--- normalize_color
+-- normalize_color (D-09: alpha PRESERVED, not stripped — shared cli/lib/color)
 eq("1 normalize NAVY", M.normalize_color("NAVY"), "navy")
 eq("2 normalize Navy", M.normalize_color("Navy"), "navy")
 eq("3 normalize #1A2040", M.normalize_color("#1A2040"), "#1a2040")
-eq("4 normalize #1a2040cc (strip alpha byte)", M.normalize_color("#1a2040cc"), "#1a2040")
-eq("5 normalize #1a2c (strip alpha nibble)", M.normalize_color("#1a2c"), "#1a2")
+eq("4 normalize #1a2040cc (alpha PRESERVED, D-09)", M.normalize_color("#1a2040cc"), "#1a2040cc")
+eq("5 normalize #1a2c (alpha nibble PRESERVED, D-09)", M.normalize_color("#1a2c"), "#1a2c")
 eq("6 normalize #1a2", M.normalize_color("#1a2"), "#1a2")
 eq("7 normalize reset", M.normalize_color("reset"), "reset")
 
--- strip_alpha
-eq("8 strip_alpha 8-digit", M.strip_alpha("#1a2040cc"), "#1a2040")
-eq("9 strip_alpha 6-digit unchanged", M.strip_alpha("#1a2040"), "#1a2040")
-eq("10 strip_alpha 4-digit", M.strip_alpha("#1a2c"), "#1a2")
-eq("11 strip_alpha 3-digit unchanged", M.strip_alpha("#1a2"), "#1a2")
-
--- validate_color
+-- validate_color (D-09: 8-digit #RRGGBBAA validates and is PRESERVED)
 local function vc_ok(input) local ok, v = M.validate_color(input); return ok and v end
 local function vc_err(input) local ok = M.validate_color(input); return ok == false end
 eq("12 validate navy", vc_ok("navy"), "navy")
 eq("13 validate NAVY", vc_ok("NAVY"), "navy")
 eq("14 validate #1a2040", vc_ok("#1a2040"), "#1a2040")
-eq("15 validate #1a2040cc -> #1a2040", vc_ok("#1a2040cc"), "#1a2040")
+eq("15 validate #1a2040cc -> #1a2040cc (alpha preserved, D-09)", vc_ok("#1a2040cc"), "#1a2040cc")
+eq("15b validate #1a2c (4-digit) -> #1a2c (D-09)", vc_ok("#1a2c"), "#1a2c")
 eq("16 validate #1a2", vc_ok("#1a2"), "#1a2")
 eq("17 validate reset", vc_ok("reset"), "reset")
 check("18 validate fuschia -> error w/ names+hint", (function()
@@ -80,12 +75,14 @@ check("26 navy: stdout = OSC11(muted navy) + OSC1337(WEZTERM_TAB_COLOR=navy)",
   o26 == M.build_osc11("#14151c") .. M.build_osc1337("WEZTERM_TAB_COLOR", "navy"))
 check("26 navy: no stderr", e26 == "")
 
--- 27: rgba + --opacity, gated off -> strip alpha, warn once, exit 0
+-- 27: #rrggbbaa + --opacity (D-09) -> alpha PRESERVED in both escapes, warn once, exit 0.
+-- Pitfall 4: WezTerm renders alpha only with window transparency, so a caveat is still warned,
+-- but the 8th digit is NO LONGER dropped — the value flows through verbatim.
 local c27, o27, e27 = capture(function() return M.run({ pane_cmd = "color", value = "#1a2040cc", opacity = true }) end)
 check("27 opacity: exit 0 (soft-degrade)", c27 == 0)
-check("27 opacity: alpha stripped in both escapes",
-  o27 == M.build_osc11("#1a2040") .. M.build_osc1337("WEZTERM_TAB_COLOR", "#1a2040"))
-check("27 opacity: one-time warning on stderr", e27:find("per-pane opacity is not supported", 1, true) ~= nil)
+check("27 opacity: alpha PRESERVED in both escapes (D-09)",
+  o27 == M.build_osc11("#1a2040cc") .. M.build_osc1337("WEZTERM_TAB_COLOR", "#1a2040cc"))
+check("27 opacity: one-time transparency caveat on stderr", e27:find("transparency", 1, true) ~= nil)
 
 -- 28: reset -> OSC 111 + clear var
 local c28, o28 = capture(function() return M.run({ pane_cmd = "color", value = "reset" }) end)

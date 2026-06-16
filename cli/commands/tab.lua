@@ -1,80 +1,50 @@
 -- cli/commands/tab.lua
 --
--- The `wez tab` command module: tab-level accent color (and, in Plan 03-03,
--- title). Writes the proven "<color>:<title>" prefix to the tab's stored title
--- via `wezterm cli set-tab-title`; the Phase 3 formatter (format-tab-title.lua)
--- renders the accent + label from that stored string.
+-- The `wez tab` command module: tab-level accent color + title.
 --
--- Pure helpers (validate_color / parse_stored / merge_title) take no dependency
--- on `wezterm` and perform no I/O, so they are unit-testable under plain lua5.4.
+-- 06.1-03 decouple (D-02/D-03/D-04): COLOR and TITLE are now two independent
+-- channels — the legacy "<color>:<title>" set-tab-title encoding is GONE from the
+-- steady state.
+--   wez tab color <name|hex>   -> emit WEZTERM_TAB_COLOR via OSC 1337 SetUserVar to
+--                                 the active pane's TTY (io.write, the SAME channel
+--                                 `wez pane color` uses). Read by the config-layer
+--                                 format-tab-title handler. NO title is touched.
+--   wez tab title <text>       -> write PURE title text via `wezterm cli set-tab-title`
+--                                 (no color prefix).
+--   wez tab color <c> --title  -> two distinct writes: OSC color + pure-text title.
+--
+-- D-01 / `/reducing-entropy`: the palette + normalize/validate + base64 + OSC builders
+-- are NOT defined here — they live ONCE in cli/lib/color.lua and are re-exported.
+--
+-- D-04 migration: parse_stored / merge_title survive ONLY as a one-time parse-and-warn
+-- migration helper (and scene.lua still calls them until Plan 04 rewires it). They are
+-- removed from this module's OWN steady-state write path — run_color/run_title never
+-- emit the "<color>:<title>" prefix.
+--
 -- All subprocess calls are confined to the read/write sinks (D-05 seam).
 
 local M = {}
 
+-- The single shared color module (D-01): palette, validate (alpha-preserving, D-09),
+-- and the OSC 1337 builder used for the WEZTERM_TAB_COLOR accent emit.
+local color = require("cli.lib.color")
+
 -- Shared icon-name title resolver (D-03), consumed by both pane and tab.
 local title = require("cli.lib.title")
 
--- The curated palette (D-01). pane.lua holds the canonical list; this is the
--- CLI-side validate set, intentionally duplicated like the config formatter's own
--- color_profiles copy — the two runtimes bundle separately.
-M.COLOR_NAMES = { "red", "orange", "yellow", "green", "teal", "cyan", "blue", "navy", "purple", "pink" }
+-- Public surface re-exported from the shared module (no local re-definition, D-01).
+M.COLOR_NAMES = color.COLOR_NAMES
+M.validate_color = color.validate_color
+M.build_osc1337 = color.build_osc1337
 
-local NAME_SET = {}
-for _, n in ipairs(M.COLOR_NAMES) do NAME_SET[n] = true end
-
---- Strip the alpha component from a 4- or 8-digit hex; 3/6-digit pass through.
-function M.strip_alpha(hex)
-  local digits = hex:match("^#(%x+)$")
-  if not digits then return hex end
-  if #digits == 8 then return "#" .. digits:sub(1, 6) end
-  if #digits == 4 then return "#" .. digits:sub(1, 3) end
-  return hex
-end
-
---- Pure normalization (no membership validation): lowercase; "reset" passes
--- through; hex-shaped input has its alpha stripped; named input is lowercased.
-function M.normalize_color(input)
-  local low = tostring(input):lower()
-  if low == "reset" then return "reset" end
-  if low:match("^#%x+$") then
-    return M.strip_alpha(low)
-  end
-  return low
-end
-
-local function unknown_color_error(original)
-  return string.format(
-    'unknown color "%s" — expected one of: %s, a hex value (#rgb / #rrggbb), or "reset"',
-    tostring(original), table.concat(M.COLOR_NAMES, ", ")
-  )
-end
-
---- Validate-before-emit gate (D-06). Returns (true, normalized) or (false, error_string).
--- Accepts the 10 curated names (case-insensitive), a hex value (#rgb / #rrggbb,
--- alpha stripped), and the literal "reset". No opacity/OSC concerns here.
-function M.validate_color(input)
-  local norm = M.normalize_color(input)
-  if norm == "reset" then
-    return true, "reset"
-  end
-  if norm:sub(1, 1) == "#" then
-    if norm:match("^#%x%x%x$") or norm:match("^#%x%x%x%x%x%x$") then
-      return true, norm
-    end
-    return false, unknown_color_error(input)
-  end
-  if NAME_SET[norm] then
-    return true, norm
-  end
-  return false, unknown_color_error(input)
-end
-
---- Parse a stored tab title "<color>:<title>" into (color, title). Split on the
--- FIRST ":" (locked encoding, tab-title-format.md); empty sides -> nil; a no-colon
--- NON-EMPTY token is the color with no title (bare-token-is-a-color rule).
--- INVARIANT: this logic MUST stay in lockstep with the config-layer parser
--- `M.parse_tab_title` in config/wezterm-setup/format-tab-title.lua (separate Lua
--- bundle, same encoding) — change both together.
+--- Parse a stored tab title "<color>:<title>" into (color, title). MIGRATION-ONLY
+-- (D-04): split on the FIRST ":"; empty sides -> nil; a no-colon NON-EMPTY token is
+-- the color with no title. Retained because (a) `run_color` uses it to detect a
+-- legacy-prefixed live tab and warn once, and (b) scene.lua still calls it until
+-- Plan 04 rewires scene styling onto the OSC user-var path. NOT used by the
+-- steady-state write path of this module.
+-- INVARIANT: stays in lockstep with the config-layer parser `M.parse_tab_title` in
+-- config/wezterm-setup/format-tab-title.lua (separate Lua bundle, same encoding).
 function M.parse_stored(s)
   if not s or s == "" then
     return nil, nil
@@ -83,28 +53,27 @@ function M.parse_stored(s)
   if not pos then
     return s, nil
   end
-  local color = s:sub(1, pos - 1)
-  local title = s:sub(pos + 1)
-  if color == "" then color = nil end
-  if title == "" then title = nil end
-  return color, title
+  local color_part = s:sub(1, pos - 1)
+  local title_part = s:sub(pos + 1)
+  if color_part == "" then color_part = nil end
+  if title_part == "" then title_part = nil end
+  return color_part, title_part
 end
 
---- Read-modify-write builder. opts carries cur_color/cur_title plus exactly one
--- of set_color/set_title; the unset side is preserved. set_color="" means "clear
--- the color" (reset). The colon is ALWAYS present (D-02): result is
--- "<color>:<title>" with either side "" when nil.
+--- MIGRATION-ONLY (D-04) read-modify-write builder for the legacy "<color>:<title>"
+-- encoding. KEPT callable because scene.lua still depends on it until Plan 04; this
+-- module no longer calls it from run_color/run_title (the encoding is dropped from
+-- the steady state). opts carries cur_color/cur_title plus exactly one of
+-- set_color/set_title; the unset side is preserved.
 function M.merge_title(opts)
-  -- Note: locals are named *_part (not `title`) to avoid shadowing the
-  -- module-level `local title = require("cli.lib.title")`.
   local color_part = opts.set_color ~= nil and opts.set_color or opts.cur_color
   local title_part = opts.set_title ~= nil and opts.set_title or opts.cur_title
   return (color_part or "") .. ":" .. (title_part or "")
 end
 
 -- ---------------------------------------------------------------------------
--- I/O layer (D-05 seam): the ONLY functions that shell out. The pure helpers
--- above stay subprocess-free so they remain unit-testable under plain lua5.4.
+-- I/O layer (D-05 seam): the ONLY functions that shell out / write escapes. The
+-- pure helpers above stay subprocess-free so they remain unit-testable.
 -- ---------------------------------------------------------------------------
 
 -- Single-quote shell escaper (same proven helper as install_state.M.shquote,
@@ -126,8 +95,7 @@ end
 
 --- Read the active tab's id + stored title from `wezterm cli list --format json`.
 -- Returns { tab_id = <id|nil>, tab_title = <string> }. On no session / decode
--- failure / no active entry, degrades to { tab_id = nil, tab_title = "" } so a
--- recolor still writes "<color>:" from an empty base.
+-- failure / no active entry, degrades to { tab_id = nil, tab_title = "" }.
 function M.read_current_tab()
   local fh = io.popen("wezterm cli list --format json 2>/dev/null")
   if not fh then return { tab_id = nil, tab_title = "" } end
@@ -144,9 +112,9 @@ function M.read_current_tab()
   return { tab_id = nil, tab_title = "" }
 end
 
---- Write the merged title via `wezterm cli set-tab-title`. `tab_id` is the D-05
+--- Write a PURE title string via `wezterm cli set-tab-title`. `tab_id` is the D-05
 -- seam (a future `--tab-id` target); nil omits the flag (active tab default).
--- Returns 0 on success, non-zero on failure.
+-- The value is shquote'd before os.execute (T-06.1-06). Returns 0 on success.
 function M.write_tab_title(str, tab_id)
   local cmd = "wezterm cli set-tab-title "
     .. (tab_id and ("--tab-id " .. tostring(tab_id) .. " ") or "")
@@ -155,10 +123,33 @@ function M.write_tab_title(str, tab_id)
   return (ok == true or ok == 0) and 0 or 1
 end
 
---- Handle `wez tab color <name|hex>` / `wez tab color reset`.
--- Validate-before-emit (D-06): an invalid color bails BEFORE any read or write.
--- Otherwise read-modify-write: parse the stored title, swap only the color
--- (or clear it on reset), write the merged "<color>:<title>" back.
+-- The OSC write sink (D-05): the WEZTERM_TAB_COLOR accent is emitted to the active
+-- pane's TTY via io.write, the SAME path `wez pane color` uses (the CLI runs inside
+-- the target pane). A future pane-TARGETED write would use the printf-octal
+-- send-text path (color.build_user_var_octal) instead.
+local function emit(str)
+  io.write(str)
+end
+
+-- One-time migration warn (D-04 / Open Q3): if the active tab still carries a legacy
+-- "<color>:<title>" prefix, warn ONCE on the CLI side that the old encoding is being
+-- migrated. The clean write path below never re-emits the prefix.
+local function warn_legacy_prefix_once(stored)
+  local cur_color, cur_title = M.parse_stored(stored)
+  -- A legacy prefix is present when the stored title actually contained a colon
+  -- (so both halves are meaningful, or one half plus a colon separator).
+  if stored and stored ~= "" and stored:find(":", 1, true)
+    and (cur_color ~= nil or cur_title ~= nil) then
+    io.stderr:write(
+      "wez tab color: migrating a legacy \"<color>:<title>\" tab title — "
+      .. "the color now lives in WEZTERM_TAB_COLOR; the title is left as plain text\n")
+  end
+end
+
+--- Handle `wez tab color <name|hex> [--title <text>]` / `wez tab color reset`.
+-- Validate-before-emit (D-06/T-06.1-07): an invalid color bails BEFORE any write.
+-- Decoupled (D-02/D-03/D-04): emits WEZTERM_TAB_COLOR via OSC (NO title prefix); a
+-- `--title` flag additionally writes PURE title text via set-tab-title.
 function M.run_color(args)
   local ok, normalized = M.validate_color(args.value)
   if not ok then
@@ -166,32 +157,28 @@ function M.run_color(args)
     return 2
   end
 
+  -- Migration parse-and-warn (D-04): detect a legacy-prefixed live tab and warn once.
   local cur = M.read_current_tab()
-  local cur_color, cur_title = M.parse_stored(cur.tab_title)
+  warn_legacy_prefix_once(cur.tab_title)
 
-  -- "" is the merge-time reset sentinel: merge_title emits ":<title>", and the
-  -- next read's parse_stored turns a leading ":" back into a nil color.
-  local set_color = (normalized == "reset") and "" or normalized
-  local opts = { cur_color = cur_color, cur_title = cur_title, set_color = set_color }
-  -- Combined form (TAB-03): `wez tab color <name> --title "<text>"` sets both
-  -- halves in ONE write. The title flows through the shared icon resolver.
+  -- The accent value is the name (or hex); "reset" clears it with an empty payload.
+  local accent = (normalized == "reset") and "" or normalized
+  emit(color.build_osc1337("WEZTERM_TAB_COLOR", accent))
+
+  -- Combined form (TAB-03): `wez tab color <c> --title "<text>"` ALSO sets the title
+  -- as PURE text in a second, independent write — no encoding.
   if args.title ~= nil then
-    opts.set_title = title.resolve_title_str(args.title)
+    return M.write_tab_title(title.resolve_title_str(args.title), nil)
   end
-  local merged = M.merge_title(opts)
-
-  return M.write_tab_title(merged, nil)
+  return 0
 end
 
 --- Handle `wez tab title <words...>` / `wez tab title reset` (TAB-03).
--- Read-modify-write: keep the existing color, set/clear the title (D-01/D-04).
--- An empty/reset resolution clears the title -> "<color>:".
+-- Writes PURE resolved title text via set-tab-title (D-01/D-04) — NO color prefix,
+-- NO read-modify-write. An empty/reset resolution clears the title ("").
 function M.run_title(args)
   local resolved = title.resolve_title(args.words)
-  local cur = M.read_current_tab()
-  local cur_color, cur_title = M.parse_stored(cur.tab_title)
-  local merged = M.merge_title({ cur_color = cur_color, cur_title = cur_title, set_title = resolved })
-  return M.write_tab_title(merged, nil)
+  return M.write_tab_title(resolved, nil)
 end
 
 --- Command entry. Branches on the selected `tab` subcommand.
