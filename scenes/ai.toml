@@ -50,17 +50,20 @@
 # title set, each pane self-labels by its icon + cwd-basename.
 # ─────────────────────────────────────────────────────────────────────────────
 layout = "tall"
-color = "purple"
+color = "pink"
 icon = "ai"
-# follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
+follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
+title = "@{cwd} AI work"
 
 [[panes]]
 command = "claude"
 color = "purple"
 icon = "ai"
-# focus = true                # uncomment to start focused on the AI pane
+focus = true                # uncomment to start focused on the AI pane
+title = "@{cwd} AI Session"
 
 [[panes]]
 command = "shell"
-color = "teal"
+title = "@{cwd} AI Shell"
+color = "red"
 icon = "shell"

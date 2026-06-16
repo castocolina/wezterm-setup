@@ -52,25 +52,25 @@
 layout = "tall:mirrored"
 color = "green"
 icon = "build"
-title = "{cwd}"
+title = "@{cwd} Dev"
 # follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
 
 [[panes]]
 command = "$EDITOR"
 color = "green"
 icon = "edit"
-title = "{cwd}"
+title = "@{cwd} Dev Editor"
 # focus = true                # uncomment to start focused on the editor
 # size = 60                   # uncomment to give the editor 60% of the split
 
 [[panes]]
+title = "@{cwd} Dev Shell"
 command = "shell"
 color = "teal"
 icon = "shell"
-title = "{cwd}"
 
 [[panes]]
+title = "@{cwd} Dev - git"
 command = "git status"
-color = "yellow"
+color = "cyan"
 icon = "git"
-title = "{cwd}"

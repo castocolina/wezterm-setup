@@ -340,24 +340,26 @@ do
   local dev, dev_err = load_seed("scenes/dev.toml")
   check("2.9a dev.toml round-trips, no err", dev_err == nil and type(dev) == "table")
   teq("2.9b dev.toml maps to the D-03/D-05/D-13 args", dev, {
-    layout = "tall:mirrored", color = "green", title = "{cwd}", cwd = nil,
+    layout = "tall:mirrored", color = "green", title = "@{cwd} Dev", cwd = nil,
     icon = "build", follow_pane_color = nil,
     pane = {
-      "cmd=$EDITOR, color=green, title={cwd}, icon=edit",
-      "cmd=shell, color=teal, title={cwd}, icon=shell",
-      "cmd=git status, color=yellow, title={cwd}, icon=git",
+      "cmd=$EDITOR, color=green, title=@{cwd} Dev Editor, icon=edit",
+      "cmd=shell, color=teal, title=@{cwd} Dev Shell, icon=shell",
+      "cmd=git status, color=cyan, title=@{cwd} Dev - git, icon=git",
     },
   })
 
-  -- ai: tall, purple, tab icon=ai, 2 panes (claude purple icon=ai / shell teal icon=shell).
+  -- ai: tall, pink, tab icon=ai + explicit follow_pane_color=false (the documented
+  -- default, written out), a tab @{cwd} title, 2 panes (claude purple focus icon=ai /
+  -- shell red icon=shell) each with an @{cwd} title.
   local ai, ai_err = load_seed("scenes/ai.toml")
   check("2.9c ai.toml round-trips, no err", ai_err == nil and type(ai) == "table")
   teq("2.9d ai.toml maps to the D-03/D-05/D-14 args", ai, {
-    layout = "tall", color = "purple", title = nil, cwd = nil,
-    icon = "ai", follow_pane_color = nil,
+    layout = "tall", color = "pink", title = "@{cwd} AI work", cwd = nil,
+    icon = "ai", follow_pane_color = false,
     pane = {
-      "cmd=claude, color=purple, icon=ai",
-      "cmd=shell, color=teal, icon=shell",
+      "cmd=claude, color=purple, title=@{cwd} AI Session, focus=true, icon=ai",
+      "cmd=shell, color=red, title=@{cwd} AI Shell, icon=shell",
     },
   })
 
@@ -366,12 +368,12 @@ do
   local docker, docker_err = load_seed("scenes/docker.toml")
   check("2.9e docker.toml round-trips, no err", docker_err == nil and type(docker) == "table")
   teq("2.9f docker.toml maps to the D-03/D-05 args", docker, {
-    layout = "tall:mirrored", color = "cyan", title = nil, cwd = nil,
+    layout = "tall:mirrored", color = "cyan", title = "@{cwd} Docker", cwd = nil,
     icon = "docker", follow_pane_color = nil,
     pane = {
-      "cmd=shell, icon=shell",
-      "cmd=docker-ps, color=cyan, icon=docker",
-      "cmd=docker-memory, color=blue, icon=docker",
+      "cmd=shell, title=@{cwd} Docker Shell, icon=shell",
+      "cmd=docker-ps, color=cyan, title=@{cwd} Docker PS, icon=docker",
+      "cmd=docker-memory, color=blue, title=@{cwd} Docker Memory, icon=docker",
     },
   })
 end

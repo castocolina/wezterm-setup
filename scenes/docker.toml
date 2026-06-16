@@ -50,21 +50,25 @@
 # docker stats with a custom --format inside `watch`); WezTerm panes run an
 # interactive shell, so your ~/.zshrc / ~/.bashrc aliases resolve normally.
 # ─────────────────────────────────────────────────────────────────────────────
+title = "@{cwd} Docker"
 layout = "tall:mirrored"
 color = "cyan"
 icon = "docker"
 # follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
 
 [[panes]]
+title = "@{cwd} Docker Shell"
 command = "shell"
 icon = "shell"
 
 [[panes]]
+title = "@{cwd} Docker PS"
 command = "docker-ps"
 color = "cyan"
 icon = "docker"
 
 [[panes]]
+title = "@{cwd} Docker Memory"
 command = "docker-memory"
 color = "blue"
 icon = "docker"
