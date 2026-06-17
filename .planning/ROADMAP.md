@@ -273,7 +273,11 @@ Plans:
 - [ ] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin.
 - [ ] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup.
 
-**Plans:** TBD (run `/gsd-discuss-phase 06.3` → `/gsd-plan-phase 06.3`)
+**Plans:** 3 plans (all wave 1 — independent; share only the asset-name/`.sha256` contract)
+
+- [ ] 06.3-01-PLAN.md — `wez uninstall` front door over the uninstall-state engine; binary-only, self-delete-last, --yes-on-pipe, repointed make/glue (D-09/D-10/D-11) [wave 1]
+- [ ] 06.3-02-PLAN.md — Rolling nightly channel in release.yml: schedule trigger + github.ref routing + datestamped nightly-YYYYMMDD prerelease + skip-if-unchanged + prune-to-5 (D-04..D-07/D-12) [wave 1]
+- [ ] 06.3-03-PLAN.md — Bootstrapper channel selector: WEZ_CHANNEL=nightly|stable|<vX.Y.Z> replacing the v0.1.0 pin in build.sh download_release(), checksum gate preserved (D-02/D-03/D-08) [wave 1]
 
 ### Phase 06.4: User Documentation Audit and Refactor (INSERTED, renumbered from 06.2)
 
@@ -312,15 +316,18 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 - [ ] **Curated-first output.** A clear "wezterm-setup managed" section listed FIRST; WezTerm
   defaults/inherited bindings listed after — or behind a `--all`/`--verbose` flag, curated-only
   by default — so the real curated combos are not buried in default noise.
+
 - [ ] **One display convention.** Decide produced-character vs physical-key and apply it
   uniformly. A chord requiring Shift renders Shift EXPLICITLY (`ALT+SHIFT+X`), never implied by
   an uppercase letter. No row should be readable two different ways.
+
 - [ ] **De-noise.** Collapse rows that represent the SAME effective chord (e.g. `SHIFT|CTRL+Z`
   + `SHIFT|CTRL+z`); one line per real binding.
 - [ ] **Reconcile `mapped:` + Shift declarations** in `keybindings.lua` (e.g. close-pane
   `mapped:x` `ALT|SHIFT` resolves to `key='X' mods='ALT'`) so the declared form, the displayed
   chord, and the keys actually pressed all agree — normalize the inconsistent "declare both
   lower+upper" pattern.
+
 - [ ] Regression tests for the new ordering + dedupe + unambiguous rendering.
 
 **Plans:** TBD (run `/gsd-discuss-phase 06.5` → `/gsd-plan-phase 06.5`)
