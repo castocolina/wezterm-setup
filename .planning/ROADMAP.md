@@ -293,6 +293,38 @@ Plans:
 
 - [ ] TBD (run /gsd-discuss-phase 06.2 then /gsd-plan-phase 06.2 to break down)
 
+### Phase 06.5: Keybinding Clarity & `wez keys` Output Curation (INSERTED)
+
+**Goal:** Make `wez keys` output trustworthy and low-noise. Today it mixes TWO display
+criteria — the produced CHARACTER (a Shift chord shown as `ALT+X`, the uppercase silently
+implying Shift) and the physical KEY with explicit mods shown twice (`SHIFT|CTRL+Z` **and**
+`SHIFT|CTRL+z`). The result is both ambiguous (is it `Alt+X` or `Alt+Shift+X`?) and noisy
+(near-duplicate rows). Pick ONE consistent convention, render every chord unambiguously, and
+present wezterm-setup's curated bindings first with inherited/default bindings clearly
+separated. (Surfaced live 2026-06-16/17 while debugging close-pane/close-tab on Pop!_OS.)
+
+**Depends on:** Phase 6.1/6.2 (keybindings.lua stable). **Should land BEFORE Phase 6.4 Doc
+Audit** so the documented keybindings reflect the curated output (6.4 still runs last overall).
+**Requirements**: keybinding/CLI UX clarity (no new requirement IDs).
+
+**Scope:**
+
+- [ ] **Curated-first output.** A clear "wezterm-setup managed" section listed FIRST; WezTerm
+  defaults/inherited bindings listed after — or behind a `--all`/`--verbose` flag, curated-only
+  by default — so the real curated combos are not buried in default noise.
+- [ ] **One display convention.** Decide produced-character vs physical-key and apply it
+  uniformly. A chord requiring Shift renders Shift EXPLICITLY (`ALT+SHIFT+X`), never implied by
+  an uppercase letter. No row should be readable two different ways.
+- [ ] **De-noise.** Collapse rows that represent the SAME effective chord (e.g. `SHIFT|CTRL+Z`
+  + `SHIFT|CTRL+z`); one line per real binding.
+- [ ] **Reconcile `mapped:` + Shift declarations** in `keybindings.lua` (e.g. close-pane
+  `mapped:x` `ALT|SHIFT` resolves to `key='X' mods='ALT'`) so the declared form, the displayed
+  chord, and the keys actually pressed all agree — normalize the inconsistent "declare both
+  lower+upper" pattern.
+- [ ] Regression tests for the new ordering + dedupe + unambiguous rendering.
+
+**Plans:** TBD (run `/gsd-discuss-phase 06.5` → `/gsd-plan-phase 06.5`)
+
 ### Phase 7: macOS Parity Pass (D-18)
 
 **Goal**: Every shipped feature is verified working on macOS (Apple Silicon + Intel) and the platform-deferred gaps are closed — the final gate before v1 is declared done
@@ -325,7 +357,8 @@ Plans:
 | 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
 | 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 0/? | Not started | - |
-| 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3) | - |
+| 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
+| 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
 
 ---
