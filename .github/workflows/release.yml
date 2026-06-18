@@ -81,6 +81,38 @@ jobs:
             echo "[release] channel=nightly tag=$tag"
           fi
 
+      # Skip-if-unchanged guard (D-05). On the NIGHTLY channel ONLY: a scheduled
+      # run whose HEAD SHA equals the SHA the newest existing nightly-* release was
+      # built from is a no-op — no empty rebuild/publish/prune. We record the
+      # built-from SHA in the nightly release NOTES (Claude's discretion D-05: a
+      # `built-from: <sha>` marker line, read back with `gh release view --json
+      # body`), rather than in a tag annotation. We expose the decision as the
+      # `unchanged` step OUTPUT consumed by the publish/prune `if:` guards below —
+      # we do NOT `exit 0` the whole job, because the stable path (its own tag
+      # trigger) must always run regardless of nightly state.
+      - name: Skip if unchanged (nightly only)
+        id: nightly_guard
+        if: env.CHANNEL == 'nightly'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha="$(git rev-parse HEAD)"
+          # Newest nightly-* release tag (YYYYMMDD sorts lexically == chronologically).
+          last_nightly="$(gh release list --limit 100 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("nightly-")) | .tagName] | sort | reverse | .[0] // empty')"
+          unchanged=false
+          if [[ -n "$last_nightly" ]]; then
+            recorded="$(gh release view "$last_nightly" --json body \
+              --jq '.body' 2>/dev/null \
+              | sed -n 's/^built-from:[[:space:]]*\([0-9a-f]\{7,40\}\).*/\1/p' \
+              | head -n1)"
+            if [[ -n "$recorded" && "$recorded" == "$head_sha" ]]; then
+              unchanged=true
+            fi
+          fi
+          echo "unchanged=$unchanged" >>"$GITHUB_OUTPUT"
+          echo "[release] nightly guard: head=$head_sha last=$last_nightly unchanged=$unchanged"
+
       - name: Install Lua toolchain (lua5.4 + luastatic)
         run: ./tools/ci-setup-toolchain.sh
 
@@ -119,22 +151,43 @@ jobs:
       # view-or-create-or-view. If a sibling leg wins the create between our view
       # and create, our create fails but the trailing view confirms it now exists,
       # so the step still succeeds. (contents: write already grants create.)
+      # Channel-aware (D-04/D-07). Runs for BOTH channels using the resolved $TAG
+      # (nightly-YYYYMMDD or $GITHUB_REF_NAME) — but skips when the nightly guard
+      # reported the HEAD unchanged (D-05). The nightly channel passes --prerelease
+      # (D-03/D-04) so the release is excluded from /releases/latest (Plan 03's
+      # `stable` resolver), and embeds the built-from SHA in the notes as a
+      # `built-from: <sha>` marker that the skip-if-unchanged guard reads back.
+      # The stable channel keeps the existing non-prerelease, --generate-notes shape.
       - name: Ensure release exists
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ !(env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" \
-                 --title "$GITHUB_REF_NAME" --generate-notes \
-            || gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1
+          if [[ "$CHANNEL" == "nightly" ]]; then
+            notes="$(printf 'Automated nightly build.\n\nbuilt-from: %s\n' "$(git rev-parse HEAD)")"
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              # Same-UTC-date re-run with a NEW commit: the dated release already
+              # exists, so refresh the built-from marker in place (clobber, D-05).
+              gh release edit "$TAG" --prerelease --notes "$notes"
+            else
+              gh release create "$TAG" \
+                --title "$TAG" --prerelease --notes "$notes" \
+              || gh release edit "$TAG" --prerelease --notes "$notes"
+            fi
+          else
+            gh release view "$TAG" >/dev/null 2>&1 \
+              || gh release create "$TAG" \
+                   --title "$TAG" --generate-notes \
+              || gh release view "$TAG" >/dev/null 2>&1
+          fi
 
+      # Upload via the IDENTICAL command tools/publish.sh runs (same-contract rule,
+      # P6-D08) — byte-identical except $GITHUB_REF_NAME -> the resolved $TAG so it
+      # serves nightly-YYYYMMDD too. Skips on a nightly unchanged no-op (D-05).
       - name: Upload release asset
-        # Only a real tag push has a release to upload to; a workflow_dispatch
-        # dry-run builds + checksums the asset but skips the upload.
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ !(env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" \
+          gh release upload "$TAG" \
             "$WEZ_ASSET" "$WEZ_ASSET.sha256" --clobber
