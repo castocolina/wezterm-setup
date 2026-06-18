@@ -24,15 +24,37 @@
 #      (the future `curl|bash` remote installer's path) AND luastatic is absent,
 #      download the matching prebuilt `wez` release binary (asset via
 #      tools/lib/platform.sh) and place it at dist/wez. SECURITY (T-01-01): the
-#      release tag is PINNED and the download is verified against a published
-#      per-asset `<asset>.sha256` checksum BEFORE chmod +x; a checksum mismatch
-#      aborts non-zero. We never run an unverified download. The base points at
-#      the real `github.com/castocolina/wezterm-setup/releases/download`; the
-#      path stays dormant until the first `v*` release asset exists.
+#      release tag is RESOLVED from a channel (see WEZ_CHANNEL below) and the
+#      download is verified against a published per-asset `<asset>.sha256`
+#      checksum BEFORE chmod +x; a checksum mismatch aborts non-zero. We never
+#      run an unverified download. The base points at the real
+#      `github.com/castocolina/wezterm-setup/releases/download`; the path stays
+#      dormant until a matching release asset exists.
+#
+# Release channel selector (D-02/D-08 — the minimal D-01 trigger-plumbing
+# exception; no install/version policy grows in bash):
+#
+#   WEZ_CHANNEL selects WHICH `wez` release the download path pulls:
+#     * nightly  (DEFAULT) — the newest `nightly-*` prerelease (the rolling
+#                build Plan 02 publishes). A non-interactive `curl|bash` pipe
+#                resolves nightly deterministically and NEVER hangs (D-02).
+#     * stable             — GitHub `/releases/latest`, which EXCLUDES
+#                prereleases, so the nightlies are auto-filtered out (D-03).
+#     * <vX.Y.Z>           — that exact tag, used literally (an explicit pin).
+#   An interactive TTY with no channel set shows a numbered picker (nightly /
+#   newest stable / recent tags) mirroring bootstrap-wezterm.sh select_release().
+#
+#   WEZ_RELEASE_TAG is now the EXPLICIT-PIN escape hatch only (D-01): when set it
+#   forces WEZ_CHANNEL to that literal tag, so an existing `WEZ_RELEASE_TAG=v0.1.0`
+#   caller keeps working. It is NO LONGER the channel default (the v0.1.0 pin is
+#   gone). A degraded/empty channel resolution FAILS LOUDLY (non-zero) — it never
+#   silently installs an unverified or wrong asset.
 #
 # Usage:
-#   ./tools/build.sh                         # local build: luastatic -> dev launcher
-#   WEZ_REMOTE_BOOTSTRAP=1 ./tools/build.sh  # remote installer: luastatic -> verified release download
+#   ./tools/build.sh                          # local build: luastatic -> dev launcher
+#   WEZ_REMOTE_BOOTSTRAP=1 ./tools/build.sh   # remote installer: luastatic -> verified nightly download
+#   WEZ_CHANNEL=stable  WEZ_REMOTE_BOOTSTRAP=1 ./tools/build.sh  # newest stable release
+#   WEZ_CHANNEL=v0.1.0  WEZ_REMOTE_BOOTSTRAP=1 ./tools/build.sh  # an explicit pin
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,9 +68,21 @@ DIST_DIR="${REPO_ROOT}/dist"
 OUT="${DIST_DIR}/wez"
 ENTRY="cli/wez.lua"
 
-# Pinned release for the download fallback (T-01-01: never "latest").
-WEZ_RELEASE_TAG="${WEZ_RELEASE_TAG:-v0.1.0}"
+# Release channel for the download fallback (D-02/D-08). Default `nightly` (the
+# rolling build); `stable` -> /releases/latest; `<vX.Y.Z>` -> that literal tag.
+# WEZ_RELEASE_TAG is demoted to the explicit-pin escape hatch (D-01): when set it
+# forces the channel to that literal tag (so `WEZ_RELEASE_TAG=v0.1.0` still works),
+# but it is NO LONGER the channel default — the hardcoded v0.1.0 pin is gone.
+WEZ_CHANNEL="${WEZ_CHANNEL:-nightly}"
+if [ -n "${WEZ_RELEASE_TAG:-}" ]; then
+  WEZ_CHANNEL="${WEZ_RELEASE_TAG}"
+fi
 WEZ_RELEASE_BASE="${WEZ_RELEASE_BASE:-https://github.com/castocolina/wezterm-setup/releases/download}"
+# The releases-host repo slug + GitHub API host for channel resolution. Derived
+# from WEZ_RELEASE_BASE's `.../<owner>/<repo>/releases/download` shape so the API
+# stays in lockstep with the download base (override-friendly for tests/forks).
+WEZ_RELEASE_REPO="${WEZ_RELEASE_REPO:-castocolina/wezterm-setup}"
+WEZ_RELEASE_API="${WEZ_RELEASE_API:-https://api.github.com}"
 
 mkdir -p "${DIST_DIR}"
 
@@ -124,19 +158,165 @@ build_with_luastatic() {
 }
 
 # ---------------------------------------------------------------------------
-# Remote bootstrap path: release-download (pinned + checksum-verified).
+# Shared curl-or-wget fetch-to-stdout helper for the GitHub release API queries
+# (channel resolution). Mirrors the curl/wget shape used by download_release and
+# bootstrap-wezterm.sh's _wezterm_fetch — DO NOT add a third fetcher.
+# ---------------------------------------------------------------------------
+_api_fetch() {
+  local url="$1"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "${url}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "${url}"
+  else
+    return 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Channel -> release tag resolver (D-03/D-08). Echoes the resolved tag on stdout;
+# all prompts/logs go to stderr (stdout stays the tag, exactly like
+# bootstrap-wezterm.sh select_release). FAIL-LOUD (T-06.3-03-03 / P6-D01/D07): a
+# failed/empty/unparseable resolution returns NON-ZERO so download_release aborts
+# rather than fetching an empty/`latest`/unverified asset.
+#
+#   stable    -> GET /repos/<repo>/releases/latest .tag_name (prereleases excluded)
+#   nightly   -> newest `nightly-*` tag from /repos/<repo>/releases (prereleases)
+#   <literal> -> echoed verbatim (an explicit vX.Y.Z pin)
+#
+# On a TTY with no channel forced, present a numbered picker (nightly / newest
+# stable / a few recent tags); a no-TTY pipe resolves deterministically from
+# WEZ_CHANNEL (default nightly) and NEVER blocks on a read.
+# ---------------------------------------------------------------------------
+resolve_stable_tag() {
+  local json tag
+  json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases/latest" 2>/dev/null)" || return 1
+  [ -n "${json}" ] || return 1
+  # Robust field extraction (no jq): split on commas, grab the tag_name token.
+  tag="$(printf '%s' "${json}" \
+    | tr ',' '\n' \
+    | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | head -n1 \
+    | grep -oE '"[^"]+"$' \
+    | tr -d '"')"
+  [ -n "${tag}" ] || return 1
+  printf '%s\n' "${tag}"
+}
+
+# Echo all `nightly-*` tags (newest first as returned by the API), one per line.
+list_nightly_tags() {
+  local json
+  json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases?per_page=30" 2>/dev/null)" || return 1
+  [ -n "${json}" ] || return 1
+  printf '%s' "${json}" \
+    | tr ',' '\n' \
+    | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"nightly-[^"]+"' \
+    | grep -oE 'nightly-[^"]+'
+}
+
+resolve_nightly_tag() {
+  local tag
+  tag="$(list_nightly_tags 2>/dev/null | head -n1)" || return 1
+  [ -n "${tag}" ] || return 1
+  printf '%s\n' "${tag}"
+}
+
+resolve_channel_tag() {
+  # No-TTY pipe (the curl|bash path): resolve deterministically from WEZ_CHANNEL
+  # (default nightly), NEVER prompting. Mirrors select_release()'s `[ ! -t 0 ]`.
+  if [ ! -t 0 ]; then
+    case "${WEZ_CHANNEL}" in
+      nightly)
+        log "no TTY on stdin -> resolving the rolling 'nightly' channel (D-02 default)" >&2
+        resolve_nightly_tag || { log "ERROR: could not resolve a nightly release tag — refusing to install an unverified asset" >&2; return 1; }
+        ;;
+      stable)
+        log "no TTY on stdin -> resolving the 'stable' channel (/releases/latest)" >&2
+        resolve_stable_tag || { log "ERROR: could not resolve the stable /releases/latest tag — refusing to install an unverified asset" >&2; return 1; }
+        ;;
+      *)
+        # An explicit literal tag (vX.Y.Z / the WEZ_RELEASE_TAG escape hatch).
+        log "no TTY on stdin -> WEZ_CHANNEL is an explicit tag: ${WEZ_CHANNEL}" >&2
+        printf '%s\n' "${WEZ_CHANNEL}"
+        ;;
+    esac
+    return 0
+  fi
+
+  # An explicit literal tag short-circuits the TTY picker (a forced pin always
+  # wins, with or without a TTY).
+  case "${WEZ_CHANNEL}" in
+    nightly|stable) : ;;
+    *) printf '%s\n' "${WEZ_CHANNEL}"; return 0 ;;
+  esac
+
+  # Interactive TTY, channel is the symbolic default: present a numbered picker
+  # (1=nightly / 2=newest stable / 3+=recent nightly tags). All menu output to
+  # stderr; stdout stays the resolved tag.
+  local nightly_tag stable_tag
+  nightly_tag="$(resolve_nightly_tag 2>/dev/null || true)"
+  stable_tag="$(resolve_stable_tag 2>/dev/null || true)"
+
+  local -a choices=() labels=()
+  if [ -n "${nightly_tag}" ]; then
+    choices+=("${nightly_tag}"); labels+=("nightly (${nightly_tag})")
+  fi
+  if [ -n "${stable_tag}" ]; then
+    choices+=("${stable_tag}"); labels+=("newest stable (${stable_tag})")
+  fi
+  local t
+  while IFS= read -r t; do
+    [ -n "${t}" ] || continue
+    [ "${t}" = "${nightly_tag}" ] && continue
+    choices+=("${t}"); labels+=("${t}")
+  done < <(list_nightly_tags 2>/dev/null | head -n5)
+
+  if [ "${#choices[@]}" -eq 0 ]; then
+    log "ERROR: release list empty — could not resolve any channel tag (refusing unverified install)" >&2
+    return 1
+  fi
+
+  printf 'Select a wez release channel to install:\n' >&2
+  local i=1
+  for t in "${labels[@]}"; do
+    printf '  %d) %s\n' "${i}" "${t}" >&2
+    i=$((i + 1))
+  done
+  local pick
+  printf 'Choice [1-%d, default 1]: ' "${#choices[@]}" >&2
+  read -r pick || pick=""
+  case "${pick}" in
+    ''|*[!0-9]*) pick=1 ;;
+  esac
+  if [ "${pick}" -lt 1 ] || [ "${pick}" -gt "${#choices[@]}" ]; then
+    pick=1
+  fi
+  printf '%s\n' "${choices[$((pick - 1))]}"
+}
+
+# ---------------------------------------------------------------------------
+# Remote bootstrap path: release-download (channel-resolved + checksum-verified).
 # OPT-IN ONLY via WEZ_REMOTE_BOOTSTRAP=1 — never reached on a local source build.
 # ---------------------------------------------------------------------------
 download_release() {
-  local os arch asset url sums_url
+  local os arch asset url sums_url tag
   os="$(platform_os)"
   arch="$(platform_arch)"
   asset="wez-${os}-${arch}"
-  url="${WEZ_RELEASE_BASE}/${WEZ_RELEASE_TAG}/${asset}"
-  # Per-asset checksum (Plan 01 Open Q2 verdict): one line, '<64-hex>  <name>'.
-  sums_url="${WEZ_RELEASE_BASE}/${WEZ_RELEASE_TAG}/${asset}.sha256"
 
-  log "Lua toolchain absent -> release-download fallback (${WEZ_RELEASE_TAG}, ${asset})"
+  # Resolve the channel to a concrete release tag. A degraded/empty resolution
+  # returns non-zero here, so we abort BEFORE constructing any URL — never fall
+  # through to an empty/`latest` segment that would fetch an unverified asset.
+  if ! tag="$(resolve_channel_tag)" || [ -z "${tag}" ]; then
+    log "ERROR: could not resolve WEZ_CHANNEL='${WEZ_CHANNEL}' to a release tag — aborting (no unverified install)"
+    return 1
+  fi
+
+  url="${WEZ_RELEASE_BASE}/${tag}/${asset}"
+  # Per-asset checksum (Plan 01 Open Q2 verdict): one line, '<64-hex>  <name>'.
+  sums_url="${WEZ_RELEASE_BASE}/${tag}/${asset}.sha256"
+
+  log "Lua toolchain absent -> release-download fallback (channel=${WEZ_CHANNEL}, tag=${tag}, ${asset})"
 
   if command -v curl >/dev/null 2>&1; then
     fetch() { curl -fsSL -o "$2" "$1"; }
@@ -225,9 +405,9 @@ main() {
       log "  The remote installer requires a published release asset and will NOT"
       log "  build from source on your machine (sudo-free invariant: no toolchain"
       log "  is installed for you)."
-      log "  Likely cause: no release published yet for tag '${WEZ_RELEASE_TAG}', or"
+      log "  Likely cause: no published release for channel '${WEZ_CHANNEL}', or"
       log "  no asset exists for ${os}-${arch}. Check the releases page:"
-      log "    ${WEZ_RELEASE_BASE%/download}/tag/${WEZ_RELEASE_TAG}"
+      log "    ${WEZ_RELEASE_BASE%/download}"
       log "  Then re-run the installer once the asset is available."
       exit 1
     fi
@@ -252,4 +432,9 @@ main() {
   fi
 }
 
-main "$@"
+# Run main only when EXECUTED, not when SOURCED. The sourcing guard lets the unit
+# test (tests/cli/build_channel_test.lua) source this script and exercise
+# resolve_channel_tag() without triggering a build. Mirrors bootstrap-wezterm.sh.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
+fi
