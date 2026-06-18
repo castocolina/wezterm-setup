@@ -17,7 +17,7 @@
 - [x] **Phase 6: Ergonomic Installer** - One-line `curl|bash` remote bootstrap (temp clone → install/update WezTerm → copy assets → `wez doctor`) + README install/config docs (completed 2026-06-15)
 - [x] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes (completed + UAT-verified 2026-06-15)
 - [x] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback (completed 2026-06-16)
-- [ ] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full)
+- [x] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full) (completed 2026-06-18)
 - [ ] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
 
@@ -273,10 +273,10 @@ Plans:
 - [ ] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin.
 - [ ] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 - [x] 06.3-01-PLAN.md — `wez uninstall` front door over the uninstall-state engine; binary-only, self-delete-last, --yes-on-pipe, repointed make/glue (D-09/D-10/D-11) [wave 1]
-- [ ] 06.3-02-PLAN.md — Rolling nightly channel in release.yml: schedule trigger + github.ref routing + datestamped nightly-YYYYMMDD prerelease + skip-if-unchanged + prune-to-5 (D-04..D-07/D-12) [wave 1]
+- [x] 06.3-02-PLAN.md — Rolling nightly channel in release.yml: schedule trigger + github.ref routing + datestamped nightly-YYYYMMDD prerelease + skip-if-unchanged + prune-to-5 (D-04..D-07/D-12) [wave 1]
 - [x] 06.3-03-PLAN.md — Bootstrapper channel selector: WEZ_CHANNEL=nightly|stable|<vX.Y.Z> replacing the v0.1.0 pin in build.sh download_release(), checksum gate preserved (D-02/D-03/D-08) [wave 1]
 
 ### Phase 06.4: User Documentation Audit and Refactor (INSERTED, renumbered from 06.2)
@@ -363,7 +363,7 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 | 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
 | 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
 | 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
-| 6.3 Distribution Channels (nightly/latest + uninstall) | 2/3 | In Progress|  |
+| 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
