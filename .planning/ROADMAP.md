@@ -273,9 +273,9 @@ Plans:
 - [ ] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin.
 - [ ] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup.
 
-**Plans:** 3 plans (all wave 1 — independent; share only the asset-name/`.sha256` contract)
+**Plans:** 1/3 plans executed
 
-- [ ] 06.3-01-PLAN.md — `wez uninstall` front door over the uninstall-state engine; binary-only, self-delete-last, --yes-on-pipe, repointed make/glue (D-09/D-10/D-11) [wave 1]
+- [x] 06.3-01-PLAN.md — `wez uninstall` front door over the uninstall-state engine; binary-only, self-delete-last, --yes-on-pipe, repointed make/glue (D-09/D-10/D-11) [wave 1]
 - [ ] 06.3-02-PLAN.md — Rolling nightly channel in release.yml: schedule trigger + github.ref routing + datestamped nightly-YYYYMMDD prerelease + skip-if-unchanged + prune-to-5 (D-04..D-07/D-12) [wave 1]
 - [ ] 06.3-03-PLAN.md — Bootstrapper channel selector: WEZ_CHANNEL=nightly|stable|<vX.Y.Z> replacing the v0.1.0 pin in build.sh download_release(), checksum gate preserved (D-02/D-03/D-08) [wave 1]
 
@@ -363,7 +363,7 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 | 6. Ergonomic Installer | 6/6 | Complete   | 2026-06-15 |
 | 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
 | 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
-| 6.3 Distribution Channels (nightly/latest + uninstall) | 0/? | Not started | - |
+| 6.3 Distribution Channels (nightly/latest + uninstall) | 1/3 | In Progress|  |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
