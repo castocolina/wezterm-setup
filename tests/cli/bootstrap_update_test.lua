@@ -206,5 +206,42 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- TEXT: the desktop-launcher integration step (260618-dpp). install_linux must
+-- place the shipped .desktop + icons into the user XDG dirs via a focused,
+-- non-fatal, sudo-free helper, invoked AFTER the ${BIN_DIR}/wezterm symlink.
+-- ----------------------------------------------------------------------------
+check("install_desktop_entry() helper is defined", has("install_desktop_entry()"))
+check("the helper resolves the XDG data home (XDG_DATA_HOME / .local/share)",
+  has("XDG_DATA_HOME") and has(".local/share"))
+check("the helper targets ${XDG}/applications for the .desktop",
+  has("applications"))
+check("the helper places the shipped org.wezfurlong.wezterm.desktop",
+  has("org.wezfurlong.wezterm.desktop"))
+check("the helper mirrors ALL shipped icons via find (not just one size)",
+  has('find "${share_icons}"'))
+check("the cache refresh is best-effort + non-fatal (update-desktop-database || true)",
+  has("update-desktop-database") and has("gtk-update-icon-cache"))
+check("the helper is non-fatal when the shipped .desktop is absent (guarded skip + return 0)",
+  has("skipping launcher integration"))
+do
+  local body = SRC:match("install_desktop_entry%(%)%s*{(.-)\n}") or ""
+  check("install_desktop_entry uses idempotent cp -f (overwrite-safe)",
+    body:find("cp -f", 1, true) ~= nil)
+  check("install_desktop_entry's cache commands are guarded with `|| true` (non-fatal)",
+    body:find("|| true", 1, true) ~= nil)
+end
+do
+  -- The helper must be CALLED from install_linux, AFTER the ${BIN_DIR}/wezterm
+  -- symlink (the call site ordering is the whole point of this task).
+  local body = SRC:match("install_linux%(%)%s*{(.-)\n}") or ""
+  check("install_linux invokes install_desktop_entry",
+    body:find("install_desktop_entry", 1, true) ~= nil)
+  local sym = body:find('ln -sfn "${target}" "${BIN_DIR}/wezterm"', 1, true)
+  local call = body:find("install_desktop_entry", 1, true)
+  check("install_desktop_entry is called AFTER the ${BIN_DIR}/wezterm symlink",
+    sym ~= nil and call ~= nil and call > sym)
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

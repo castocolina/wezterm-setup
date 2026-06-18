@@ -348,6 +348,58 @@ fetch_to() {
   fi
 }
 
+# Place the shipped XDG desktop entry + icon(s) into the user-space XDG data dirs
+# so the WezTerm app shows up in the desktop launcher and can be pinned. Pure
+# bash glue (D-01): no install/version decisions, sudo-free, idempotent (cp -f),
+# Linux-only (called from install_linux). NON-FATAL by design — a missing desktop
+# file or absent cache tool is logged and skipped, never failing the install.
+#
+# Arg: $1 = the per-release dir (${PREFIX}/${tag}). Shipped assets live under
+# <release_dir>/wezterm/usr/share/{applications,icons}. The .desktop's Exec/Icon
+# are left AS-IS (Exec resolves wezterm via ~/.local/bin on PATH; Icon resolves
+# from the placed hicolor theme).
+install_desktop_entry() {
+  local release_dir="$1"
+  local xdg share_apps share_icons desktop_src desktop_name
+  xdg="${XDG_DATA_HOME:-$HOME/.local/share}"
+  share_apps="${release_dir}/wezterm/usr/share/applications"
+  share_icons="${release_dir}/wezterm/usr/share/icons"
+  desktop_name="org.wezfurlong.wezterm.desktop"
+  desktop_src="${share_apps}/${desktop_name}"
+
+  if [ ! -f "${desktop_src}" ]; then
+    log "no shipped desktop entry at ${desktop_src} — skipping launcher integration (non-fatal)"
+    return 0
+  fi
+
+  # Place the .desktop into ${XDG_DATA_HOME}/applications (idempotent overwrite).
+  mkdir -p "${xdg}/applications"
+  cp -f "${desktop_src}" "${xdg}/applications/${desktop_name}"
+  log "placed ${xdg}/applications/${desktop_name}"
+
+  # Mirror ALL shipped icons, preserving the hicolor/<size>/apps structure, so
+  # every available size lands in the user icon theme (not just 128x128).
+  if [ -d "${share_icons}" ]; then
+    local icon_count=0 icon_file rel dest_dir
+    while IFS= read -r icon_file; do
+      [ -n "${icon_file}" ] || continue
+      rel="${icon_file#"${share_icons}"/}"
+      dest_dir="${xdg}/icons/$(dirname "${rel}")"
+      mkdir -p "${dest_dir}"
+      cp -f "${icon_file}" "${dest_dir}/"
+      icon_count=$((icon_count + 1))
+    done < <(find "${share_icons}" -type f 2>/dev/null)
+    log "placed ${icon_count} icon file(s) under ${xdg}/icons"
+  else
+    log "no shipped icons at ${share_icons} — skipping icon placement (non-fatal)"
+  fi
+
+  # Best-effort, non-fatal cache refresh so the entry/icon surface immediately on
+  # DEs that read the caches. Both tools may be absent; never let them fail install.
+  update-desktop-database "${xdg}/applications" 2>/dev/null || true
+  gtk-update-icon-cache -f -t "${xdg}/icons/hicolor" 2>/dev/null || true
+}
+
 install_linux() {
   local tag="$1"
   local base url tmpdir archive release_dir target
@@ -394,6 +446,10 @@ install_linux() {
   mkdir -p "${BIN_DIR}"
   ln -sfn "${target}" "${BIN_DIR}/wezterm"
   log "symlinked ${BIN_DIR}/wezterm -> ${target}"
+
+  # Place the shipped XDG launcher entry + icon(s) so WezTerm appears in the
+  # desktop bar / app menu and can be pinned (non-fatal, sudo-free, idempotent).
+  install_desktop_entry "${release_dir}"
 
   # Verify the freshly placed binary runs (R2 — exit code is the evidence).
   if "${BIN_DIR}/wezterm" --version >/dev/null 2>&1; then
