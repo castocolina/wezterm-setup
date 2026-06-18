@@ -50,9 +50,9 @@
 # title set, each pane self-labels by its icon + cwd-basename.
 # ─────────────────────────────────────────────────────────────────────────────
 layout = "tall"
-color = "pink"
+color = "yellow"
 icon = "ai"
-follow_pane_color = false   # (default) set true to make a colorless tab track the focused pane
+follow_pane_color = true   # (default) set true to make a colorless tab track the focused pane
 title = "@{cwd} AI work"
 
 [[panes]]
