@@ -330,7 +330,13 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 
 - [ ] Regression tests for the new ordering + dedupe + unambiguous rendering.
 
-**Plans:** TBD (run `/gsd-discuss-phase 06.5` → `/gsd-plan-phase 06.5`)
+**Plans:** 4 plans (3 waves)
+
+Plans:
+- [ ] 06.5-01-PLAN.md — Pure cli/lib/ansi.lua SGR red/bold-red helper (D-06) [wave 1]
+- [ ] 06.5-02-PLAN.md — keys.lua pure renderer: canonicalize + fixed mod-order + action-grouping + platform-label + curated-first sectioning + TTY/NO_COLOR-gated red conflicts; --platform flag (D-01..D-08) [wave 2]
+- [ ] 06.5-03-PLAN.md — Reconcile keybindings.lua to single D-10 entries (drop lower+upper twins), init.lua lockstep (D-09/D-10) [wave 1]
+- [ ] 06.5-04-PLAN.md — WEZTERM_INTEGRATION=1 live e2e (ordering/dedupe/render/json/platform/red) + D-09 firing hypothesis probe (D-09/D-10) [wave 3]
 
 ### Phase 7: macOS Parity Pass (D-18)
 
@@ -364,7 +370,7 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 | 6.1 Tab and Scene Identity Redesign | 7/7 | Complete (UAT-verified) | 2026-06-15 |
 | 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
-| 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
+| 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/4 | Planned (before 6.4) | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
 
