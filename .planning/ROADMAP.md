@@ -269,9 +269,9 @@ Plans:
 
 **Scope:**
 
-- [ ] **Nightly/latest rolling channel.** A scheduled GitHub Actions workflow (cron) builds and publishes a rolling `nightly`/`latest` release (release assets persist; only Actions *artifacts* expire at 90 days). Pinned `v*` tags remain the stable channel.
-- [ ] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin.
-- [ ] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup.
+- [x] **Nightly/latest rolling channel.** A scheduled GitHub Actions workflow (cron) builds and publishes a rolling `nightly`/`latest` release (release assets persist; only Actions *artifacts* expire at 90 days). Pinned `v*` tags remain the stable channel. *(Delivered: weekly cron + `github.ref` routing, datestamped `nightly-YYYYMMDD` prerelease, skip-if-unchanged, prune-to-5; live-verified via real Actions run.)*
+- [x] **Bootstrapper channel selector.** `tools/bootstrap-wezterm.sh` / `tools/build.sh download_release` gain a channel knob (pinned tag vs `latest`/`nightly`), so the user decides which available build to pull instead of the hardcoded `v0.1.0` pin. *(Delivered: `WEZ_CHANNEL=nightly|stable|<vX.Y.Z>`, default nightly, `.sha256` gate preserved.)*
+- [x] **`wez uninstall`.** A `wez uninstall` command (+ `make uninstall` parity) that cleanly removes the managed config block + installed binary, working in the binary-only case (no cloned repo) as well as the full-checkout case. Non-destructive to genuine personal settings; writes a backup. *(Delivered: front door over the `uninstall-state` engine, self-delete-last, TTY-confirm/`--yes`.)*
 
 **Plans:** 3/3 plans complete
 
