@@ -3,13 +3,16 @@
 #
 # The wezterm-setup UNINSTALLER — decision-free GLUE ONLY (D-01). It makes NO
 # removal decisions itself: every "what to remove vs. preserve" decision and all
-# sentinel-block excision live in the Lua `wez` binary
-# (cli/commands/uninstall_state.lua). This script ONLY:
+# sentinel-block excision live in the Lua `wez` binary (cli/commands/uninstall.lua,
+# the front door, over cli/commands/uninstall_state.lua, the engine). This script
+# ONLY:
 #   1. reads the KEEP_CONFIG / KEEP_CLI / KEEP_BACKUP env vars that the Makefile
 #      `uninstall` target passes in,
 #   2. translates each truthy value into the corresponding
 #      `--keep-config` / `--keep-cli` / `--keep-backup` flag,
-#   3. delegates to `wez uninstall-state`, surfacing its exit code as ours.
+#   3. delegates to `wez uninstall --yes` (the documented front door, D-09),
+#      surfacing its exit code as ours. The `--yes` is required because this
+#      `make uninstall` path is non-interactive (no TTY) per D-11.
 #
 # There is deliberately NO `rm` here and NO branching over which components to
 # remove — that logic is owned by the binary (INST-04/05). Sudo-free +
@@ -46,11 +49,13 @@ keep_flag() {
   esac
 }
 
-FLAGS=()
+# Seed with --yes: the `make uninstall` path is non-interactive, and the front
+# door requires --yes on a non-TTY pipe (D-11).
+FLAGS=(--yes)
 keep_flag "${KEEP_CONFIG:-}" && FLAGS+=(--keep-config)
 keep_flag "${KEEP_CLI:-}"    && FLAGS+=(--keep-cli)
 keep_flag "${KEEP_BACKUP:-}" && FLAGS+=(--keep-backup)
 
-log "delegating removal decisions to wez uninstall-state ${FLAGS[*]:-(remove all)}"
-"${WEZ}" uninstall-state "${FLAGS[@]}"
+log "delegating removal decisions to wez uninstall ${FLAGS[*]}"
+"${WEZ}" uninstall "${FLAGS[@]}"
 exit $?
