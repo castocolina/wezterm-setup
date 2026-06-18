@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-18T00:47:53.323Z"
+last_updated: "2026-06-18T00:55:14.552Z"
 progress:
   total_phases: 13
   completed_phases: 8
   total_plans: 48
-  completed_plans: 45
+  completed_plans: 46
   percent: 62
 ---
 
@@ -34,7 +34,7 @@ Phase: 06.3 (Distribution Channels (INSERTED)) — EXECUTING
 **Reopen fix (round 3 — CI startup_failure):** after the binary fixes, the re-cut `v0.1.0` returned `startup_failure` with 0 jobs even on a minimal actionlint-clean workflow. Root cause: the repo's Actions policy was `allowed_actions=local_only`, which blocks `actions/checkout` (not a repo-local action) → no job can start. Fixed via `gh api` PUT `actions/permissions` → `selected` + `github_owned_allowed=true` (checkout allowed; third-party still blocked). Also simplified release.yml to a single hardcoded `ubuntu-latest` job (no matrix) for v1; Phase 7 reintroduces the matrix.
 
 **RESOLVED + LIVE-VERIFIED (2026-06-15):** CI run green (`build linux-x86_64`, 22s); GitHub release `v0.1.0` published `wez-linux-x86_64` + `.sha256`. Dogfooded on the real machine: `curl|bash` → checksum-verified download of the published static binary → `wez doctor` all gates PASS (exit 0); full `make uninstall` (clean removal) → fresh reinstall → doctor PASS again. The installer end-to-end works for a new Linux user. **Remaining:** macOS supply side + on-Mac verification = Phase 7 (the last v1 gate).
-Plan: 2 of 3
+Plan: 3 of 3
 **06.2-01 DONE (2026-06-16):** pure-core identity helpers landed via TDD (RED `4d6e4b2` → GREEN `897a40f`). `cli/lib/title.lua` gains `M.resolve_icon(input)` (known ICONS name case-insensitive → glyph; any other input verbatim; nil/empty → "" — D-02, no reject since escaping is the emitter's job, T-06.2-01) and `M.fallback_title(title, icon, launch_dir)` — the SINGLE shared empty-title cwd fallback both the tab render (Plan 03) and the scene loop (Plan 04) will call: explicit title wins (D-11), else `basename(launch_dir)` (D-12), with icon → `icon .. " " .. base` (D-13); reuses the `basename` edge contract so odd paths don't crash (T-06.2-02). D-05: the first-word glyph swap is REMOVED from `resolve_title`/`resolve_title_str` — titles fully literal; `reset`/empty → "" + `expand_cwd` kept; the only `M.ICONS[` lookup now lives inside `resolve_icon`. Deviation (Rule 1): the stale glyph-swap assertions in `pane_test.lua` (t1/t4/t7/t8) + `tab_test.lua` (19/21) — which assert the old swap through the re-exported `resolve_title` — were flipped to the D-05 literal results (assertion-only, NO source change to pane.lua/tab.lua; those rewires are Plan 03/04). title_test 45/45, module purity grep 0, full suite 23/23. Next: Plans 02 (CLI icon subcommands + color split) / 03 (render).
 **06.1-01 DONE (2026-06-15):** shared `cli/lib/color.lua` landed via TDD (RED `f2d167d` → GREEN `8be8f33`). Consolidates the duplicated palette/normalize/validate + base64 + OSC 11/1337 builders (D-01) into one pure module, adds `build_user_var_octal` (Pitfall-2 octal emitter), and lands D-09 (`#RRGGBBAA` accepted + preserved; `strip_alpha` removed). `rgba()` rejected cleanly (D-09 floor is `#RRGGBBAA`). No consumer rewiring yet — Plan 03 deletes the duplicates and re-exports. Suite 22/22 green, purity grep 0.
 **06.1-03 DONE (2026-06-15):** decoupled tab color from title + consumed the shared color module, via TDD (pane RED `c6fdff4` → GREEN `80f55cc`; tab RED `ef70b12` → GREEN `caffe44`). `wez tab color` now emits `WEZTERM_TAB_COLOR` via OSC 1337 to the active pane TTY (io.write, same channel as `wez pane color`) — the `<color>:<title>` prefix encoding (the `cyan:` literal bug) is GONE from the steady state; `wez tab title` writes PURE text via set-tab-title; combined `--title` does two independent writes. D-01: deleted the duplicated `strip_alpha`/`normalize_color`/`validate_color` + base64 + OSC builders from pane.lua AND tab.lua, both now `require("cli.lib.color")` and re-export (net **-80 source lines**). D-09: `#RRGGBBAA` preserved end-to-end. D-04: `parse_stored`/`merge_title` demoted to migration-only helpers (kept callable for scene.lua until Plan 04), removed from the write path; `run_color` warns once on a legacy-prefixed live tab. Suite 23/23 green; D-01 purity grep 0.
@@ -143,6 +143,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 | Phase 06.1 P02 | 8min | 2 tasks | 2 files |
 | Phase 06.1-tab-and-scene-identity-redesign P06 | 12min | 2 tasks | 3 files |
 | Phase 06.2 P03 | 3 | 2 tasks | 2 files |
+| Phase 06.3 P03 | 10min | 3 tasks | 2 files |
 
 ### Validated Capabilities (pre-Phase 0)
 
@@ -234,3 +235,5 @@ Phase 5  [░░░░░░░░░░]  Not started
 - [Phase 6.2]: `title.resolve_icon(input)` — known ICONS name (case-insensitive) → glyph; any other input passes through verbatim; nil/empty → ""; NO reject (the OSC emitter base64-encodes/neutralizes — escaping is not this pure module's job, T-06.2-01) (06.2-01)
 - [Phase 6.2]: D-05 — the legacy first-word glyph swap is removed from `resolve_title`/`resolve_title_str`; title text is fully literal; `reset`/empty → "" + `expand_cwd` token kept; the lone `M.ICONS[` lookup now lives only in `resolve_icon` (06.2-01)
 - [Phase 6.2]: `title.fallback_title(title, icon, launch_dir)` is the SINGLE shared empty-title cwd fallback for BOTH tabs (Plan 03 render) and panes (Plan 04 scene loop) — explicit title wins (D-11), else basename(launch_dir) (D-12), icon + space + basename when an icon is present (D-13); reuses the basename edge contract so odd paths never crash (T-06.2-02) (06.2-01)
+- [Phase ?]: [Phase 6.3]: WEZ_CHANNEL default=nightly replaces the hardcoded WEZ_RELEASE_TAG=v0.1.0 channel pin in build.sh download_release(); WEZ_RELEASE_TAG demoted to the explicit-pin escape hatch (06.3-03)
+- [Phase ?]: [Phase 6.3]: build.sh channel resolver mirrors bootstrap-wezterm.sh SHAPE — stable=/releases/latest (prereleases excluded), nightly=newest nightly-*, <vX.Y.Z>=literal; tr/grep -oE parse (no jq); no-TTY deterministic + fail-loud before chmod; checksum gate byte-identical (06.3-03)
