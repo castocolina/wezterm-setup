@@ -191,3 +191,38 @@ jobs:
         run: |
           gh release upload "$TAG" \
             "$WEZ_ASSET" "$WEZ_ASSET.sha256" --clobber
+
+      # Prune old nightlies (D-06). Retention = newest 5 nightly-* releases; delete
+      # the rest. Runs ONLY on the nightly channel and ONLY after a successful,
+      # non-skipped publish (never on the stable path, never on an unchanged no-op).
+      # This is new logic kept as decision-free trigger-plumbing (the D-01 CI
+      # exception). It is HARD-SCOPED to nightly-* ONLY: the list is filtered to the
+      # `nightly-` prefix, and a `case "$tag" in nightly-*)` guard re-asserts the
+      # prefix immediately before every `gh release delete`, so a stable v* release
+      # can NEVER be reached by the delete (T-06.3-02-02). Distinct factored step
+      # so a Phase 7 matrix can wrap build/publish without touching prune (D-12).
+      - name: Prune old nightly releases (D-06)
+        if: ${{ env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # nightly-* tags ONLY (NEVER v*), newest-first; YYYYMMDD sorts lexically.
+          mapfile -t nightly_tags < <(
+            gh release list --limit 100 --json tagName \
+              --jq '[.[] | select(.tagName | startswith("nightly-")) | .tagName] | sort | reverse | .[]'
+          )
+          echo "[release] found ${#nightly_tags[@]} nightly-* releases; keeping newest 5"
+          # Slice off the newest 5; everything from index 5 on is pruned.
+          for tag in "${nightly_tags[@]:5}"; do
+            # Hard guard: only a nightly--prefixed tag can ever be deleted.
+            case "$tag" in
+              nightly-*)
+                echo "[release] pruning $tag"
+                gh release delete "$tag" --yes --cleanup-tag
+                ;;
+              *)
+                echo "[release] refusing to delete non-nightly tag: $tag" >&2
+                continue
+                ;;
+            esac
+          done
