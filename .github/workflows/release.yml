@@ -25,10 +25,17 @@ on:
   push:
     tags:
       - "v*"
-  # Manual trigger: lets a maintainer dry-run the full 3-leg build matrix from the
-  # Actions UI without cutting a version tag. The publish step keys off a real tag
-  # ref, so a workflow_dispatch run builds + checksums assets but skips the upload.
+  # Manual trigger: lets a maintainer dry-run / force a nightly publish from the
+  # Actions UI without cutting a version tag. Per D-07 a dispatch ref is a NON-tag
+  # ref, so a workflow_dispatch run resolves CHANNEL=nightly and publishes a
+  # datestamped nightly-YYYYMMDD prerelease (same path the schedule cron takes).
   workflow_dispatch:
+  # D-05: weekly cadence — a self-renewing nightly channel that tracks `main`.
+  # The `nightly` keyword is kept by convention (it is the prerelease channel name
+  # the installer/`wez update` ask for, D-03), even though the cron fires weekly,
+  # not nightly. 06:17 UTC every Monday (off-peak; avoids the top-of-hour rush).
+  schedule:
+    - cron: "17 6 * * 1"
 
 # Least privilege (T-06-03-03): only the scope `gh release upload` needs.
 permissions:
@@ -49,6 +56,30 @@ jobs:
       # a full commit SHA is a recommended follow-up once registry access exists.
       - name: Checkout
         uses: actions/checkout@v4.2.2
+
+      # Resolve the publish channel from the trigger ref ALONE (D-07). A tag ref
+      # (refs/tags/v*) => stable (the existing, unchanged path); ANY other ref
+      # (schedule cron / workflow_dispatch on a branch) => nightly. There is NO
+      # manual channel input to spoof (T-06.3-02-03) — github.ref is the only
+      # signal. This step is decision-free trigger-plumbing: the D-01 CI exception.
+      #
+      # The nightly tag is datestamped UTC (D-04): nightly-YYYYMMDD. Two runs on the
+      # SAME UTC date collide on the same tag — that is handled DOWNSTREAM by the
+      # idempotent view-or-create-or-view + `gh release upload --clobber` reuse
+      # (Claude's discretion D-05: clobber, not a -1/-2 suffix), so a same-day
+      # re-run refreshes the assets in place rather than spawning a second release.
+      - name: Resolve channel (D-07)
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "CHANNEL=stable" >>"$GITHUB_ENV"
+            echo "TAG=$GITHUB_REF_NAME" >>"$GITHUB_ENV"
+            echo "[release] channel=stable tag=$GITHUB_REF_NAME"
+          else
+            tag="nightly-$(date -u +%Y%m%d)"
+            echo "CHANNEL=nightly" >>"$GITHUB_ENV"
+            echo "TAG=$tag" >>"$GITHUB_ENV"
+            echo "[release] channel=nightly tag=$tag"
+          fi
 
       - name: Install Lua toolchain (lua5.4 + luastatic)
         run: ./tools/ci-setup-toolchain.sh
