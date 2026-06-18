@@ -171,6 +171,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 |---|-------------|------|--------|-----------|
 | 260618-dlc | Set WezTerm scrollback_lines to 50000 in the config layer | 2026-06-18 | a6bf3e6 | [260618-dlc-set-wezterm-scrollback-lines-to-50000-in](./quick/260618-dlc-set-wezterm-scrollback-lines-to-50000-in/) |
 | 260618-dpp | Install WezTerm .desktop launcher + icon into user-space XDG dirs (install_linux) | 2026-06-18 | 93efe54 | [260618-dpp-install-wezterm-desktop-launcher-icon-in](./quick/260618-dpp-install-wezterm-desktop-launcher-icon-in/) |
+| 260618-evx | Show stable release date in the wez-CLI channel picker (resolve_stable_date — date parity with nightly) | 2026-06-18 | c9cf82c | [260618-evx-show-stable-release-date-in-wez-channel-](./quick/260618-evx-show-stable-release-date-in-wez-channel-/) |
 
 ### Discoveries
 
