@@ -42,6 +42,7 @@ local CATEGORIES = {
   ["keys"] = "diagnostics",
   ["install-state"] = "install",
   ["uninstall-state"] = "install",
+  ["uninstall"] = "install",
   ["seed-scenes"] = "install",
   ["update"] = "install",
   ["completions"] = "shell",
@@ -58,6 +59,7 @@ local SUBCOMMANDS = {
   "keys",
   "install-state",
   "uninstall-state",
+  "uninstall",
   "seed-scenes",
   "update",
   "completions",
@@ -116,6 +118,18 @@ function M.build_parser()
   uninstall_state:flag("--keep-config", "Preserve ~/.config/wezterm/wezterm-setup/")
   uninstall_state:flag("--keep-backup", "Preserve wezterm.lua.bak.* backups")
   uninstall_state:flag("--keep-cli", "Preserve the wez binary")
+
+  -- uninstall (Plan 06.3-01) ---------------------------------------------
+  -- The documented front door (D-09) over the uninstall-state engine: works in
+  -- the binary-only case (no repo checkout). It confirms-then-removes everything
+  -- on a TTY and REQUIRES --yes on a non-TTY pipe (D-11). --yes is the only NEW
+  -- flag; the three --keep-* mirror uninstall-state verbatim and pass straight
+  -- through to the engine.
+  local uninstall = parser:command("uninstall", "Remove wezterm-setup (managed block, config, wez binary, backups)")
+  uninstall:flag("--yes", "Skip the confirmation prompt (required on a non-TTY pipe)")
+  uninstall:flag("--keep-config", "Preserve ~/.config/wezterm/wezterm-setup/")
+  uninstall:flag("--keep-backup", "Preserve wezterm.lua.bak.* backups")
+  uninstall:flag("--keep-cli", "Preserve the wez binary")
 
   -- seed-scenes (Plan 05) ------------------------------------------------
   -- Copy-if-absent install seeding of the example scene recipes (SCEN-06). No
