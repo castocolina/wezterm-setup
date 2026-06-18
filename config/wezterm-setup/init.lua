@@ -24,6 +24,9 @@
 
 local M = {}
 
+-- Scrollback buffer depth (lines). Change here to adjust; WezTerm default is 3500.
+local SCROLLBACK_LINES = 50000
+
 -- Resolve our sibling modules (keybindings/cwd/format-tab-title) with DOTTED
 -- module names so they load under every loader WITHOUT mutating package.path.
 --
@@ -139,7 +142,13 @@ function M.apply(config)
   -- 4. Apply cwd behavior (no-op augment; inheritance is WezTerm default).
   cwd.apply(config)
 
-  -- 5. Register the tab-bar renderer that surfaces pane/tab identity
+  -- 5. General/terminal options. Raise the scrollback buffer well above the
+  --    WezTerm 3500 default so long single-turn output does not scroll the
+  --    earliest lines off the top. AUGMENT (D-17): single field set, never a
+  --    table replacement. See the SCROLLBACK_LINES knob at the top of this file.
+  config.scrollback_lines = SCROLLBACK_LINES
+
+  -- 6. Register the tab-bar renderer that surfaces pane/tab identity
   --    (format-tab-title event reads WEZTERM_TAB_COLOR / WEZTERM_TAB_TITLE
   --    user vars set by `wez pane color`/`title`). AUGMENT (D-17).
   format_tab_title.apply(config)

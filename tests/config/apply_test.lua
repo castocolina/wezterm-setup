@@ -62,6 +62,9 @@ for _, b in ipairs(returned.keys) do
 end
 check(user_key_present, "pre-existing user key binding preserved (append, not reassign)")
 
+-- 5b. General/terminal options: scrollback buffer raised to 50000 (AUGMENT, D-17).
+check(returned.scrollback_lines == 50000, "config.scrollback_lines == 50000")
+
 -- 6. RotatePanes spec reached the merged key table (D-12). Under plain lua5.4 there is no
 --    `wezterm` global, so resolve_action leaves the declarative spec in place — the Alt+Shift+R
 --    Clockwise entry must be present with its spec intact.
