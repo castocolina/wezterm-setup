@@ -176,65 +176,97 @@ check("resolve_channel_tag with an unreachable API on the nightly default fails 
   not bash_ok("WEZ_RELEASE_API=http://127.0.0.1:0", "resolve_channel_tag"))
 
 -- ----------------------------------------------------------------------------
--- resolve_stable_date() — DISPLAY-ONLY stable release-date resolver folded into
--- the interactive picker label (Plan 06.3 quick 260618-evx). Stable date-parity
--- with nightly: "newest stable (v0.1.0 · 2026-06-15)".
+-- resolve_stable_latest() — single-fetch stable resolver folded into the
+-- interactive picker (simplify refactor, quick 260618-fsg). ONE latest-release
+-- fetch yields BOTH the tag (line 1) and the YYYY-MM-DD date (line 2, possibly
+-- empty), reusing the generic _json_str extractor. The standalone
+-- resolve_stable_date fetcher is DELETED. Stable date-parity with nightly:
+-- "newest stable (v0.1.0 · 2026-06-15)".
 -- ----------------------------------------------------------------------------
 
--- BEHAVIOR (stubbed fetch): resolve_stable_date echoes exactly the YYYY-MM-DD
--- prefix of published_at. _api_fetch is redefined AFTER the source so the body
--- shadows the real fetcher — NO network call is made. The JSON has no single
--- quotes, so single-quoting the env value is safe.
+-- BEHAVIOR (stubbed fetch): a single payload yields tag (line 1) + date (line 2).
+-- _api_fetch is redefined AFTER the source so the body shadows the real fetcher
+-- — NO network call is made. The JSON has no single quotes, so single-quoting the
+-- env value is safe. Assert BOTH lines (split via sed -n 1p / 2p).
 local SAMPLE = '{"tag_name": "v0.1.0", "published_at": "2026-06-15T13:56:59Z"}'
-check("resolve_stable_date (stubbed /releases/latest JSON) echoes the YYYY-MM-DD prefix",
+check("resolve_stable_latest (stubbed payload) yields the tag on line 1 (v0.1.0)",
   bash_stdout("SAMPLE_JSON='" .. SAMPLE .. "'",
-    "_api_fetch() { printf '%s' \"$SAMPLE_JSON\"; }; resolve_stable_date") == "2026-06-15")
+    "_api_fetch() { printf '%s' \"$SAMPLE_JSON\"; }; resolve_stable_latest | sed -n 1p") == "v0.1.0")
+check("resolve_stable_latest (stubbed payload) yields the YYYY-MM-DD date on line 2 (2026-06-15)",
+  bash_stdout("SAMPLE_JSON='" .. SAMPLE .. "'",
+    "_api_fetch() { printf '%s' \"$SAMPLE_JSON\"; }; resolve_stable_latest | sed -n 2p") == "2026-06-15")
 
--- BEHAVIOR (best-effort empty): a stubbed _api_fetch that echoes nothing /
--- returns 1 -> resolve_stable_date is non-zero AND its stdout is empty, proving
--- it never aborts and the picker can fall back to the tag-only label.
-check("resolve_stable_date with an empty/failed fetch returns non-zero (best-effort, never aborts)",
-  not bash_ok("", "_api_fetch() { return 1; }; resolve_stable_date"))
-check("resolve_stable_date with an empty/failed fetch emits NOTHING on stdout",
-  bash_stdout("", "_api_fetch() { return 1; }; resolve_stable_date") == "")
+-- BEHAVIOR (missing-date regression, /code-review Minor 2): a tag-but-no-
+-- published_at payload still returns 0, line 1 is the tag, line 2 is EMPTY —
+-- proving the missing-date path never aborts.
+local MISSING = '{"tag_name": "v0.1.0"}'
+check("resolve_stable_latest with a tag but NO published_at returns 0 (never aborts on a missing date)",
+  bash_ok("MISSING_JSON='" .. MISSING .. "'",
+    "_api_fetch() { printf '%s' \"$MISSING_JSON\"; }; resolve_stable_latest"))
+check("resolve_stable_latest missing-date: line 1 is still the tag (v0.1.0)",
+  bash_stdout("MISSING_JSON='" .. MISSING .. "'",
+    "_api_fetch() { printf '%s' \"$MISSING_JSON\"; }; resolve_stable_latest | sed -n 1p") == "v0.1.0")
+check("resolve_stable_latest missing-date: line 2 is EMPTY (no parseable date)",
+  bash_stdout("MISSING_JSON='" .. MISSING .. "'",
+    "_api_fetch() { printf '%s' \"$MISSING_JSON\"; }; resolve_stable_latest | sed -n 2p") == "")
+
+-- BEHAVIOR (failed fetch): a stubbed _api_fetch that returns 1 -> non-zero.
+check("resolve_stable_latest with an empty/failed fetch returns non-zero (fail-loud)",
+  not bash_ok("", "_api_fetch() { return 1; }; resolve_stable_latest"))
 
 -- TEXT: the helper is defined.
-check("resolve_stable_date() helper is defined", has("resolve_stable_date()"))
+check("resolve_stable_latest() helper is defined", has("resolve_stable_latest()"))
 
--- TEXT: resolve_stable_date reuses /releases/latest (no second/third endpoint).
+-- TEXT: resolve_stable_latest reuses the latest-release endpoint + _api_fetch +
+-- the shared _json_str extractor, and adds no jq dependency.
 do
-  local body = SRC:match("resolve_stable_date%(%)%s*{(.-)\n}") or ""
-  check("resolve_stable_date reuses /releases/latest (same endpoint as resolve_stable_tag)",
+  local body = SRC:match("resolve_stable_latest%(%)%s*{(.-)\n}") or ""
+  check("resolve_stable_latest reuses the latest-release endpoint (single fetch site)",
     body:find("releases/latest", 1, true) ~= nil)
-  check("resolve_stable_date reuses _api_fetch (no third fetcher)",
+  check("resolve_stable_latest reuses _api_fetch (no third fetcher)",
     body:find("_api_fetch", 1, true) ~= nil)
-  check("resolve_stable_date adds no jq dependency", body:find("jq ", 1, true) == nil)
-  check("resolve_stable_date extracts published_at (not tag_name)",
-    body:find("published_at", 1, true) ~= nil)
+  check("resolve_stable_latest reuses the generic _json_str extractor (idiom factored out)",
+    body:find("_json_str", 1, true) ~= nil)
+  check("resolve_stable_latest adds no jq dependency", body:find("jq ", 1, true) == nil)
 end
 
--- TEXT: the interactive resolver references resolve_stable_date and builds a
--- date-bearing stable label. Use the EXACT byte sequence emitted by build.sh
--- (the U+00B7 MIDDLE DOT separator is UTF-8) so has() substring matching lines up.
+-- TEXT: the generic _json_str extractor exists and is REUSED (not re-inlined).
+check("the generic _json_str extractor is defined", has("_json_str"))
+
+-- TEXT: the standalone resolve_stable_date fetcher is GONE (deleted, not wrapped).
+check("resolve_stable_date is GONE (deleted, not a back-compat wrapper)",
+  not has("resolve_stable_date"))
+
+-- TEXT: the interactive resolver sources its stable arm from resolve_stable_latest
+-- (single fetch) and NOT from a separate resolve_stable_date call; the
+-- date-augmented label uses the EXACT U+00B7 MIDDLE DOT byte sequence.
 do
   local body = SRC:match("resolve_channel_tag%(%)%s*{(.-)\n}") or ""
-  check("resolve_channel_tag references resolve_stable_date (interactive date capture)",
-    body:find("resolve_stable_date", 1, true) ~= nil)
+  check("resolve_channel_tag references resolve_stable_latest (single-fetch source)",
+    body:find("resolve_stable_latest", 1, true) ~= nil)
+  check("resolve_channel_tag no longer references resolve_stable_date",
+    body:find("resolve_stable_date", 1, true) == nil)
   check("the interactive stable label is date-augmented (newest stable (tag · date))",
     has("newest stable (${stable_tag} · ${stable_date})"))
-  check("the tag-only stable label fallback survives (date-resolution failure path)",
+  check("the tag-only stable label fallback survives (empty-date path)",
     has("newest stable (${stable_tag})"))
+  -- Single-fetch guard: exactly ONE latest-release fetch site overall (no double
+  -- fetch). gsub's 2nd return value is the replacement count.
+  check("exactly one /releases/latest fetch site (no double fetch)",
+    select(2, SRC:gsub("releases/latest", "")) == 1)
 end
 
--- TEXT (contract guard): resolve_stable_tag stays bare-tag-only — its body must
--- still echo the tag and must NOT contain published_at (the date logic lives
--- ONLY in resolve_stable_date), proving the download-feeding contract is intact.
+-- TEXT (contract guard): resolve_stable_tag stays bare-tag-only and now delegates
+-- to resolve_stable_latest — its body must reference resolve_stable_latest, still
+-- echo the bare tag, and must NOT contain published_at (the extraction moved into
+-- resolve_stable_latest), proving the download-feeding contract is intact.
 do
   local body = SRC:match("resolve_stable_tag%(%)%s*{(.-)\n}") or ""
-  check("resolve_stable_tag body still extracts tag_name", body:find("tag_name", 1, true) ~= nil)
+  check("resolve_stable_tag delegates to resolve_stable_latest",
+    body:find("resolve_stable_latest", 1, true) ~= nil)
   check("resolve_stable_tag body still echoes the bare tag (printf '%s\\n' \"${tag}\")",
     body:find('printf \'%s\\n\' "${tag}"', 1, true) ~= nil)
-  check("resolve_stable_tag body has NO published_at (date logic is display-only, elsewhere)",
+  check("resolve_stable_tag body has NO published_at (date logic moved into resolve_stable_latest)",
     body:find("published_at", 1, true) == nil)
 end
 

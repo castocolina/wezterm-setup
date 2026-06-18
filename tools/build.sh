@@ -38,7 +38,7 @@
 #     * nightly  (DEFAULT) — the newest `nightly-*` prerelease (the rolling
 #                build Plan 02 publishes). A non-interactive `curl|bash` pipe
 #                resolves nightly deterministically and NEVER hangs (D-02).
-#     * stable             — GitHub `/releases/latest`, which EXCLUDES
+#     * stable             — GitHub's latest-release API, which EXCLUDES
 #                prereleases, so the nightlies are auto-filtered out (D-03).
 #     * <vX.Y.Z>           — that exact tag, used literally (an explicit pin).
 #   An interactive TTY with no channel set shows a numbered picker (nightly /
@@ -69,7 +69,7 @@ OUT="${DIST_DIR}/wez"
 ENTRY="cli/wez.lua"
 
 # Release channel for the download fallback (D-02/D-08). Default `nightly` (the
-# rolling build); `stable` -> /releases/latest; `<vX.Y.Z>` -> that literal tag.
+# rolling build); `stable` -> the latest-release API; `<vX.Y.Z>` -> that literal tag.
 # WEZ_RELEASE_TAG is demoted to the explicit-pin escape hatch (D-01): when set it
 # forces the channel to that literal tag (so `WEZ_RELEASE_TAG=v0.1.0` still works),
 # but it is NO LONGER the channel default — the hardcoded v0.1.0 pin is gone.
@@ -175,67 +175,60 @@ _api_fetch() {
 
 # ---------------------------------------------------------------------------
 # Channel -> release tag resolver (D-03/D-08). Echoes the resolved tag on stdout;
-# all prompts/logs go to stderr (stdout stays the tag, exactly like
-# bootstrap-wezterm.sh select_release). FAIL-LOUD (T-06.3-03-03 / P6-D01/D07): a
-# failed/empty/unparseable resolution returns NON-ZERO so download_release aborts
-# rather than fetching an empty/`latest`/unverified asset.
-#
-#   stable    -> GET /repos/<repo>/releases/latest .tag_name (prereleases excluded)
-#   nightly   -> newest `nightly-*` tag from /repos/<repo>/releases (prereleases)
-#   <literal> -> echoed verbatim (an explicit vX.Y.Z pin)
-#
-# On a TTY with no channel forced, present a numbered picker (nightly / newest
-# stable / a few recent tags); a no-TTY pipe resolves deterministically from
-# WEZ_CHANNEL (default nightly) and NEVER blocks on a read.
+# all prompts/logs go to stderr (stdout stays the tag, like bootstrap-wezterm.sh
+# select_release). FAIL-LOUD (T-06.3-03-03 / P6-D01/D07): an empty/unparseable
+# resolution returns NON-ZERO so download_release aborts rather than fetching an
+# unverified asset. stable -> the latest-release API .tag_name (prereleases
+# excluded); nightly -> newest `nightly-*`; <literal> -> verbatim. A no-TTY pipe
+# resolves deterministically from WEZ_CHANNEL (default nightly) and never blocks.
 # ---------------------------------------------------------------------------
-resolve_stable_tag() {
-  local json tag
+
+# Generic JSON string extractor (no external JSON tool) — the SINGLE shared
+# idiom. Reads JSON on STDIN, takes a field name as $1, echoes the FIRST top-level
+# string value of that field. Callers pass ONLY literal field names (tag_name /
+# published_at — never user input), so the field interpolates into the grep ERE
+# with no escaping. DO NOT re-inline this per field.
+_json_str() {
+  local field="$1"
+  tr ',' '\n' \
+    | grep -oE "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" \
+    | head -n1 | grep -oE '"[^"]+"$' | tr -d '"'
+}
+
+# Single-fetch stable resolver: ONE _api_fetch of the latest-release API yields
+# BOTH the tag (line 1, REQUIRED) and the YYYY-MM-DD date (line 2, best-effort,
+# possibly empty) from that ONE payload — reuses _api_fetch + _json_str (no third
+# fetcher, no duplicate idiom). Empty fetch / missing tag -> NON-ZERO; a
+# missing/unparseable published_at only leaves the date empty (never aborts).
+resolve_stable_latest() {
+  local json tag date
   json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases/latest" 2>/dev/null)" || return 1
   [ -n "${json}" ] || return 1
-  # Robust field extraction (no jq): split on commas, grab the tag_name token.
-  tag="$(printf '%s' "${json}" \
-    | tr ',' '\n' \
-    | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"[^"]+"' \
-    | head -n1 \
-    | grep -oE '"[^"]+"$' \
-    | tr -d '"')"
+  tag="$(printf '%s' "${json}" | _json_str tag_name)"
+  [ -n "${tag}" ] || return 1
+  # Date is best-effort: reduce the raw ISO8601 published_at to its leading
+  # YYYY-MM-DD via pure grep -oE (no `date`/`cut -dT`/GNU-only flags — portable).
+  # `|| true` so a missing/unparseable date (no grep match under set -e/pipefail)
+  # leaves the date empty WITHOUT aborting — the date line is allowed to be empty.
+  date="$(printf '%s' "${json}" | _json_str published_at \
+    | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)"
+  printf '%s\n%s\n' "${tag}" "${date}"
+}
+
+# THIN delegate over resolve_stable_latest. FROZEN OUTPUT CONTRACT: echoes ONLY
+# the bare tag (feeds download_release's URL), non-zero on failure. The only
+# change vs. before is internal delegation — NO date logic (no published_at).
+resolve_stable_tag() {
+  local tag
+  tag="$(resolve_stable_latest | head -n1)" || return 1
   [ -n "${tag}" ] || return 1
   printf '%s\n' "${tag}"
 }
 
-# ---------------------------------------------------------------------------
-# Best-effort stable RELEASE DATE resolver — DISPLAY ONLY (picker label).
-# Reads the SAME /releases/latest JSON resolve_stable_tag() already consumes
-# (reuse _api_fetch — NO third fetcher) and extracts the `published_at` field's
-# leading YYYY-MM-DD. Used solely to date-augment the interactive stable picker
-# label ("newest stable (v0.1.0 · 2026-06-15)") for parity with the nightly tag.
-#
-# CONTRACT: this is display-only. resolve_stable_tag() (which feeds
-# download_release's URL) stays bare-tag-only and byte-unchanged — NO date logic
-# lives there. Best-effort: on a failed fetch, empty JSON, or no parseable date,
-# echo NOTHING and `return 1` (mirrors resolve_stable_tag's return shape; callers
-# use `|| true`). It must NEVER abort the picker.
-# ---------------------------------------------------------------------------
-resolve_stable_date() {
-  local json date
-  json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases/latest" 2>/dev/null)" || return 1
-  [ -n "${json}" ] || return 1
-  # Robust field extraction (no jq): split on commas, grab the published_at token,
-  # strip to the inner quoted ISO8601 value, then isolate the leading YYYY-MM-DD.
-  # A pure `grep -oE` (no `date`/`cut -dT`) keeps it Linux+macOS portable — no
-  # GNU-only flags.
-  date="$(printf '%s' "${json}" \
-    | tr ',' '\n' \
-    | grep -oE '"published_at"[[:space:]]*:[[:space:]]*"[^"]+"' \
-    | head -n1 \
-    | grep -oE '"[^"]+"$' \
-    | tr -d '"' \
-    | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')"
-  [ -n "${date}" ] || return 1
-  printf '%s\n' "${date}"
-}
-
 # Echo all `nightly-*` tags (newest first as returned by the API), one per line.
+# NOTE: this does NOT reuse `_json_str` — it needs ALL nightly-* values (a list,
+# filtered to the `nightly-` prefix), not the first single top-level string, so
+# the single-value first-match shape of `_json_str` does not fit. Left as-is.
 list_nightly_tags() {
   local json
   json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases?per_page=30" 2>/dev/null)" || return 1
@@ -263,8 +256,8 @@ resolve_channel_tag() {
         resolve_nightly_tag || { log "ERROR: could not resolve a nightly release tag — refusing to install an unverified asset" >&2; return 1; }
         ;;
       stable)
-        log "no TTY on stdin -> resolving the 'stable' channel (/releases/latest)" >&2
-        resolve_stable_tag || { log "ERROR: could not resolve the stable /releases/latest tag — refusing to install an unverified asset" >&2; return 1; }
+        log "no TTY on stdin -> resolving the 'stable' channel (latest-release API)" >&2
+        resolve_stable_tag || { log "ERROR: could not resolve the stable latest-release tag — refusing to install an unverified asset" >&2; return 1; }
         ;;
       *)
         # An explicit literal tag (vX.Y.Z / the WEZ_RELEASE_TAG escape hatch).
@@ -285,9 +278,14 @@ resolve_channel_tag() {
   # Interactive TTY, channel is the symbolic default: present a numbered picker
   # (1=nightly / 2=newest stable / 3+=recent nightly tags). All menu output to
   # stderr; stdout stays the resolved tag.
-  local nightly_tag stable_tag
+  local nightly_tag stable_out stable_tag stable_date
   nightly_tag="$(resolve_nightly_tag 2>/dev/null || true)"
-  stable_tag="$(resolve_stable_tag 2>/dev/null || true)"
+  # ONE fetch for the stable arm: resolve_stable_latest yields tag (line 1) +
+  # YYYY-MM-DD date (line 2, possibly empty) from a single latest-release call.
+  # Tolerate empty (|| true); split into tag/date with POSIX `sed -n`.
+  stable_out="$(resolve_stable_latest 2>/dev/null || true)"
+  stable_tag="$(printf '%s\n' "${stable_out}" | sed -n 1p)"
+  stable_date="$(printf '%s\n' "${stable_out}" | sed -n 2p)"
 
   local -a choices=() labels=()
   if [ -n "${nightly_tag}" ]; then
@@ -295,14 +293,9 @@ resolve_channel_tag() {
   fi
   if [ -n "${stable_tag}" ]; then
     # Date-augment the stable label for parity with the nightly tag (which bakes
-    # its date into the tag itself). DISPLAY ONLY: resolve_stable_date is
-    # best-effort and tolerated empty — on any date-resolution failure we fall
-    # back to the existing tag-only label and NEVER abort. The extra date fetch
-    # lives ONLY here in the interactive picker branch, NOT on the non-TTY
-    # download_release hot path (the picker already pays the resolve_stable_tag
-    # fetch; one extra resolve_stable_date fetch is the accepted interactive cost).
-    local stable_date
-    stable_date="$(resolve_stable_date 2>/dev/null || true)"
+    # its date into the tag itself). The date is best-effort: when present emit
+    # the date-bearing label, else fall back to the tag-only label (NEVER abort).
+    # No extra fetch — the date rides the single resolve_stable_latest call above.
     choices+=("${stable_tag}")
     if [ -n "${stable_date}" ]; then
       labels+=("newest stable (${stable_tag} · ${stable_date})")
