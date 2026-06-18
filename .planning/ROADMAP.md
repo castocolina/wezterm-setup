@@ -331,11 +331,18 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 - [ ] Regression tests for the new ordering + dedupe + unambiguous rendering.
 
 **Plans:** 4 plans (3 waves)
-
 Plans:
+**Wave 1**
+
 - [ ] 06.5-01-PLAN.md — Pure cli/lib/ansi.lua SGR red/bold-red helper (D-06) [wave 1]
-- [ ] 06.5-02-PLAN.md — keys.lua pure renderer: canonicalize + fixed mod-order + action-grouping + platform-label + curated-first sectioning + TTY/NO_COLOR-gated red conflicts; --platform flag (D-01..D-08) [wave 2]
 - [ ] 06.5-03-PLAN.md — Reconcile keybindings.lua to single D-10 entries (drop lower+upper twins), init.lua lockstep (D-09/D-10) [wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06.5-02-PLAN.md — keys.lua pure renderer: canonicalize + fixed mod-order + action-grouping + platform-label + curated-first sectioning + TTY/NO_COLOR-gated red conflicts; --platform flag (D-01..D-08) [wave 2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 06.5-04-PLAN.md — WEZTERM_INTEGRATION=1 live e2e (ordering/dedupe/render/json/platform/red) + D-09 firing hypothesis probe (D-09/D-10) [wave 3]
 
 ### Phase 7: macOS Parity Pass (D-18)
