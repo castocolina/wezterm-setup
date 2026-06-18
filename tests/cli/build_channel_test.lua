@@ -176,5 +176,68 @@ check("resolve_channel_tag with an unreachable API on the nightly default fails 
   not bash_ok("WEZ_RELEASE_API=http://127.0.0.1:0", "resolve_channel_tag"))
 
 -- ----------------------------------------------------------------------------
+-- resolve_stable_date() — DISPLAY-ONLY stable release-date resolver folded into
+-- the interactive picker label (Plan 06.3 quick 260618-evx). Stable date-parity
+-- with nightly: "newest stable (v0.1.0 · 2026-06-15)".
+-- ----------------------------------------------------------------------------
+
+-- BEHAVIOR (stubbed fetch): resolve_stable_date echoes exactly the YYYY-MM-DD
+-- prefix of published_at. _api_fetch is redefined AFTER the source so the body
+-- shadows the real fetcher — NO network call is made. The JSON has no single
+-- quotes, so single-quoting the env value is safe.
+local SAMPLE = '{"tag_name": "v0.1.0", "published_at": "2026-06-15T13:56:59Z"}'
+check("resolve_stable_date (stubbed /releases/latest JSON) echoes the YYYY-MM-DD prefix",
+  bash_stdout("SAMPLE_JSON='" .. SAMPLE .. "'",
+    "_api_fetch() { printf '%s' \"$SAMPLE_JSON\"; }; resolve_stable_date") == "2026-06-15")
+
+-- BEHAVIOR (best-effort empty): a stubbed _api_fetch that echoes nothing /
+-- returns 1 -> resolve_stable_date is non-zero AND its stdout is empty, proving
+-- it never aborts and the picker can fall back to the tag-only label.
+check("resolve_stable_date with an empty/failed fetch returns non-zero (best-effort, never aborts)",
+  not bash_ok("", "_api_fetch() { return 1; }; resolve_stable_date"))
+check("resolve_stable_date with an empty/failed fetch emits NOTHING on stdout",
+  bash_stdout("", "_api_fetch() { return 1; }; resolve_stable_date") == "")
+
+-- TEXT: the helper is defined.
+check("resolve_stable_date() helper is defined", has("resolve_stable_date()"))
+
+-- TEXT: resolve_stable_date reuses /releases/latest (no second/third endpoint).
+do
+  local body = SRC:match("resolve_stable_date%(%)%s*{(.-)\n}") or ""
+  check("resolve_stable_date reuses /releases/latest (same endpoint as resolve_stable_tag)",
+    body:find("releases/latest", 1, true) ~= nil)
+  check("resolve_stable_date reuses _api_fetch (no third fetcher)",
+    body:find("_api_fetch", 1, true) ~= nil)
+  check("resolve_stable_date adds no jq dependency", body:find("jq ", 1, true) == nil)
+  check("resolve_stable_date extracts published_at (not tag_name)",
+    body:find("published_at", 1, true) ~= nil)
+end
+
+-- TEXT: the interactive resolver references resolve_stable_date and builds a
+-- date-bearing stable label. Use the EXACT byte sequence emitted by build.sh
+-- (the U+00B7 MIDDLE DOT separator is UTF-8) so has() substring matching lines up.
+do
+  local body = SRC:match("resolve_channel_tag%(%)%s*{(.-)\n}") or ""
+  check("resolve_channel_tag references resolve_stable_date (interactive date capture)",
+    body:find("resolve_stable_date", 1, true) ~= nil)
+  check("the interactive stable label is date-augmented (newest stable (tag · date))",
+    has("newest stable (${stable_tag} · ${stable_date})"))
+  check("the tag-only stable label fallback survives (date-resolution failure path)",
+    has("newest stable (${stable_tag})"))
+end
+
+-- TEXT (contract guard): resolve_stable_tag stays bare-tag-only — its body must
+-- still echo the tag and must NOT contain published_at (the date logic lives
+-- ONLY in resolve_stable_date), proving the download-feeding contract is intact.
+do
+  local body = SRC:match("resolve_stable_tag%(%)%s*{(.-)\n}") or ""
+  check("resolve_stable_tag body still extracts tag_name", body:find("tag_name", 1, true) ~= nil)
+  check("resolve_stable_tag body still echoes the bare tag (printf '%s\\n' \"${tag}\")",
+    body:find('printf \'%s\\n\' "${tag}"', 1, true) ~= nil)
+  check("resolve_stable_tag body has NO published_at (date logic is display-only, elsewhere)",
+    body:find("published_at", 1, true) == nil)
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

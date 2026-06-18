@@ -203,6 +203,38 @@ resolve_stable_tag() {
   printf '%s\n' "${tag}"
 }
 
+# ---------------------------------------------------------------------------
+# Best-effort stable RELEASE DATE resolver — DISPLAY ONLY (picker label).
+# Reads the SAME /releases/latest JSON resolve_stable_tag() already consumes
+# (reuse _api_fetch — NO third fetcher) and extracts the `published_at` field's
+# leading YYYY-MM-DD. Used solely to date-augment the interactive stable picker
+# label ("newest stable (v0.1.0 · 2026-06-15)") for parity with the nightly tag.
+#
+# CONTRACT: this is display-only. resolve_stable_tag() (which feeds
+# download_release's URL) stays bare-tag-only and byte-unchanged — NO date logic
+# lives there. Best-effort: on a failed fetch, empty JSON, or no parseable date,
+# echo NOTHING and `return 1` (mirrors resolve_stable_tag's return shape; callers
+# use `|| true`). It must NEVER abort the picker.
+# ---------------------------------------------------------------------------
+resolve_stable_date() {
+  local json date
+  json="$(_api_fetch "${WEZ_RELEASE_API}/repos/${WEZ_RELEASE_REPO}/releases/latest" 2>/dev/null)" || return 1
+  [ -n "${json}" ] || return 1
+  # Robust field extraction (no jq): split on commas, grab the published_at token,
+  # strip to the inner quoted ISO8601 value, then isolate the leading YYYY-MM-DD.
+  # A pure `grep -oE` (no `date`/`cut -dT`) keeps it Linux+macOS portable — no
+  # GNU-only flags.
+  date="$(printf '%s' "${json}" \
+    | tr ',' '\n' \
+    | grep -oE '"published_at"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | head -n1 \
+    | grep -oE '"[^"]+"$' \
+    | tr -d '"' \
+    | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')"
+  [ -n "${date}" ] || return 1
+  printf '%s\n' "${date}"
+}
+
 # Echo all `nightly-*` tags (newest first as returned by the API), one per line.
 list_nightly_tags() {
   local json
@@ -262,7 +294,21 @@ resolve_channel_tag() {
     choices+=("${nightly_tag}"); labels+=("nightly (${nightly_tag})")
   fi
   if [ -n "${stable_tag}" ]; then
-    choices+=("${stable_tag}"); labels+=("newest stable (${stable_tag})")
+    # Date-augment the stable label for parity with the nightly tag (which bakes
+    # its date into the tag itself). DISPLAY ONLY: resolve_stable_date is
+    # best-effort and tolerated empty — on any date-resolution failure we fall
+    # back to the existing tag-only label and NEVER abort. The extra date fetch
+    # lives ONLY here in the interactive picker branch, NOT on the non-TTY
+    # download_release hot path (the picker already pays the resolve_stable_tag
+    # fetch; one extra resolve_stable_date fetch is the accepted interactive cost).
+    local stable_date
+    stable_date="$(resolve_stable_date 2>/dev/null || true)"
+    choices+=("${stable_tag}")
+    if [ -n "${stable_date}" ]; then
+      labels+=("newest stable (${stable_tag} · ${stable_date})")
+    else
+      labels+=("newest stable (${stable_tag})")
+    fi
   fi
   local t
   while IFS= read -r t; do
