@@ -106,6 +106,7 @@ function M.build_parser()
   -- keys (Plan 05) --------------------------------------------------------
   local keys = parser:command("keys", "List active keybindings by category")
   keys:flag("--json", "Emit machine-readable JSON")
+  keys:option("--platform", "Render platform labels: linux | macos | all (default: host OS)")
 
   -- install-state (Plan 04) ----------------------------------------------
   local install_state = parser:command("install-state", "Inspect / drive install state")

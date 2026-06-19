@@ -59,5 +59,16 @@ check("--follow-pane-color default OFF", ok9 and not r9.follow_pane_color)
 local ok10 = pparse({ "pane", "color", "navy", "--follow-pane-color" })
 check("--follow-pane-color REJECTED on pane color (tab-only)", ok10 == false)
 
+-- ── --platform option on `keys` (06.5 D-04) ────────────────────────────────
+-- Registration guard: --platform is accepted on `keys` and the value lands where
+-- the keys handler reads it (r.platform). Accepts linux | macos | all.
+local okp1, rp1 = pparse({ "keys", "--platform", "all" })
+check("--platform registered on keys (value lands in r.platform)",
+  okp1 and rp1.command == "keys" and rp1.platform == "all")
+local okp2, rp2 = pparse({ "keys", "--platform", "linux" })
+check("--platform accepts linux", okp2 and rp2.platform == "linux")
+local okp3, rp3 = pparse({ "keys", "--platform", "macos" })
+check("--platform accepts macos", okp3 and rp3.platform == "macos")
+
 io.write(string.format("\nspec_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
