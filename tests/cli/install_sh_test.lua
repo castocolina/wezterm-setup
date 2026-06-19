@@ -106,34 +106,49 @@ do
 end
 
 -- ----------------------------------------------------------------------------
--- README.md — the real one-liners + trust model + post-install steps
+-- Install docs — the real one-liners + trust model + post-install steps.
+--
+-- Phase 06.4 (D-01/D-04) refactored README.md into a lean progressive-disclosure
+-- HUB: the deep install/trust/post-install content was MOVED into the focused
+-- docs/ pages (docs/install.md owns install + channels + trust model; the
+-- post-install PATH step lives in docs/troubleshooting.md's "command not found"
+-- section). The README still surfaces the quickstart one-liner and links out.
+-- These contract assertions therefore validate the doc that now OWNS each needle
+-- (docs/install.md / docs/troubleshooting.md), not the hub, so the guarantees are
+-- preserved exactly while honoring the hub refactor.
 -- ----------------------------------------------------------------------------
 local readme = assert(slurp("README.md"), "cannot read README.md")
+local install_doc = assert(slurp("docs/install.md"), "cannot read docs/install.md")
+local trouble_doc = assert(slurp("docs/troubleshooting.md"), "cannot read docs/troubleshooting.md")
 
 local CURL = "curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh | bash"
 local WGET = "wget -qO- https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh | bash"
 
-check("README ships the castocolina curl one-liner", has(readme, CURL))
-check("README ships the wget one-liner variant", has(readme, WGET))
-check("README ships the bash <(curl …) full-interactivity form",
-  has(readme, "bash <(curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh)"))
--- BROKEN placeholders are gone.
-check("README no longer ships the broken `tools/setup.sh | sh` one-liner",
-  not has(readme, "tools/setup.sh | sh"))
-check("README no longer references the `you/` placeholder owner",
-  not has(readme, "github.com/you/") and not has(readme, "raw.githubusercontent.com/you/"))
+-- The hub still ships the quickstart curl one-liner (and links to docs/install.md).
+check("README hub ships the castocolina curl one-liner", has(readme, CURL))
+check("install docs ship the castocolina curl one-liner", has(install_doc, CURL))
+check("install docs ship the wget one-liner variant", has(install_doc, WGET))
+check("install docs ship the bash <(curl …) full-interactivity form",
+  has(install_doc, "bash <(curl -fsSL https://raw.githubusercontent.com/castocolina/wezterm-setup/main/tools/install.sh)"))
+-- BROKEN placeholders are gone from BOTH the hub and the install docs.
+check("README/docs no longer ship the broken `tools/setup.sh | sh` one-liner",
+  not has(readme, "tools/setup.sh | sh") and not has(install_doc, "tools/setup.sh | sh"))
+check("README/docs no longer reference the `you/` placeholder owner",
+  not has(readme, "github.com/you/") and not has(readme, "raw.githubusercontent.com/you/")
+    and not has(install_doc, "github.com/you/") and not has(install_doc, "raw.githubusercontent.com/you/"))
 -- Trust model: inspect-before-run + pin-to-tag/commit (WEZ_REF) + SHA-256 note.
-check("README has a Trust model heading", has(readme, "### Trust model"))
-check("README documents inspect-before-run (curl -o install.sh; less; bash install.sh)",
-  has(readme, "-o install.sh") and has(readme, "less install.sh") and has(readme, "bash install.sh"))
-check("README documents pin-to-tag/commit via WEZ_REF", has(readme, "WEZ_REF=v1.0.0"))
-check("README notes the wez binary is SHA-256 verified before chmod +x",
-  has(readme, "SHA-256 verified before"))
+check("install docs have a Trust model heading", has(install_doc, "## Trust model"))
+check("install docs document inspect-before-run (curl -o install.sh; less; bash install.sh)",
+  has(install_doc, "-o install.sh") and has(install_doc, "less install.sh") and has(install_doc, "bash install.sh"))
+check("install docs document pin-to-tag/commit via WEZ_REF", has(install_doc, "WEZ_REF=v1.0.0"))
+check("install docs note the wez binary is SHA-256 verified before chmod +x",
+  has(install_doc, "SHA-256 verified before"))
 -- Post-install + nightly-default behavior (06-06 / P6-D09).
-check("README has post-install steps (PATH for ~/.local/bin, restart shell, wez doctor)",
-  has(readme, "~/.local/bin") and has(readme, "wez doctor"))
-check("README notes the nightly-default + update-in-place WezTerm behavior",
-  has(readme, "nightly") and has(readme, "updated in place"))
+check("post-install PATH step (~/.local/bin) lives in the troubleshooting doc",
+  has(trouble_doc, "~/.local/bin"))
+check("install docs reference the wez doctor verification", has(install_doc, "wez doctor"))
+check("install docs note the nightly-default + update-in-place WezTerm behavior",
+  has(install_doc, "nightly") and has(install_doc, "updated in place"))
 
 -- ----------------------------------------------------------------------------
 -- DETERMINISTIC headless-abort assertion (Warning 7): prove the D-03 non-zero
