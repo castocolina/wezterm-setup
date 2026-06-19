@@ -18,7 +18,7 @@
 - [x] **Phase 6.1: Tab and Scene Identity Redesign** *(INSERTED)* - Decouple tab color from title (drop the `<color>:<title>` encoding), redesign the scene schema (tab/pane `color`/`title`/`cwd`/`focus`/`size`, alpha-aware), migrate the prototype `wezterm.lua` + `wez doctor` shadow-detection, arrange/RotatePanes, embrace search overlay, refresh ai/dev scenes (completed + UAT-verified 2026-06-15)
 - [x] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback (completed 2026-06-16)
 - [x] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full) (completed 2026-06-18)
-- [ ] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
+- [x] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua` (completed 2026-06-19)
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
 
 > **Execution = numeric order:** 6.1 ✓ → **6.2 (identity orthogonality, next)** → **6.3 (distribution channels)** → **6.4 (doc audit — runs LAST so it documents the final icon/color/install reality)** → 7 (macOS close gate). 6.2 and 6.3 are independent and could run in either order; 6.4 depends on both. *(The old 6.2 "doc audit" is renumbered to 6.4 — it had not started, so no execution artifacts move.)*
@@ -293,9 +293,24 @@ Plans:
 - [ ] **Drift check** — verify every documented command/flag/keybinding/scene field actually exists, cross-checked against `cli/spec.lua` + `config/wezterm-setup/keybindings.lua` + the 6.1 scene schema. No documented-but-unimplemented (or implemented-but-undocumented) surface.
 - [ ] **Reflect 6.1** — decoupled `color`/`title`, new scene schema (`cwd`/`focus`/`size`, alpha), arrange/RotatePanes, embraced search overlay (`Ctrl+R` case toggle) are all documented correctly.
 
-Plans:
+**Plans:** 4/4 plans complete
 
-- [ ] TBD (run /gsd-discuss-phase 06.2 then /gsd-plan-phase 06.2 to break down)
+Plans:
+**Wave 1**
+
+- [x] 06.4-01-PLAN.md — Durable `tests/docs_drift_test.lua` drift-check: documented→exists, derive surface from spec.lua/keybindings.lua/scene.lua, fails on planted bad ref (D-08/D-09) [wave 1]
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 06.4-02-PLAN.md — Focused docs/ pages: cli.md (guide, D-11) + scenes.md (FULL field ref, D-13) + keybindings.md (essential table, D-12) + install.md (channels/update/uninstall) + troubleshooting.md (salvaged doctor nugget, D-07) [wave 2]
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [x] 06.4-03-PLAN.md — README lean-hub refactor via /agent-md-refactor + /crafting-effective-readmes; remove Status (D-03), move Development → CONTRIBUTING.md (D-04), fix icon-in-title example, link docs/ pages (D-01/D-02) [wave 3]
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [x] 06.4-04-PLAN.md — Prune migration doc (D-07) + stale docs/repro/* (D-06) behind a maintainer checkpoint; final whole-doc-set drift-check gate [wave 4]
 
 ### Phase 06.5: Keybinding Clarity & `wez keys` Output Curation (INSERTED)
 
@@ -382,7 +397,7 @@ Plans:
 | 6.2 Identity Orthogonality (icons G-1 + color split/adopt-toggle G-2) | 5/5 | Complete   | 2026-06-16 |
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 5/5 | Complete    | 2026-06-19 |
-| 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
+| 6.4 User Documentation Audit and Refactor | 4/4 | Complete   | 2026-06-19 |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
 
 ---
