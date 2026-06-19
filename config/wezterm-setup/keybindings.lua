@@ -68,28 +68,31 @@ M.keys = {
   --     desktop/WM (e.g. Pop!_OS grabs Super+K and it never reaches WezTerm), so
   --     the terminal-standard Ctrl+Shift chord is the reliable Linux clear. It is
   --     also readline-safe (plain Ctrl+K is kill-line; the SHIFT lifts it clear of
-  --     the shell) and layout-stable (letter key, D-10). Both fire the SAME action;
-  --     `wez keys` lists both, which is truthful, not a conflict.
-  --   * Both the lowercase `k` AND uppercase `K` Ctrl+Shift entries are declared:
-  --     under `key_map_preference = "Mapped"` a Shift+letter produces the UPPERCASE
-  --     char, so the chord that actually fires is `CTRL|SHIFT+K`; WezTerm's own
-  --     defaults register both cases (e.g. `SHIFT|CTRL c` AND `SHIFT|CTRL C` for
-  --     copy), and we mirror that so the binding fires regardless of how the
-  --     produced character is reported.
+  --     the shell) and layout-stable (letter key, D-10). Super and Ctrl+Shift are
+  --     two genuinely distinct chords for the SAME action; `wez keys` lists both,
+  --     which is truthful, not a conflict.
+  --   * D-10 canonical form: ONE Ctrl+Shift entry, declared as the lowercase base
+  --     key `k` + an explicit `SHIFT` in the mods. We do NOT also declare the
+  --     uppercase `K` twin: WezTerm folds Shift into the produced uppercase char
+  --     and collapses the lower+upper pair to a SINGLE effective row (RESEARCH
+  --     D-08/D-10 verified the twin was always dead weight). This mirrors the
+  --     already-working single-entry close-pane row (`mapped("x")` ALT|SHIFT):
+  --     declared == displayed == pressed.
   { key = mapped("k"), mods = M.super_mod,   action = { type = "ClearScreenAndScrollback" } },
   { key = mapped("k"), mods = "CTRL|SHIFT",  action = { type = "ClearScreenAndScrollback" } },
-  { key = mapped("K"), mods = "CTRL|SHIFT",  action = { type = "ClearScreenAndScrollback" } },
 
   -- == Tabs (FOUND-03) ==
   { key = mapped("t"), mods = "SUPER",            action = { type = "SpawnTab", arg = "CurrentPaneDomain" } }, -- new tab (mac: Cmd+T)
   { key = mapped("w"), mods = "SUPER",            action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (mac: Cmd+W)
   -- Linux fallback: many Linux WMs/DEs grab the Super key (e.g. Pop!_OS/GNOME bind
   -- Super+W/T to the shell), so a SUPER-only close-tab never reaches WezTerm. Ship a
-  -- Ctrl+Shift+W variant too (mirrors the clear-screen dual binding above; lower +
-  -- upper produced char, since Shift yields "W"). New-tab already has a working
-  -- default Ctrl+Shift+T, so only close-tab needs the explicit Linux fallback.
+  -- Ctrl+Shift+W variant too (mirrors the clear-screen dual binding above). Per the
+  -- D-10 canonical form this is a SINGLE entry: lowercase base key `w` + explicit
+  -- `SHIFT` in mods — no uppercase `W` twin, since WezTerm folds Shift into the
+  -- produced char and collapses the pair to one effective row (the twin was dead
+  -- weight). New-tab already has a working default Ctrl+Shift+T, so only close-tab
+  -- needs the explicit Linux fallback.
   { key = mapped("w"), mods = "CTRL|SHIFT",       action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (Linux)
-  { key = mapped("W"), mods = "CTRL|SHIFT",       action = { type = "CloseCurrentTab", confirm = false } },     -- close tab (Linux, shifted char)
   { key = mapped("Tab"), mods = "CTRL",           action = { type = "ActivateTabRelative", arg = 1 } },         -- next tab
   { key = mapped("Tab"), mods = "CTRL|SHIFT",     action = { type = "ActivateTabRelative", arg = -1 } },        -- prev tab
   { key = mapped("PageUp"), mods = "CTRL|SHIFT",  action = { type = "MoveTabRelative", arg = -1 } },            -- move tab left
