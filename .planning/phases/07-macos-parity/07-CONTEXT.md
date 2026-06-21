@@ -42,6 +42,12 @@ Phase 7 is the **macOS parity gate (D-18)** — the final gate before v1 is decl
   - Replace `sha256sum` in `tools/build.sh`'s remote path with detected `shasum -a 256` (fall back / branch by availability).
   - Watch BSD `cp -R config/wezterm-setup/. dst/` trailing-dot semantics (no stray `.` entry) — verify on hardware (C-2).
 
+### Full unattended autonomy (REVISED 2026-06-21)
+- **D-09 (all waves autonomous — supersedes the human-checkpoint gates):** the entire phase runs UNATTENDED end-to-end. No `autonomous: false` task remains. The agent drives gh/CI, push, `gh run watch`, log-driven fix + re-push, the curl/install E2E, and the on-Mac parity verification with no human nod.
+- **D-10 (auto-push the stable `v*` tag, green-gated — supersedes RESEARCH Open Q1 / the prior blocking-human checkpoint):** the agent cuts + pushes the first stable `v*` tag AUTOMATICALLY, gated only on BOTH the `workflow_dispatch` dry-run AND the real E2E install being green. The green-gate is the sole safety rail (a stable tag is an irreversible public release; the user accepted this trade for full autonomy). When no tag context exists, the unattended path operates on **nightly** builds.
+- **D-11 (branch-aware E2E — living branch):** the dispatch targets the current branch explicitly (`gh workflow run release.yml --ref "$(git branch --show-current)"`), and the build version string carries a **`+<branchname>`** suffix when the branch is not `main` (e.g. `nightly-YYYYMMDD+gsd-phase-07-macos-parity`) so the E2E loop installs and verifies *this branch's* artifact. This is the MINIMAL branch-awareness needed for the autonomous loop — the full bootstrapper version-listing UX is deferred (see Deferred Ideas).
+- **D-12 (parity verification is agent-driven via a real harness — reinforces D-02):** 07-05 drives WezTerm with `tmux` + `wezterm cli` for keystroke/feature flows, captures visuals with `screencapture`, feeds them to the `agent-ui-ux-designer` subagent for the visual/glyph judgment, and flips the D-18 statuses on the green evidence — no manual visual sign-off.
+
 ### Claude's Discretion
 - Exact ordering of the runbook drive vs. gap-closure within the phase (planner decides; gaps that block verification — toolchain, codesign, harness — come first per C-1 "blocks everything").
 - Detection mechanism for `shasum` vs `sha256sum` (command -v branch vs OS switch).
@@ -114,6 +120,7 @@ Phase 7 is the **macOS parity gate (D-18)** — the final gate before v1 is decl
 - **A-1 `--pane` / `--title` value completion** — minor, low priority; no obvious closed candidate set. (The `--layout`/`--color` half is resolved and only needs zsh-runtime confirmation on the runbook §6.)
 - **`bg` alias / `opacity` control** — clarified as NOT bugs; would be new requirements (v2), out of scope.
 - **Phase 7.1 — Apple Silicon end-user distribution validation** (per D-01b): post-v1, non-gating, end-user-driven (no agent engineering). Confirms the shipped artifact installs/launches on real arm hardware and reports execution problems; expects Intel parity. Needs a `Phase 7.1` ROADMAP entry via `/gsd-phase`. Not blocking the v1 close.
+- **Branch-aware bootstrapper — full UX (deferred follow-up, decided 2026-06-21):** cross-platform installer capability, NOT macOS-specific, so out of the Phase 7 macOS gate. Scope: the bootstrapper lists available **nightly AND release** versions, defaults to the **latest from its originating branch**, **shows releases from that branch**, and accepts a **`--branch <name>`** flag to target a different branch. Phase 7 ships only the MINIMAL slice needed for the autonomous E2E loop (D-11: `--ref` dispatch + `+branchname` version). The listing UI + `--branch` flag + branch-default install UX are their own installer follow-up phase (cross-platform; plan after Phase 7 closes via `/gsd-phase`).
 
 </deferred>
 
