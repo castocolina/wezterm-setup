@@ -1,6 +1,7 @@
 # Phase 7: macOS Parity Pass - Context
 
 **Gathered:** 2026-06-15
+**Revised:** 2026-06-20 — Phase 7 / 7.1 split locked (v1 done at end of Phase 7; arm64 end-user check carved to non-gating Phase 7.1)
 **Status:** Ready for planning
 
 <domain>
@@ -21,16 +22,18 @@ Phase 7 is the **macOS parity gate (D-18)** — the final gate before v1 is decl
 ## Implementation Decisions
 
 ### Mac access & verification model
-- **D-01:** Both **Apple Silicon (arm64) and Intel (x86_64)** Macs are available this phase → every `darwin` asset and the codesign path gets real-hardware evidence; no arch is left CI-built-only/unverified.
+- **D-01 (REVISED 2026-06-20 — Phase 7/7.1 split):** Only an **Intel (x86_64)** Mac is available this session, but Phase 7 still delivers the **entire macOS build — including the arm64 (`darwin-aarch64`) asset built and ad-hoc-codesigned via CI/CD** — plus the **full agent-driven ecosystem verification** (install_macos `.app` placement, harness portability, the complete runbook, OSC/CWD/pane/tab/scene parity, visual/UX review) run on the Intel Mac. **Phase 7 is the v1 gate: completing it declares v1 done** (see D-01b). arm64 parity is treated as expected from the shared build contract; **no Apple Silicon hardware run is required for the v1 close** — arm64 status flips on the strength of the shared CI/CD build + ad-hoc codesign + Intel-proven ecosystem parity.
+  - *(Original D-01: assumed both Apple Silicon and Intel available this phase — superseded. An intermediate revision deferred the whole arm64 path to a later session and blocked arm64 flips on that evidence — also superseded by the 7/7.1 split below.)*
+- **D-01b (Phase 7.1 — post-v1 end-user distribution check, NON-gating):** A separate **Phase 7.1** is carved out strictly for **end-user distribution validation on real Apple Silicon** — NOT agent engineering, NOT runbook re-execution. Its sole job: confirm the shipped artifact downloads / installs / launches on an arm Mac and **report any execution problems**, with the expectation of an experience identical to Intel. **Phase 7.1 does NOT gate v1** — it runs after v1 is declared done; any surprises feed a follow-up fix rather than reopening the milestone. **Action:** add a `Phase 7.1` entry to `ROADMAP.md` (via `/gsd-phase`) capturing this end-user-only, non-gating scope.
 - **D-02:** The pass is **agent-driven on the Mac** — run Claude Code on the Mac to drive `verify-macos.sh` + the full runbook, including the `agent-ui-ux-designer` visual review for the UX/glyph sections (tab-bar accents, pane bg, emoji cell-width, copy).
-- **D-03 (evidence bar — SC#4):** A "macOS deferred → Done" flip requires: `verify-macos.sh` PASS for auto-checkable items **+** the runbook's **macOS deviations table** filled in **+** `agent-ui-ux-designer` notes for visual sections. Each status flip cites the specific runbook section that proved it.
+- **D-03 (evidence bar — SC#4):** A "macOS deferred → Done" flip requires: `verify-macos.sh` PASS for auto-checkable items **+** the runbook's **macOS deviations table** filled in **+** `agent-ui-ux-designer` notes for visual sections. Each status flip cites the specific runbook section that proved it. **All of this evidence is Intel-runnable** — the bar is met this phase on the Intel Mac. arm64-specific concerns (codesign first-launch on Silicon) are not part of the v1 flip bar per D-01; Phase 7.1 confirms them post-v1.
 
 ### INST-06 — install_macos
 - **D-04:** Implement **real, sudo-free `.app` placement** (close the design-only stub). `install_macos()` in `tools/bootstrap-wezterm.sh` must actually place `WezTerm.app` when absent — true parity with the Linux installer, matching ROADMAP SC#3.
 - **D-05:** Source = official WezTerm **nightly macOS `.zip`** → unzip `WezTerm.app` into **`~/Applications`** (user-path, no sudo, no DMG mount). Reuse the existing **nightly-default + `resolve_want_datestamp`** logic from Phase 6 (06-06) for version selection so macOS and Linux track the same nightly contract. No `hdiutil`/DMG path.
 
 ### Codesign & Gatekeeper
-- **D-06:** **Auto ad-hoc codesign at build time** — `tools/build.sh` / CI runs `codesign -s - dist/wez` on the `darwin-aarch64` (and `darwin-x86_64`) asset before publishing, so the shipped `wez` binary runs on first launch without user intervention. Verified on Silicon hardware this phase (a self-built arm64 Mach-O is otherwise SIGKILL'd unsigned).
+- **D-06:** **Auto ad-hoc codesign at build time** — `tools/build.sh` / CI runs `codesign -s - dist/wez` on the `darwin-aarch64` (and `darwin-x86_64`) asset before publishing, so the shipped `wez` binary runs on first launch without user intervention. **Verified at build time this phase** (codesign produces a valid signature on the CI artifact; `codesign --verify` / `spctl` checks where runnable); real Apple Silicon **first-launch** confirmation is the Phase 7.1 end-user check (a self-built arm64 Mach-O is otherwise SIGKILL'd unsigned).
 - **D-07 (quarantine — verify-then-decide):** Do **not** preemptively strip `com.apple.quarantine`. First confirm on real hardware whether curl-downloaded `wez` and the unzipped `WezTerm.app` actually carry quarantine and trigger Gatekeeper (curl downloads frequently do **not** set it). **Only** add an `xattr -dr com.apple.quarantine` step to `install.sh` if the on-Mac pass shows Gatekeeper blocking. If added, document why; otherwise the runbook keeps the manual `xattr -d` / right-click-open fallback as a note.
 
 ### Harness portability
@@ -110,6 +113,7 @@ Phase 7 is the **macOS parity gate (D-18)** — the final gate before v1 is decl
 - **A-3 `wez update` post-install launcher resolution** — wiring the installed binary to its companion shell scripts (`WEZ_REPO_DIR` export / managed-script placement, or remote one-liner fallback). Tied to cutting the first `vN.N.N` release (Open Q3); pure comparators already verified. Touch only if the macOS pass surfaces it; otherwise its own follow-up.
 - **A-1 `--pane` / `--title` value completion** — minor, low priority; no obvious closed candidate set. (The `--layout`/`--color` half is resolved and only needs zsh-runtime confirmation on the runbook §6.)
 - **`bg` alias / `opacity` control** — clarified as NOT bugs; would be new requirements (v2), out of scope.
+- **Phase 7.1 — Apple Silicon end-user distribution validation** (per D-01b): post-v1, non-gating, end-user-driven (no agent engineering). Confirms the shipped artifact installs/launches on real arm hardware and reports execution problems; expects Intel parity. Needs a `Phase 7.1` ROADMAP entry via `/gsd-phase`. Not blocking the v1 close.
 
 </deferred>
 

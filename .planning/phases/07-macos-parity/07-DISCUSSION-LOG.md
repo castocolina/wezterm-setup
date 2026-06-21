@@ -93,6 +93,34 @@
 
 ---
 
+## Refinement session — 2026-06-20 (Mac access model, re-discussed)
+
+> Context: only an Intel Mac is available this session. The original "Both Silicon + Intel"
+> choice (above) could not hold. Re-opened the Mac-access gray area to decide how Phase 7 closes.
+
+### Reconciling "v1 done" with Intel-only availability
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Phase 7 = Intel close, v1 ships | Drop arm64 hardware req from Phase 7 SC; arm64 codesign hardware flip = tracked follow-up | |
+| Split: Phase 7 (full build incl. arm64 via CI/CD + ecosystem) + Phase 7.1 (arm64 end-user distribution check only) | Phase 7 does all engineering + agent-driven verification incl. arm64 CI/CD build & codesign; 7.1 is end-user-only distribution validation | ✓ |
+| Keep Phase 7 open | Leave Phase 7 partial until a later arm64 session; v1 not declared done | |
+
+**User's choice:** Split into Phase 7 + Phase 7.1.
+**User's exact framing:** "Phase 7 is for entire macOS build including arm over CI/CD and full ecosystem checks; 7.1 can be split only for end-user validation, not for agent running things — only distribution checks and report any execution problems, but we expect same experience from Intel chips."
+
+### Where "v1 done" lands
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| v1 done at end of Phase 7 | Phase 7 (full build incl. arm64 CI/CD + codesign + Intel ecosystem verification) declares v1 done; 7.1 is post-v1, non-gating | ✓ |
+| v1 done after Phase 7.1 | 7.1 Apple Silicon end-user report is the true final gate | |
+
+**User's choice:** v1 done at end of Phase 7. Phase 7.1 is a post-v1, non-gating end-user distribution smoke check.
+**Resulting CONTEXT changes:** D-01 rewritten + D-01b added (7/7.1 split); D-03 clarified (evidence bar is Intel-runnable); D-06 codesign "verified at build time, Silicon first-launch confirmed in 7.1"; Phase 7.1 added to Deferred Ideas with a `/gsd-phase` action to add the ROADMAP entry.
+
+---
+
 ## Claude's Discretion
 
 - Ordering of runbook drive vs. gap closure (gaps that block verification first, per C-1).
