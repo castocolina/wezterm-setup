@@ -383,36 +383,36 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 | FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
-| FOUND-04 | Phase 1 | Done (Plan 05 `wez keys` + Plan 04 installs config so `[setup]` labels resolve) |
+| FOUND-04 | Phase 1 | Done (Plan 05 `wez keys` + Plan 04 config install) |
 | FOUND-05 | Phase 1 | Done (01-03) |
 | DIAG-01 | Phase 1 | Done (01-06) |
-| DIAG-02 | Phase 1 | Done (01-05) |
-| DIAG-03 | Phase 1 | Done (01-05) |
-| DIAG-04 | Phase 1 | Done (01-05) |
-| DIAG-05 | Phase 1 | Done (01-07, Linux; macOS deferred D-18) |
-| PANE-01 | Phase 2 | Done (02-02, 02-03; Linux, macOS deferred D-18) |
-| PANE-02 | Phase 2 | Done (02-03) |
-| PANE-03 | Phase 2 | Done (02-04) |
-| PANE-04 | Phase 2 | Done (02-02, 02-04, 02-05) |
-| TAB-01 | Phase 3 | Pending |
-| TAB-02 | Phase 3 | Pending |
-| TAB-03 | Phase 3 | Pending |
-| TAB-04 | Phase 3 | Pending |
-| TAB-05 | Phase 3 | Pending |
-| SCEN-01 | Phase 4 | Pending |
-| SCEN-02 | Phase 4 | Pending |
-| SCEN-03 | Phase 5 | Done (05-01 recipe core + 05-03 launch wiring, Linux; macOS deferred D-18) |
-| SCEN-04 | Phase 5 | Done (05-03 launch≡new structural equivalence, Linux; macOS deferred D-18) |
-| SCEN-05 | Phase 5 | Done (05-04, Linux; macOS deferred D-18) |
-| SCEN-06 | Phase 5 | Done (05-02, Linux; macOS deferred D-18) |
+| DIAG-02 | Phase 1 | Done (Plan 05) |
+| DIAG-03 | Phase 1 | Done (Plan 05) |
+| DIAG-04 | Phase 1 | Done (Plan 05) |
+| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS deferred D-18) |
+| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| TAB-01 | Phase 3 | Done (Phase 3) |
+| TAB-02 | Phase 3 | Done (Phase 3) |
+| TAB-03 | Phase 3 | Done (Phase 3) |
+| TAB-04 | Phase 3 | Done (Phase 3) |
+| TAB-05 | Phase 3 | Done (Phase 3) |
+| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
 
-| INST-07 | Phase 6 | Pending (ergonomic one-line `curl\|bash` remote installer + README) |
-| INST-08 | Phase 6 | Pending (cross-platform CI matrix + local `make build/install/publish`) |
-| INST-09 | Phase 6 | Pending (`wez update` self-update via the shared launcher) |
+| INST-07 | Phase 6 | Done (Phase 6; macOS asset on-Mac verify deferred D-18) |
+| INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
+| INST-09 | Phase 6 | Done (Phase 6) |
 
 **v1 coverage: 34/34 requirements mapped (INST-07 + INST-08 + INST-09 added 2026-06-14). Phase 0 carries validation work only (no REQUIREMENTS.md items). Phase 7 is the macOS verification gate (D-18) — no new IDs.**
 
 ---
 
 *Roadmap created: 2026-06-07*  
-*Last updated: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18); discuss-phase 6 added INST-08 (cross-platform build/publish pipeline)*
+*Last updated: 2026-06-20 — reconciled the Coverage table with delivered reality (TAB-01..05, SCEN-01/02, INST-07/08/09 flipped from Pending to Done; all rows normalized to the "Done (Phase N, Linux; macOS deferred D-18)" form). The Coverage table now agrees byte-for-byte with the REQUIREMENTS.md Traceability table per requirement ID (quick task 260620-tf0). Prior: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18); discuss-phase 6 added INST-08.*

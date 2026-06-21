@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-06-18T00:55:14.552Z"
+status: Phases 0-6.3 complete; next: plan Phase 6.5
+last_updated: "2026-06-20T00:00:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 8
+  completed_phases: 10
   total_plans: 48
-  completed_plans: 46
-  percent: 62
+  completed_plans: 48
+  percent: 77
 ---
 
 # Project State: wezterm-setup
@@ -26,7 +26,10 @@ progress:
 
 ## Current Position
 
-Phase: 06.3 (Distribution Channels (INSERTED)) — EXECUTING
+Phase: 06.3 (Distribution Channels (INSERTED)) — COMPLETE (2026-06-18). Phases 0,1,2,3,4,5,6,6.1,6.2,6.3 are all complete (10/13); next = Phase 6.5 (then 6.4, then 7). 48/48 plans summarized after the 06.1-07 backfill (quick task 260620-tf0).
+
+> The historical "EXECUTING" notes below are preserved as session history — they document the round-1/2/3 reopen fixes that landed during Phase 6 / 6.3. The authoritative current status is the line above and the Phase Status table.
+
 **Reopen fix (round 1 — tar):** `tools/bootstrap-wezterm.sh install_linux` used `tar --no-absolute-names` (BSD-tar idiom GNU tar rejects) → live `curl|bash` aborted on every Linux box. Removed the flag; regression guard in `tests/cli/bootstrap_update_test.lua`. Re-verified by a real sandboxed `install_linux nightly`.
 
 **Reopen fix (round 2 — INST-08 supply side, first live run via `v0.1.0`):** cutting the first tag exposed that the WHOLE supply side was grep-verified, never run — it failed on all 3 legs + then shipped a broken Linux binary. Bugs fixed: release.yml had no release-create step (added race-safe `Ensure release exists` + `workflow_dispatch`); build.sh used `pkg-config --variable=includedir` not `--cflags` (header not found) AND passed absolute source paths to luastatic (wrong bundled module names) AND silently fell back to a dev-launcher pointing at install.sh's deleted /tmp checkout; cli/wez.lua `is_main()` was false inside the luastatic binary (arg[0]=exe, not `wez.lua`) so the shipped binary was INERT. Fixes: build.sh `--cflags` + explicit static-archive link + REPO_ROOT-relative luastatic invocation + loud-fail (no dev-launcher) on remote + non-empty smoke-test; wez.lua `is_main()` now uses the require-key vararg. macOS legs removed from release.yml (deferred to Phase 7 on real hardware).
@@ -42,9 +45,9 @@ Plan: 3 of 3
 **06.1-05 DONE (2026-06-15):** RENDER side now agrees with the CLI carrier + Arrange keys land, via TDD (Task 1 RED `307cf6d` → GREEN `f8094f9`; Task 2 RED `fc563bb` → GREEN `860ee98`). `config/wezterm-setup/format-tab-title.lua`: the steady-state accent reads the ACTIVE pane's `WEZTERM_TAB_COLOR` only (D-02) — the `or tabColor` prefix fallback is GONE (D-04); `resolve_profile` now accepts `#RRGGBBAA` (8-digit) without default-fallback (D-09), malformed/over-long hex still defaults (T-06.1-12); `parse_tab_title` demoted to DISPLAY-only migration grace (legacy `cyan:api` → shows `api`, color half discarded, no per-paint warning). Arrange (D-12): `keybindings.lua` gains `Alt+Shift+R` RotatePanes Clockwise + `Alt+Shift+E` CounterClockwise, `init.lua resolve_action` gains the matching `RotatePanes` arm in LOCKSTEP (Pitfall 3 — no config-load error), `Alt+Shift+Z` zoom retained; no DisableDefaultAssignment needed (Arrange chords shadow no WezTerm default — documented). Item 8: `Ctrl+Shift+F` Search + `Ctrl+R` CycleMatchType documented as embraced defaults (no binding). Suite 23/23 green. Live tab-bar RENDER + visual RotatePanes verification owned by Plan 07 (recorded repro — not headlessly assertable); alpha only renders with window transparency (Pitfall 4 caveat).
 **06.1-02 / 06.1-06 / 06.1-07 DONE (2026-06-15):** shared `cli/lib/cwd.lua` resolver (literal/`~`/`$ENV`/relative, no shell eval, HOME-unset guard — D-07/D-08); `wez doctor` `gate_no_shadowing` core gate + tab-color migration guide (D-10/D-11); refreshed `dev`+`ai` seed scenes with per-pane colors and the `{cwd}` title token (D-13/D-14). Plus the mid-UAT `{cwd}` token (`title.lua expand_cwd`, shell-free `$(basename "$PWD")` equivalent) and the clean-pane scrollback fix (setup printf self-erases — no OSC garbage).
 **06.1 UAT (2026-06-15):** 8/8 happy-path PASS. Two in-session findings fixed in-phase (scene scrollback garbage; missing `{cwd}` titles). Two **design** gaps deferred (NOT defects — current behavior matches locked D-02/D-03/D-04): **G-1** icon should be its own attr (CLI + recipe), decoupled from the title's first word; **G-2** tab color vs pane color share one `WEZTERM_TAB_COLOR` var (confirmed OUR impl, not a WezTerm limit) → split into tab-own + per-pane vars, explicit tab color wins, opt-in `adopt_active_pane_color`. Both extend 06.1's decouple theme and revise locked decisions → **follow-up phase** (also pending backlog: nightly/latest release channel, `wez uninstall`, `{cwd}`-in-title auto-fallback). See `06.1-UAT.md` Gaps.
-**Current Phase**: Phase 06.1 — Tab/Scene Identity Redesign COMPLETE + UAT-verified. Two follow-up phases now captured in ROADMAP.
-**Delta phases queued (macOS-independent), numeric = execution order:** **6.2 → 6.3 → 6.4 → 7**. 6.2 Identity Orthogonality (icon attr G-1 + tab/pane color split G-2a + opt-in `adopt_active_pane_color` toggle G-2b + {cwd} auto-fallback); 6.3 Distribution Channels (nightly/latest rolling release + bootstrap channel selector + `wez uninstall`); 6.4 doc audit (documents the final reality, runs last); Phase 7 macOS = close gate (hardware-blocked). NOTE: the old 6.2 "doc audit" was renumbered to 6.4 (never started).
-**Next action**: `/gsd-discuss-phase 06.2` (Identity Orthogonality) — the recommended next step while macOS hardware is unavailable.
+**Current Phase**: Phases 0–6.3 COMPLETE (10/13). Phase 6.1 (Tab/Scene Identity Redesign, UAT-verified), 6.2 (Identity Orthogonality), and 6.3 (Distribution Channels) all shipped. Remaining: Phase 6.5 (Keybinding Clarity & `wez keys` output curation), then 6.4 (doc audit, runs last), then Phase 7 (macOS parity close gate, hardware-blocked).
+**Delta phases remaining, numeric = execution order:** **6.5 → 6.4 → 7**. 6.5 Keybinding Clarity (curated-first `wez keys` output, one display convention, de-noise, mapped:+Shift reconcile); 6.4 doc audit (documents the final reality, runs last — depends on 6.5); Phase 7 macOS = close gate (hardware-blocked).
+**Next action**: `/gsd-discuss-phase 06.5` (Keybinding Clarity & `wez keys` Output Curation) — the recommended next step while macOS hardware is unavailable.
 **What shipped (6 plans, 21 commits, +1038 lines, suite 21/21):** `tools/install.sh` (pipe-safe one-liner: main()-last-line, /dev/tty open-probe, codeload tarball + mktemp/trap cleanup, WEZ_REMOTE_BOOTSTRAP=1 handoff, WEZ_REF pin); `tools/build.sh` repointed castocolina + per-asset .sha256 + portable verify; `tools/publish.sh` + `make build/publish`; `.github/workflows/release.yml` (matrix ubuntu/macos-15-intel/macos-14, arm64 codesign); `tools/ci-setup-toolchain.sh`; `tools/bootstrap-wezterm.sh` nightly-default + update-in-place + `wezterm_install_is_user_path` predicate; `cli/commands/update.lua` (`wez update`, split semver/datestamp comparators, system-install guard) + `cli/spec.lua` registration; README via crafting-effective-readmes; `bash -n` gate in run-tests.sh.
 **Verification:** 06-VERIFICATION.md status=passed-with-concerns, 8/8 SC. Live-checked: `wez update` refuses the system /usr/bin wezterm (P6-D09 holds); install.sh temp cleanup fixed (eb8a691, live-dogfound bug); deterministic headless-abort.
 **Known interim (deferred-by-design, NOT failures):** (1) no `v*` release tag cut yet → live wez-binary download not exercised end-to-end; dev source-launcher/local-checkout fallback keeps the installer working (Open Q3, maintainer action). (2) macOS on-Mac verification = Phase 7 (`install_macos()` stub; macOS asset BUILD is wired in CI). Coverage 34/34 reqs mapped (INST-07/08/09 added). Phases 0–6 done; Phase 7 is the v1 close gate.
@@ -53,15 +56,22 @@ Plan: 3 of 3
 ### Progress Bar
 
 ```
-Phase 0  [██████████]  Complete (2026-06-07)
-Phase 1  [░░░░░░░░░░]  Not started
-Phase 2  [░░░░░░░░░░]  Not started
-Phase 3  [░░░░░░░░░░]  Not started
-Phase 4  [░░░░░░░░░░]  Not started
-Phase 5  [░░░░░░░░░░]  Not started
+Phase 0    [██████████]  Complete (2026-06-07)
+Phase 1    [██████████]  Complete (2026-06-10)
+Phase 2    [██████████]  Complete (2026-06-11)
+Phase 3    [██████████]  Complete (2026-06-12)
+Phase 4    [██████████]  Complete (2026-06-13)
+Phase 5    [██████████]  Complete (2026-06-14)
+Phase 6    [██████████]  Complete (2026-06-15)
+Phase 6.1  [██████████]  Complete (2026-06-15, UAT-verified)
+Phase 6.2  [██████████]  Complete (2026-06-16)
+Phase 6.3  [██████████]  Complete (2026-06-18)
+Phase 6.5  [░░░░░░░░░░]  Not started (next, before 6.4)
+Phase 6.4  [░░░░░░░░░░]  Not started (after 6.5)
+Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 ```
 
-**Overall**: 1/6 phases complete
+**Overall**: 10/13 phases complete (~77%)
 
 ---
 
@@ -76,6 +86,11 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 4 | Ad-hoc Scenes | Complete | 2026-06-13 |
 | 5 | Named Scenes | Complete | 2026-06-14 |
 | 6 | Ergonomic Installer | Complete (passed-with-concerns) | 2026-06-15 |
+| 6.1 | Tab and Scene Identity Redesign | Complete (UAT-verified) | 2026-06-15 |
+| 6.2 | Identity Orthogonality | Complete | 2026-06-16 |
+| 6.3 | Distribution Channels | Complete | 2026-06-18 |
+| 6.5 | Keybinding Clarity & `wez keys` Output Curation | Pending — next (before 6.4) | - |
+| 6.4 | User Documentation Audit and Refactor | Pending — after 6.5 | - |
 | 7 | macOS Parity Pass (D-18) | Pending — needs a Mac | - |
 
 ---
@@ -91,10 +106,10 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ## Performance Metrics
 
-**Plans executed**: 4 (Phase 0)  
-**Plans verified**: 4 (goal-backward against ROADMAP Success Criteria 1–4)  
-**Requirements delivered**: 0/29 (Phase 0 produces decisions, no REQUIREMENTS items)  
-**Phases complete**: 1/6
+**Plans executed**: 48/48 (Phases 0–6.3; includes the retroactively backfilled 06.1-07 summary)  
+**Plans verified**: tracked per-phase in the SUMMARY/VERIFICATION artifacts under `.planning/phases/`  
+**Requirements delivered**: 34/34 v1 requirements Done on Linux (platform-sensitive ones carry "macOS deferred D-18", flipped to Done in Phase 7)  
+**Phases complete**: 10/13
 
 ---
 
@@ -109,7 +124,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 | Decision | Status |
 |----------|--------|
-| Tab color stored in tab title prefix (`"color:title"`) | Proven 2026-06-07 |
+| Tab color stored in tab title prefix (`"color:title"`) | Superseded (Phase 6.1) — color now carried by the `WEZTERM_TAB_COLOR` user var on the tab's panes; title is pure text via `set-tab-title`; the `color:title` encoding was dropped (parse-and-warn migration only) |
 | Pane-level color via OSC 1337 `SetUserVar` | Proven 2026-06-07 |
 | Companion CLI language: Lua preferred, Python/uv fallback | Pending — Phase 0 spike |
 | Bash excluded as CLI language | Confirmed |
@@ -147,7 +162,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 
 ### Validated Capabilities (pre-Phase 0)
 
-- Tab-level persistent color via `set-tab-title` prefix convention (`"color:title"` or `"color"`)
+- Tab-level persistent color via `set-tab-title` prefix convention (`"color:title"` or `"color"`) — **superseded by the Phase 6.1 `WEZTERM_TAB_COLOR` user-var model** (color decoupled from title; the `color:title` prefix encoding was dropped). History retained.
 - Pane-level color override via `WEZTERM_TAB_COLOR` user var (OSC 1337 escape)
 - Active tab visual differentiation (indicator + bold text)
 - Color profiles: red, orange, yellow, green, teal, cyan, blue, navy, purple, pink
@@ -173,6 +188,8 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 260618-dpp | Install WezTerm .desktop launcher + icon into user-space XDG dirs (install_linux) | 2026-06-18 | 93efe54 | [260618-dpp-install-wezterm-desktop-launcher-icon-in](./quick/260618-dpp-install-wezterm-desktop-launcher-icon-in/) |
 | 260618-evx | Show stable release date in the wez-CLI channel picker (resolve_stable_date — date parity with nightly) | 2026-06-18 | c9cf82c | [260618-evx-show-stable-release-date-in-wez-channel-](./quick/260618-evx-show-stable-release-date-in-wez-channel-/) |
 | 260618-fsg | Simplify wez stable-channel resolution: one /releases/latest fetch + shared `_json_str` extractor (entropy −7 lines; resolve_stable_date folded into resolve_stable_latest) | 2026-06-18 | 0c78694 | [260618-fsg-simplify-wez-stable-channel-resolution-s](./quick/260618-fsg-simplify-wez-stable-channel-resolution-s/) |
+| 260620-t9k | Reconcile failing `recipe_test.lua` 2.9d ai.toml fixture with shipped seed (color yellow + follow_pane_color=true); closes 06.3 deferred item D-1. Verified structurally — live suite run deferred to CI/Lua host (no Lua on this Mac, Phase 7 C-1) | 2026-06-20 | 395586f | [260620-t9k-reconcile-the-failing-cli-lib-recipe-tes](./quick/260620-t9k-reconcile-the-failing-cli-lib-recipe-tes/) |
+| 260620-tf0 | Reconcile stale planning ledgers with delivered reality — STATE (frozen ~Phase 6 → 10/13 phases, 48/48 plans), ROADMAP + REQUIREMENTS coverage/traceability (all 34 reqs Done, macOS-deferred where applicable; tables now agree per ID), PROJECT (Active→Validated, color:title decision marked superseded by 6.1), SCEN-06 seed table corrected to shipped reality; backfilled 06.1 `07-SUMMARY.md` | 2026-06-20 | 9595091 | [260620-tf0-reconcile-stale-planning-ledgers-with-de](./quick/260620-tf0-reconcile-stale-planning-ledgers-with-de/) |
 
 ### Discoveries
 
@@ -223,7 +240,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 ---
 
 *State initialized: 2026-06-07*  
-*Last updated: 2026-06-07 after Phase 0 completion*
+*Last updated: 2026-06-20 — reconciled the frozen ledger with delivered reality: frontmatter now reads 10/13 phases complete, 48/48 plans, ~77%; Current Position prose, Progress Bar, Phase Status table, and Performance Metrics all reflect completion through Phase 6.3 (next = Phase 6.5). The tab-color-prefix decision + validated bullet are annotated superseded by Phase 6.1 (history preserved). Quick task 260620-tf0.*
 
 ## Decisions
 

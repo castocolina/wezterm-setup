@@ -35,10 +35,10 @@
 
 ### Pane Identity
 
-- [ ] **PANE-01**: `wez pane color <name|hex>` sets the pane background using named palette or hex value
-- [ ] **PANE-02**: `wez pane color reset` restores the default pane background
-- [ ] **PANE-03**: `wez pane title "<text>"` sets a custom title (text + emoji) visible in the tab bar when the pane is active
-- [ ] **PANE-04**: Pane color and title persist across focus changes within the pane
+- [x] **PANE-01**: `wez pane color <name|hex>` sets the pane background using named palette or hex value
+- [x] **PANE-02**: `wez pane color reset` restores the default pane background
+- [x] **PANE-03**: `wez pane title "<text>"` sets a custom title (text + emoji) visible in the tab bar when the pane is active
+- [x] **PANE-04**: Pane color and title persist across focus changes within the pane
 
 ### Tab Identity
 
@@ -50,18 +50,20 @@
 
 ### Scenes
 
-- [ ] **SCEN-01**: `wez scene new` opens a new tab with a specified layout, N styled panes, per-pane startup commands, tab color, and tab title
-- [ ] **SCEN-02**: Supported layouts at minimum: `tall`, `tall:mirrored`, `grid`, `horizontal`
-- [ ] **SCEN-03**: Scene recipes in `~/.config/wezterm/wezterm-setup/scenes/` are TOML or Lua files loaded by name
-- [ ] **SCEN-04**: `wez scene launch <name>` produces the same result as an equivalent `wez scene new` call
+- [x] **SCEN-01**: `wez scene new` opens a new tab with a specified layout, N styled panes, per-pane startup commands, tab color, and tab title
+- [x] **SCEN-02**: Supported layouts at minimum: `tall`, `tall:mirrored`, `grid`, `horizontal`
+- [x] **SCEN-03**: Scene recipes in `~/.config/wezterm/wezterm-setup/scenes/` are TOML or Lua files loaded by name
+- [x] **SCEN-04**: `wez scene launch <name>` produces the same result as an equivalent `wez scene new` call
 - [x] **SCEN-05**: Scene names dynamically complete in zsh and bash based on recipe files present in `~/.config/wezterm/wezterm-setup/scenes/` — no manual update needed when adding or removing recipes
 - [x] **SCEN-06**: Installer seeds three example recipes using copy-if-absent; user edits survive reinstall
 
-  | Recipe | Layout | Color | Panes | Startup commands |
-  |--------|--------|-------|-------|------------------|
-  | `dev` | `tall` | `green` | 2 | shell (cwd), shell (cwd) |
-  | `ai` | `tall` | `purple` | 2 | shell (cwd), shell (cwd) |
-  | `docker` | `grid` | `teal` | 4 | `docker stats`, `docker ps`, `docker compose logs -f`, shell |
+  | Recipe | Layout | Tab color (icon) | Panes | Startup commands (pane color/icon) |
+  |--------|--------|------------------|-------|------------------------------------|
+  | `dev` | `tall:mirrored` | `green` (build) | 3 | `$EDITOR` (green/edit), `shell` (teal/shell), `git status` (cyan/git) — title `@{cwd} Dev` |
+  | `ai` | `tall` | `yellow` (ai), `follow_pane_color = true` | 2 | `claude` (purple/ai, focus=true), `shell` (red/shell) — title `@{cwd} AI work` |
+  | `docker` | `tall:mirrored` | `blue` (docker) | 3 | `shell` (navy/shell), `docker-ps` (cyan/docker), `docker-memory` (teal/docker) — title `@{cwd} Docker` |
+
+  > **Seed evolution note:** the shipped seed colors, layouts, and icons evolved through Phases 6.1 (rich `{cwd}`-title scene schema + per-pane colors) and 6.2 (icon as its own attribute + tab/pane color split + `follow_pane_color`); the table above reflects the actual `scenes/*.toml` files. The SCEN-06 requirement itself — *seed three example recipes `ai`/`docker`/`dev` via copy-if-absent, user edits survive reinstall* — still holds unchanged.
 
 ## v2 Requirements
 
@@ -88,9 +90,9 @@
 | INST-04 | Phase 1 | Done (01-06) |
 | INST-05 | Phase 1 | Done (01-06) |
 | INST-06 | Phase 1 | Done (01-02, Linux; macOS deferred D-06/D-18) |
-| INST-07 | Phase 6 | Pending (ergonomic one-line installer + README) |
-| INST-08 | Phase 6 | Pending (cross-platform CI + local `make build/install/publish`) |
-| INST-09 | Phase 6 | Pending (`wez update` self-update via the shared launcher) |
+| INST-07 | Phase 6 | Done (Phase 6; macOS asset on-Mac verify deferred D-18) |
+| INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
+| INST-09 | Phase 6 | Done (Phase 6) |
 | FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
@@ -100,22 +102,22 @@
 | DIAG-02 | Phase 1 | Done (Plan 05) |
 | DIAG-03 | Phase 1 | Done (Plan 05) |
 | DIAG-04 | Phase 1 | Done (Plan 05) |
-| DIAG-05 | Phase 1 | Done (Plan 07) |
-| PANE-01 | Phase 2 | Pending |
-| PANE-02 | Phase 2 | Pending |
-| PANE-03 | Phase 2 | Pending |
-| PANE-04 | Phase 2 | Pending |
-| TAB-01 | Phase 3 | Complete |
-| TAB-02 | Phase 3 | Complete |
-| TAB-03 | Phase 3 | Complete |
-| TAB-04 | Phase 3 | Complete |
-| TAB-05 | Phase 3 | Complete |
-| SCEN-01 | Phase 4 | Pending |
-| SCEN-02 | Phase 4 | Pending |
-| SCEN-03 | Phase 5 | Pending |
-| SCEN-04 | Phase 5 | Pending |
-| SCEN-05 | Phase 5 | Done (05-04, Linux; macOS deferred D-18) |
-| SCEN-06 | Phase 5 | Pending |
+| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS deferred D-18) |
+| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| TAB-01 | Phase 3 | Done (Phase 3) |
+| TAB-02 | Phase 3 | Done (Phase 3) |
+| TAB-03 | Phase 3 | Done (Phase 3) |
+| TAB-04 | Phase 3 | Done (Phase 3) |
+| TAB-05 | Phase 3 | Done (Phase 3) |
+| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
 
 **Coverage:**
 
@@ -126,4 +128,4 @@
 
 ---
 *Requirements defined: 2026-06-07*  
-*Last updated: 2026-06-07 after initial definition*
+*Last updated: 2026-06-20 — reconciled the v1 checkbox list + Traceability table with delivered reality (all v1 requirements Done; platform-sensitive ones carry the "macOS deferred D-18" qualifier flipped to Done in Phase 7); corrected the SCEN-06 seed table to the shipped `scenes/*.toml` (seeds evolved in Phases 6.1/6.2). Traceability now agrees byte-for-byte with the ROADMAP coverage table (quick task 260620-tf0).*
