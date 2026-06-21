@@ -346,12 +346,19 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 4. Every "macOS deferred D-18" status in REQUIREMENTS.md / coverage is flipped to Done with recorded evidence (incl. the A-1 `scene new --layout/--color` completion confirmed in zsh on macOS)
 
 **Plans**: 5 plans
-
 Plans:
+**Wave 1**
+
 - [ ] 07-01-PLAN.md — Wave 0: sudo-free macOS compile toolchain (lua@5.4 keg + luastatic, `make setup`) + bash-3.2-safe run-tests.sh (mapfile removed) + sha256 sweep [wave 0]
 - [ ] 07-02-PLAN.md — Real install_macos() .app placement to ~/Applications (integrity-gate-before-extract, ditto) + wezterm_macos_asset_url + unit test (INST-06, D-04/D-05/D-07) [wave 1]
 - [ ] 07-03-PLAN.md — CI/CD: re-introduce the 3-leg release.yml matrix (ubuntu/macos-15-intel/macos-14) + build-time ad-hoc codesign both arches + ci-setup-toolchain lua@5.4 fix + arm64 smoke + dispatch dry-run (D-01/D-06) [wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 07-04-PLAN.md — E2E loop: dispatch→`gh run watch`→real install→verify (integrity gate, doctor exit 0) + D-07 quarantine verify-then-decide + first-v*-tag human checkpoint (INST-06/07, D-07) [wave 2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 07-05-PLAN.md — Parity verification + evidence: verify-macos.sh auto gate green + drive the full runbook + agent-ui-ux-designer review + flip all D-18 statuses to Done with citations (D-02/D-03) [wave 3]
 
 > **Phase 7 / 7.1 split (CONTEXT D-01/D-01b, 2026-06-20):** Phase 7 is the v1 gate — it delivers the entire macOS build INCLUDING the arm64 asset (built + ad-hoc-codesigned via CI/CD) plus the full agent-driven ecosystem verification on the available **Intel** Mac. arm64 status flips on the shared CI/CD build + codesign + Intel-proven parity; **no Apple Silicon hardware run is required for the v1 close**. The Apple-Silicon end-user distribution check is the separate, **non-gating Phase 7.1** (out of scope here).

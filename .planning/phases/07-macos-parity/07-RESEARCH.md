@@ -433,21 +433,23 @@ xattr -p com.apple.quarantine ~/.local/bin/wez 2>/dev/null \
 | A4 | curl/wget downloads carry no `com.apple.quarantine` on this machine's macOS 14.7.1 | Pitfall 5 / D-07 | Low — D-07 is explicitly verify-then-decide; the probe in the runbook confirms it empirically, so a wrong assumption is caught, not shipped. |
 | A5 | Ad-hoc-signed x86_64 `wez` runs without codesign on Intel (only arm64 SIGKILLs unsigned) | Pattern 3 | Low — verify-macos.sh already runs `dist/wez version` on this Intel Mac as the proof; arm64 SIGKILL is the documented case. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **First `v*` tag is a maintainer action (Open Q3 carried from Phase 6).**
+> All three resolved during planning (2026-06-20) — each disposition is baked into a plan task.
+
+1. **First `v*` tag is a maintainer action (Open Q3 carried from Phase 6).** — **RESOLVED → Plan 07-04 Task 3.**
    - What we know: `release.yml` `v*` path is correctness-verified (actionlint/greps) but never run live; the nightly channel auto-publishes. `publish.sh` defaults `WEZ_RELEASE_TAG=v0.1.0`.
    - What's unclear: whether the agent should cut the first `v1.0.0` tag autonomously, or behind a human checkpoint. Tag pushes trigger real public releases.
-   - Recommendation: gate the first `git push --tags` behind a `checkpoint:human-verify` task; use `workflow_dispatch` (nightly path) for the unattended dry-run that proves the macOS legs build + codesign + upload before the real tag.
+   - **Resolution:** the first `git push --tags` is gated behind a `blocking-human` checkpoint task (07-04 Task 3, `autonomous: false`); the `workflow_dispatch` nightly path is the unattended dry-run that proves the macOS legs build + codesign + upload before the real tag.
 
-2. **Exact current WezTerm macOS nightly asset filename (A3).**
+2. **Exact current WezTerm macOS nightly asset filename (A3).** — **RESOLVED → Plan 07-02 Task 1 (execution-time API confirm).**
    - What we know: code references `WezTerm-macos-nightly.zip` in `latest_nightly_datestamp`.
    - What's unclear: whether per-dated-release assets use `WezTerm-macos-<datestamp>.zip` or a different scheme.
-   - Recommendation: query the wez/wezterm releases API for the nightly + a dated tag's assets[] before finalizing `wezterm_macos_asset_url`; mirror the Linux `wezterm_release_asset_url` shape.
+   - **Resolution:** 07-02 Task 1's first action queries the wez/wezterm releases API for the nightly + a dated tag's assets[] before finalizing `wezterm_macos_asset_url` (mirroring the Linux `wezterm_release_asset_url` shape), recording the API-confirmed filename + date in a code comment as an acceptance gate. The RED test asserts host + `.zip` suffix only, so the exact name is bounded to execution time.
 
-3. **Should the agent VERIFY (not just build) arm64 in this phase?**
+3. **Should the agent VERIFY (not just build) arm64 in this phase?** — **RESOLVED → Plan 07-03 Task 2 (macos-14 in-build smoke).**
    - What we know: D-01 says arm64 flips on shared-build + codesign + Intel parity; no Apple-Silicon hardware run. D-06 says arm64 first-launch is the Phase 7.1 check.
-   - Recommendation: in CI, on the `macos-14` (arm64) leg, run `codesign --verify dist/wez` and (since the runner IS arm64) `./dist/wez version` as a free in-build smoke — that strengthens the arm64 evidence WITHOUT needing local Silicon hardware, and is fully Intel-session-driven via `gh run watch`. Capture that log line as arm64 evidence.
+   - **Resolution:** on the `macos-14` (arm64) CI leg, run `codesign --verify dist/wez` and (since the runner IS arm64) `./dist/wez version` as a free in-build smoke — strengthening arm64 evidence WITHOUT local Silicon hardware, fully Intel-session-driven via `gh run watch`. That log line is captured as arm64 evidence. Real arm64 first-launch remains the out-of-scope, non-gating Phase 7.1 check.
 
 ## Environment Availability
 
