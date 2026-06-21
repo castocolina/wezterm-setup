@@ -52,7 +52,7 @@ updated: 2026-06-20
 | P04-T2 | 07-04 | 2 | INST-07/INST-06 | T-07-13/14/16 | checksum-verified-before-chmod; D-07 verify-then-decide; doctor exit 0 | live E2E | `wez doctor` (exit 0) ; quarantine probe | ✅ (install path after W1) | ⬜ pending |
 | P04-T3 | 07-04 | 2 | INST-07 | T-07-17 | first v* tag gated behind human checkpoint | human-check | maintainer confirm (pushed+green / deferred) | n/a (checkpoint) | ⬜ pending |
 | P05-T1 | 07-05 | 3 | INST-01/FOUND-01/DIAG-05/PANE-01..04/SCEN-03..06 | T-07-18/19 | auto gate FAIL=0; runbook driven; ui-ux notes | gate + runbook | `bash tools/verify-macos.sh` (FAIL=0, exit 0) | ✅ (verify-macos.sh) | ⬜ pending |
-| P05-T2 | 07-05 | 3 | (all D-18 IDs) | T-07-19 | each Done flip cites a runbook section; tables agree per ID | doc-consistency | `grep -c 'macOS deferred D-18' .planning/REQUIREMENTS.md .planning/ROADMAP.md` | ✅ (REQUIREMENTS/ROADMAP) | ⬜ pending |
+| P05-T2 | 07-05 | 3 | (all D-18 IDs) | T-07-19 | each Done flip cites a runbook section; tables agree per ID | doc-consistency | `for id in INST-01 INST-06 INST-07 FOUND-01 DIAG-05 PANE-01..04 SCEN-03..06; do grep -F "$id" REQUIREMENTS.md ROADMAP.md \| grep -c 'deferred D-18'; done` (per-ID gate, each =0) | ✅ (REQUIREMENTS/ROADMAP) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. Sampling continuity: no 3 consecutive tasks lack an automated/live verify — every task above carries an automated command, a Wave-0 dependency that creates its test, or (P04-T3 only) a human-check checkpoint immediately preceded + followed by automated tasks.*
 
