@@ -349,14 +349,15 @@ do
     },
   })
 
-  -- ai: tall, pink, tab icon=ai + explicit follow_pane_color=false (the documented
-  -- default, written out), a tab @{cwd} title, 2 panes (claude purple focus icon=ai /
-  -- shell red icon=shell) each with an @{cwd} title.
+  -- ai: tall, yellow tab, tab icon=ai + explicit follow_pane_color=true (the opt-in
+  -- is ON in this seed -- a colorless-tab-tracks-focused-pane flag; here the tab has
+  -- an explicit color so it is informational), a tab @{cwd} title, 2 panes (claude
+  -- purple focus icon=ai / shell red icon=shell) each with an @{cwd} title.
   local ai, ai_err = load_seed("scenes/ai.toml")
   check("2.9c ai.toml round-trips, no err", ai_err == nil and type(ai) == "table")
   teq("2.9d ai.toml maps to the D-03/D-05/D-14 args", ai, {
-    layout = "tall", color = "pink", title = "@{cwd} AI work", cwd = nil,
-    icon = "ai", follow_pane_color = false,
+    layout = "tall", color = "yellow", title = "@{cwd} AI work", cwd = nil,
+    icon = "ai", follow_pane_color = true,
     pane = {
       "cmd=claude, color=purple, title=@{cwd} AI Session, focus=true, icon=ai",
       "cmd=shell, color=red, title=@{cwd} AI Shell, icon=shell",
