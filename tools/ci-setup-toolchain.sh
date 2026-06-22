@@ -69,17 +69,33 @@ install_macos() {
   # version-capture gate below and for the SUBSEQUENT build.sh step in the job.
   log "macos runner -> brew install lua@5.4 + luarocks, then luastatic"
   brew install lua@5.4 luarocks
-  luarocks install luastatic
+  # --local installs the rock into the runner user's ~/.luarocks tree (mirroring
+  # install_linux). On the Intel runner (macos-15-intel) the system luarocks tree
+  # lives under the /usr/local Homebrew prefix, which the runner user cannot write
+  # without sudo — a bare `luarocks install luastatic` there fails with "install
+  # requires exclusive write access to /usr/local … Permission denied". --local
+  # sidesteps that by targeting the user tree on BOTH arches (the arm64 /opt/homebrew
+  # prefix is writable, but --local is harmless and keeps the two legs uniform).
+  luarocks install --local luastatic
 
   # Keg-only lua@5.4 is not auto-on-PATH (Pitfall 2): prepend its bin so the
   # version capture + the next build step resolve lua5.4 (not the bare 5.5 lua).
   PREFIX="$(brew --prefix lua@5.4)"
   PATH="${PREFIX}/bin:${PATH}"
   export PATH
-  # Persist the keg bin onto the job PATH so the following steps (build.sh) find
-  # lua5.4 without re-resolving the keg.
+  # luarocks --local puts binaries under ~/.luarocks/bin — prepend so the version
+  # capture below and the subsequent build step in the same job find luastatic.
+  if [ -d "${HOME}/.luarocks/bin" ]; then
+    PATH="${HOME}/.luarocks/bin:${PATH}"
+    export PATH
+  fi
+  # Persist both the keg bin AND the luarocks --local bin onto the job PATH so the
+  # following steps (build.sh) find lua5.4 + luastatic without re-resolving them.
   if [ -n "${GITHUB_PATH:-}" ]; then
     printf '%s\n' "${PREFIX}/bin" >>"${GITHUB_PATH}"
+    if [ -d "${HOME}/.luarocks/bin" ]; then
+      printf '%s\n' "${HOME}/.luarocks/bin" >>"${GITHUB_PATH}"
+    fi
   fi
   # NOTE: if the macOS leg later surfaces a luastatic link error for the keg-only
   # headers, the documented fix is the keg link flags

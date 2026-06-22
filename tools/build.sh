@@ -143,18 +143,23 @@ build_with_luastatic() {
   log "luastatic toolchain present -> static single-binary build"
 
   # D-11: stamp the branch-aware version into cli/spec.lua BEFORE luastatic bundles
-  # it, restoring the source on RETURN so a local build never leaves the tree dirty
-  # (in CI the checkout is ephemeral, but the restore keeps `make build` clean too).
-  local version spec_file
+  # it, then restore the original immediately AFTER the bundle so a local `make
+  # build` never leaves the tree dirty (in CI the checkout is ephemeral, but the
+  # restore keeps the dev tree clean too). We deliberately do NOT use a RETURN trap:
+  # the luastatic step below runs in a `( )` subshell, and a RETURN trap can fire on
+  # that subshell's return (consuming the backup early), so we save + restore
+  # explicitly around the bundle instead. SPEC_BAK is function-scoped and the
+  # restore is unconditional via the `[ -n "${SPEC_BAK}" ]` guard at the call site.
+  local version spec_file SPEC_BAK=""
   version="$(resolve_build_version)"
   spec_file="${REPO_ROOT}/cli/spec.lua"
   if [ -n "${version}" ] && [ -f "${spec_file}" ]; then
-    cp "${spec_file}" "${spec_file}.bak.$$"
-    # shellcheck disable=SC2064
-    trap "mv -f '${spec_file}.bak.$$' '${spec_file}'" RETURN
+    SPEC_BAK="$(mktemp)"
+    cp "${spec_file}" "${SPEC_BAK}"
     # Replace the M.VERSION literal. The version contains only tag/date/branch
     # chars (digits, letters, '.', '-', '+') — no '/' or sed-delimiter conflict —
-    # so a '#'-delimited s### is safe.
+    # so a '#'-delimited s### is safe. `sed -i.sedtmp` is portable across GNU/BSD
+    # (both honor the suffix arg); remove the suffixed backup it leaves behind.
     sed -i.sedtmp "s#^M\.VERSION = \".*\"#M.VERSION = \"${version}\"#" "${spec_file}"
     rm -f "${spec_file}.sedtmp"
     log "D-11: stamped version -> ${version}"
@@ -222,6 +227,12 @@ build_with_luastatic() {
       ${liblua:+"${liblua}"} \
       ${lua_cflags}
   )
+
+  # D-11: the bundle is baked — restore the original cli/spec.lua now so the dev
+  # tree is left byte-clean (the stamped version is already inside the binary).
+  if [ -n "${SPEC_BAK}" ]; then
+    mv -f "${SPEC_BAK}" "${spec_file}"
+  fi
 
   # luastatic writes ./<name> (and ./<name>.c) into the cwd (REPO_ROOT). Normalize
   # the binary to dist/wez and clean up the generated C translation unit.
