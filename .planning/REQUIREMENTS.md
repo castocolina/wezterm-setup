@@ -89,7 +89,7 @@
 | INST-03 | Phase 1 | Done (01-04) |
 | INST-04 | Phase 1 | Done (01-06) |
 | INST-05 | Phase 1 | Done (01-06) |
-| INST-06 | Phase 1 | Done (01-02, Linux; macOS deferred D-06/D-18) |
+| INST-06 | Phase 1 | Done (01-02 Linux; macOS .app placement closed 07-02 — real install_macos, integrity-gated, live-verified on Intel) |
 | INST-07 | Phase 6 | Done (Phase 6; macOS asset on-Mac verify deferred D-18) |
 | INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
 | INST-09 | Phase 6 | Done (Phase 6) |
