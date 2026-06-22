@@ -11,14 +11,16 @@
 # tools/ci-setup-toolchain.sh and the build to tools/build.sh (the SAME path
 # `make build` uses locally).
 #
-# Runner labels (RESEARCH Pitfall 1 / State of the Art): the Intel x86_64 leg uses
+# Runner labels (RESEARCH Pitfall 7 / State of the Art): the Intel x86_64 leg uses
 # `macos-15-intel` — the older Intel image P6-D01 originally named was REMOVED by
-# GitHub on 2025-12-04, so it must never appear here. `macos-14` is the arm64-only
-# Apple Silicon image.
+# GitHub on 2025-12-04, so that retired label must NEVER appear here. `macos-14` is
+# the arm64-only Apple Silicon image (free arm64 hardware — the in-build smoke runs
+# there).
 #
-# NOTE: this workflow is NOT exercised until the first `v*` tag is pushed (a
-# maintainer action — RESEARCH Open Q3). Until then it is verified for CORRECTNESS
-# (actionlint + greps), not via a live CI run.
+# NOTE: this workflow is NOT exercised via a LIVE CI run until Plan 07-04 dispatches
+# it (workflow_dispatch dry-run, `gh run watch`). HERE in 07-03 it is verified for
+# CORRECTNESS — actionlint (the static-lint owner; 07-04 does NOT re-run it) + greps
+# + the tests/cli/ci_macos_toolchain_test.lua TEXT gate.
 name: release
 
 on:
@@ -29,6 +31,14 @@ on:
   # Actions UI without cutting a version tag. Per D-07 a dispatch ref is a NON-tag
   # ref, so a workflow_dispatch run resolves CHANNEL=nightly and publishes a
   # datestamped nightly-YYYYMMDD prerelease (same path the schedule cron takes).
+  #
+  # DRY-RUN proof path (the UNATTENDED macOS-leg evidence): a workflow_dispatch run
+  # builds + ad-hoc-codesigns + uploads ALL THREE legs (incl. both macOS arches) to
+  # a nightly-YYYYMMDD PRERELEASE — excluded from /releases/latest — WITHOUT cutting
+  # a real `v*` tag. There is NO manual channel input field to spoof (T-07-11):
+  # github.ref alone decides the channel. Plan 07-04 Task 1 dispatches this and
+  # watches it (`gh run watch`) as the live proof; 07-03 only verifies correctness
+  # (actionlint + the TEXT gate), per the header NOTE.
   workflow_dispatch:
   # D-05: weekly cadence — a self-renewing nightly channel that tracks `main`.
   # The `nightly` keyword is kept by convention (it is the prerelease channel name
@@ -42,15 +52,23 @@ permissions:
   contents: write
 
 jobs:
-  # LINUX-ONLY for v1: the macOS legs are DEFERRED TO PHASE 7 (macOS Parity Pass,
-  # D-18), where they get verified on real Intel + Apple-Silicon hardware — their
-  # toolchain needs on-Mac fixes that cannot be verified without a Mac (Homebrew's
-  # `lua` is now 5.5 not 5.4; the Intel runner hit a /usr/local brew permission
-  # error). Phase 7 re-introduces a `strategy.matrix` over ubuntu + the two macOS
-  # runners; until then this is a single hardcoded job (no matrix).
+  # 3-LEG MATRIX (Phase 7, macOS Parity Pass, D-18): each leg builds the `wez`
+  # luastatic binary NATIVELY on its own OS/arch runner and publishes the asset
+  # under the same name + .sha256 contract. The macOS legs' on-Mac toolchain fixes
+  # landed in 07-03 Task 1 (ci-setup-toolchain.sh pins keg-only lua@5.4; build.sh
+  # ad-hoc codesigns both arches). NEVER add the retired Intel image GitHub removed
+  # on 2025-12-04 (Pitfall 7) — use `macos-15-intel`. fail-fast: false so one leg
+  # failing does not cancel the others.
   build:
-    name: build linux-x86_64
-    runs-on: ubuntu-latest
+    name: build (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest    # linux-x86_64
+          - macos-15-intel   # darwin-x86_64 (Intel)
+          - macos-14         # darwin-aarch64 (Apple Silicon — free arm64 hardware)
     steps:
       # Pinned to an immutable release tag (T-06-03-01: never @main). Hardening to
       # a full commit SHA is a recommended follow-up once registry access exists.
@@ -119,8 +137,21 @@ jobs:
       - name: Build dist/wez (same path as make build)
         run: ./tools/build.sh
 
-      # NOTE: the Apple-Silicon ad-hoc codesign step lives only on the macOS arm64
-      # leg, which is deferred to Phase 7 along with the rest of the macOS matrix.
+      # NOTE: build-time ad-hoc codesign now happens INSIDE tools/build.sh
+      # (build_with_luastatic, guarded by platform_os=macos) on BOTH macOS legs —
+      # no separate codesign step is needed here. The arm64-only smoke below proves
+      # the signed arm64 Mach-O actually runs on real Apple Silicon.
+
+      # arm64-only in-build smoke (RESEARCH Open Q3): the macos-14 runner IS Apple
+      # Silicon, so this is FREE arm64 evidence with no local Mac. Re-verify the
+      # ad-hoc signature build.sh applied, then run the binary — `version` must
+      # produce real output (the runner SIGKILLs an unsigned arm64 Mach-O, so a
+      # successful run is also signature evidence). Gated to the macos-14 leg only.
+      - name: arm64 smoke (codesign --verify + run) [macos-14 only]
+        if: matrix.runner == 'macos-14'
+        run: |
+          codesign --verify --verbose dist/wez
+          ./dist/wez version
 
       # Name + checksum the asset. The asset name is derived from
       # tools/lib/platform.sh `platform_os`/`platform_arch` — BYTE-IDENTICALLY to
@@ -201,8 +232,11 @@ jobs:
       # prefix immediately before every `gh release delete`, so a stable v* release
       # can NEVER be reached by the delete (T-06.3-02-02). Distinct factored step
       # so a Phase 7 matrix can wrap build/publish without touching prune (D-12).
+      # SINGLE-LEG GUARD: with three matrix legs running, the prune MUST run on
+      # exactly ONE leg (ubuntu-latest) — otherwise all three legs would race the
+      # same `gh release delete` calls. The nightly + unchanged guards still apply.
       - name: Prune old nightly releases (D-06)
-        if: ${{ env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged != 'true' }}
+        if: ${{ matrix.runner == 'ubuntu-latest' && env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
