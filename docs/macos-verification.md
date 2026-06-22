@@ -213,7 +213,15 @@ stable tag is an irreversible public release in exchange for full unattended aut
   applies to this new tag).
 - **Decision:** **PUSHED `v1.0.0`** (`git tag v1.0.0 && git push origin v1.0.0`). A `v*`
   tag ref → the release workflow resolves `CHANNEL=stable` → the stable publish path.
-- **Stable run:** `<stable_run_id>` — `gh run watch --exit-status` result recorded below.
+- **Stable run:** `27971643099` (event=push, ref=`v1.0.0`) — `gh run watch --exit-status`
+  returned **exit 0**; all 3 legs success. The **stable `v1.0.0` release published**
+  (`prerelease=false`) with all 6 assets (`wez-macos-x86_64`/`.sha256`,
+  `wez-macos-aarch64`/`.sha256`, plus the linux pair), and `/releases/latest` now resolves
+  to `v1.0.0`.
+
+**Outcome:** `v1.0.0` auto-pushed and its stable run green — the first stable release is live,
+green-gated solely on dry-run-green AND E2E-green (D-10), with no human checkpoint. This was an
+authorized irreversible public release consuming real CI minutes.
 
 ---
 
