@@ -134,7 +134,17 @@ jobs:
       - name: Install Lua toolchain (lua5.4 + luastatic)
         run: ./tools/ci-setup-toolchain.sh
 
+      # D-11 branch-aware version stamp: pass the resolved channel tag as the
+      # version base + the dispatched branch name so build.sh stamps
+      # `<tag>+<branchname>` into the embedded `wez version` on a non-main branch
+      # (the autonomous E2E loop then proves it installed THIS branch's artifact).
+      # The GitHub release TAG stays bare (nightly-YYYYMMDD); only the embedded
+      # version carries the `+branch` suffix. build.sh maps `/`->`-` for SemVer
+      # build-metadata safety and only appends the suffix when the branch != main.
       - name: Build dist/wez (same path as make build)
+        env:
+          WEZ_BUILD_VERSION: ${{ env.TAG }}
+          WEZ_BUILD_BRANCH: ${{ github.ref_name }}
         run: ./tools/build.sh
 
       # NOTE: build-time ad-hoc codesign now happens INSIDE tools/build.sh

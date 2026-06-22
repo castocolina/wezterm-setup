@@ -98,8 +98,67 @@ have_luastatic() {
 # ---------------------------------------------------------------------------
 # Path 1: luastatic single-binary build
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# D-11 branch-aware version stamp. Resolve the version string the shipped binary
+# reports via `wez version`, and stamp it into cli/spec.lua's M.VERSION constant
+# at build time (the file comment already designates this the build/installer
+# stamp point). The string is:
+#
+#   <channel-tag>                on the `main` branch (or when no branch context)
+#   <channel-tag>+<branchname>   on ANY non-main branch (D-11)
+#
+# so the published asset is identifiable as branch-built and the autonomous E2E
+# loop installs+verifies THIS branch's artifact (the GitHub release TAG itself
+# stays `nightly-YYYYMMDD`; the `+<branchname>` lives only in the embedded
+# version string, since `+` is not tag-name-safe). SemVer build-metadata only
+# allows [0-9A-Za-z-] (and `.`), so `/` in a branch name maps to `-`.
+#
+# Inputs (all optional; this is glue, not policy):
+#   * WEZ_BUILD_VERSION — an explicit full version string (CI's Resolve step can
+#     pass the resolved $TAG here). When set it is the channel-tag base.
+#   * WEZ_BUILD_BRANCH  — the branch name (CI passes $GITHUB_REF_NAME; locally we
+#     fall back to `git branch --show-current`).
+# When no base is resolvable we leave M.VERSION untouched (the in-repo default).
+resolve_build_version() {
+  local base branch sanitized
+  base="${WEZ_BUILD_VERSION:-}"
+  if [ -z "${base}" ]; then
+    # No explicit base (local dev build): derive a datestamped nightly base so a
+    # local build is still identifiable, mirroring release.yml's nightly tag shape.
+    base="nightly-$(date -u +%Y%m%d)"
+  fi
+  branch="${WEZ_BUILD_BRANCH:-}"
+  if [ -z "${branch}" ]; then
+    branch="$(git -C "${REPO_ROOT}" branch --show-current 2>/dev/null || true)"
+  fi
+  if [ -n "${branch}" ] && [ "${branch}" != "main" ]; then
+    sanitized="$(printf '%s' "${branch}" | tr '/' '-' | tr -cd '0-9A-Za-z.-')"
+    printf '%s+%s\n' "${base}" "${sanitized}"
+  else
+    printf '%s\n' "${base}"
+  fi
+}
+
 build_with_luastatic() {
   log "luastatic toolchain present -> static single-binary build"
+
+  # D-11: stamp the branch-aware version into cli/spec.lua BEFORE luastatic bundles
+  # it, restoring the source on RETURN so a local build never leaves the tree dirty
+  # (in CI the checkout is ephemeral, but the restore keeps `make build` clean too).
+  local version spec_file
+  version="$(resolve_build_version)"
+  spec_file="${REPO_ROOT}/cli/spec.lua"
+  if [ -n "${version}" ] && [ -f "${spec_file}" ]; then
+    cp "${spec_file}" "${spec_file}.bak.$$"
+    # shellcheck disable=SC2064
+    trap "mv -f '${spec_file}.bak.$$' '${spec_file}'" RETURN
+    # Replace the M.VERSION literal. The version contains only tag/date/branch
+    # chars (digits, letters, '.', '-', '+') — no '/' or sed-delimiter conflict —
+    # so a '#'-delimited s### is safe.
+    sed -i.sedtmp "s#^M\.VERSION = \".*\"#M.VERSION = \"${version}\"#" "${spec_file}"
+    rm -f "${spec_file}.sedtmp"
+    log "D-11: stamped version -> ${version}"
+  fi
 
   # Resolve the Lua 5.4 compile flags for luastatic. Use `pkg-config --cflags`,
   # NOT `--variable=includedir`: on Debian/Ubuntu the .pc includedir is /usr/include
