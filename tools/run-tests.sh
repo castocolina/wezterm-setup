@@ -47,7 +47,11 @@ INTEGRATION="${WEZTERM_INTEGRATION:-0}"
 
 # Collect unit test files: *_test.lua, EXCLUDING *_integration_test.lua unless
 # integration mode is on. (Integration files live only under tests/integration/.)
-mapfile -t ALL_TESTS < <(find "${TEST_ROOTS[@]}" -type f -name '*_test.lua' | sort)
+# Stock macOS ships bash 3.2.57, which lacks the bash-4+ array-read builtin. Use
+# the repo's bash-3.2-safe array-fill idiom (same shape as the SHELL_SCRIPTS loop
+# below) so the harness runs on stock macOS with zero extra installs (D-08).
+ALL_TESTS=()
+while IFS= read -r f; do ALL_TESTS+=("$f"); done < <(find "${TEST_ROOTS[@]}" -type f -name '*_test.lua' | sort)
 
 FILES=()
 for f in "${ALL_TESTS[@]}"; do
