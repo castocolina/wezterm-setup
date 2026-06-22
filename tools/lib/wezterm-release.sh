@@ -141,6 +141,25 @@ wezterm_release_asset_url() {
     "${WEZTERM_RELEASE_HOST}" "${WEZTERM_RELEASE_REPO}" "$tag" "$tag" "$base"
 }
 
+# wezterm_macos_asset_url <tag>
+#   -> https://github.com/wez/wezterm/releases/download/<tag>/WezTerm-macos-<tag>.zip
+#
+# The macOS counterpart of wezterm_release_asset_url (Phase 7 / D-04/D-05). Builds
+# ONLY the official-host HTTPS URL for the macOS `.zip` bundle asset (T-07-06: the
+# tag is a pinned/selected value, never arbitrary host input). The install_macos
+# flow integrity-gates + ditto-extracts the downloaded bytes before placement.
+#
+# API-confirmed asset name (gh api repos/wez/wezterm/releases, checked 2026-06-22):
+# both the rolling `nightly` tag and dated tags name the macOS asset uniformly
+# `WezTerm-macos-<TAG>.zip` (e.g. `WezTerm-macos-nightly.zip`,
+# `WezTerm-macos-20240203-110809-5046fc22.zip`) — closes Open Q2/A3. No fixed
+# per-arch suffix: the single universal `.zip` carries WezTerm.app.
+wezterm_macos_asset_url() {
+  local tag="${1:?wezterm_macos_asset_url: missing release tag}"
+  printf '%s/%s/releases/download/%s/WezTerm-macos-%s.zip\n' \
+    "${WEZTERM_RELEASE_HOST}" "${WEZTERM_RELEASE_REPO}" "$tag" "$tag"
+}
+
 # wezterm_release_archive_binary_path -> the relative path to the `wezterm`
 # executable INSIDE the extracted archive (probe 01: holds). The bootstrap
 # symlinks ~/.local/bin/wezterm to <release-dir>/<this path>.
