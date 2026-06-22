@@ -145,7 +145,54 @@ Assumptions and one-time setup. Tick each as you satisfy it.
 
 ### §B — Real E2E install of THIS branch's artifact (Task 2, D-07)
 
-_(filled by Task 2 below)_
+Run on this Intel Mac (`os=macos arch=x86_64`) from a truly clean state (no prior
+`~/.config/wezterm/wezterm.lua`, no `~/.local/bin/wez`), against the rebuilt
+branch-built nightly asset (the green run `27971403588` on HEAD `eddef2e`):
+
+```
+$ WEZ_REF=gsd/phase-07-macos-parity WEZ_CHANNEL=nightly bash tools/install.sh < /dev/null
+[bootstrap] placed /Users/ramon/Applications/WezTerm.app
+[bootstrap] installed: wezterm 20260622-120102-6ff54928
+[build] Lua toolchain absent -> release-download fallback (channel=nightly, tag=nightly-20260622, wez-macos-x86_64)
+[build] checksum verified for wez-macos-x86_64           # <-- integrity gate BEFORE chmod +x
+[build] verify: '.../dist/wez version' OK (wez nightly-20260622+gsd-phase-07-macos-parity)
+[setup] installed wez -> /Users/ramon/.local/bin/wez
+[setup] delegating install-state decision to wez install-state…
+wez install-state: managed block installed (new /Users/ramon/.config/wezterm/wezterm.lua)
+```
+
+- **Integrity gate (T-07-13):** `checksum verified for wez-macos-x86_64` printed BEFORE
+  `chmod +x` — the per-asset SHA-256 gate passed; never an unverified install.
+- **Branch-built artifact (D-11):** `wez version` → `wez nightly-20260622+gsd-phase-07-macos-parity`
+  (matches the published nightly asset; carries the `+branchname` suffix → THIS branch's
+  artifact, not main's).
+- **`install_macos` placement (INST-06):** `~/Applications/WezTerm.app` placed (07-02 path),
+  inner binary `wezterm 20260622-120102-6ff54928`.
+- **`wez doctor` exits 0** (`doctor_exit=0`): all 5 core integrity gates PASS — including the
+  fresh-install backup-gate exception (`[PASS] timestamped backup exists — fresh install (no
+  prior wezterm.lua) — no backup needed`). The only `[FAIL]` is the **advisory** live-session
+  probe (expected headless; never affects exit code).
+- **Single managed block (INST-01):** the freshly-created `wezterm.lua` carries exactly one
+  managed block wrapping `require('wezterm-setup').apply(config)` over a `config_builder()` base.
+- **Gatekeeper clears:** `WezTerm.app/Contents/MacOS/wezterm --version` → exit 0 (no
+  SIGKILL); the managed config loads cleanly (`show-keys --lua` succeeds, no error overlay).
+- **D-07 quarantine probe (verify-then-decide):**
+  `xattr -p com.apple.quarantine ~/.local/bin/wez` → **no quarantine** (curl download carries
+  none, as RESEARCH Pitfall 5 / A4 predicted); `xattr -p com.apple.quarantine
+  ~/Applications/WezTerm.app` → **no quarantine** either. Gatekeeper did NOT block first
+  launch. **DECISION: install.sh is left UNCHANGED** (the D-07 default outcome) — no
+  `xattr -dr com.apple.quarantine` strip is added; the runbook keeps its manual `xattr -d` /
+  right-click-open fallback note for any future browser-download case. install.sh remains
+  sudo-free.
+
+**Live E2E bug fixed inline (Rule 2):** the first E2E run aborted at the final step —
+`wez install-state: cannot read ~/.config/wezterm/wezterm.lua: No such file or directory`
+(exit 1) — because on a clean machine there was no `wezterm.lua` to inject the managed block
+into, and `wez doctor` then failed its core "timestamped backup exists" gate (a fresh creation
+takes no backup). Both were fixed (commit `eddef2e`): install-state now SEEDS a minimal
+config-builder base and CREATES the file on a fresh install; doctor's backup gate passes on a
+fresh creation. The fixes were rebuilt into the nightly asset via the green re-dispatch
+`27971403588` and re-verified end-to-end (the transcript above is the post-fix run).
 
 ### §C — Green-gated stable tag decision (Task 3, D-10)
 
@@ -458,20 +505,20 @@ Fill in PASS / FAIL / N/A and notes as you go.
 
 | Capability | Requirement(s) | Result | Notes (macOS specifics) |
 |------------|----------------|--------|-------------------------|
-| Prereqs / toolchain (Xcode CLT, lua5.4, luastatic, WezTerm) | — | | |
-| Build CLI binary | — | | luastatic vs dev-launcher? |
-| Unit test suite | — | | which bash ran the harness? |
-| Clean install + single block | INST-01 | | |
-| Timestamped backup | INST-02 | | |
-| Re-install prompt / no-TTY abort | INST-03 | | |
-| Uninstall (full + granular) | INST-04, INST-05 | | |
-| WezTerm bootstrap / reuse | INST-06 | | macOS auto-install is design-only (gap) |
+| Prereqs / toolchain (Xcode CLT, lua5.4, luastatic, WezTerm) | — | PASS | E2E uses the prebuilt release asset (no local luastatic needed); CI builds the asset on macos-15-intel + macos-14 |
+| Build CLI binary | — | PASS | E2E installs the CI-built `wez-macos-x86_64` (release-download path, checksum-verified); arm64 built+smoked on macos-14 |
+| Unit test suite | — | PASS | install_state 70/70 + doctor 29/29 under Homebrew `lua` (5.5) on this Mac; 8 pre-existing unrelated Lua-5.5 failures logged in deferred-items.md |
+| Clean install + single block | INST-01 | PASS | 07-04 Task 2: fresh `wezterm.lua` created with exactly one managed block over a `config_builder()` base |
+| Timestamped backup | INST-02 | PASS (fresh-install exception) | a fresh creation takes no backup (nothing to back up); doctor gate passes via the `Created by wezterm-setup` marker |
+| Re-install prompt / no-TTY abort | INST-03 | PASS | re-run over a present block, no TTY → abort exit 3 naming `--force/--restore/--skip` (verified from source) |
+| Uninstall (full + granular) | INST-04, INST-05 | N/A (07-04) | not re-exercised in 07-04 (owned by the install/uninstall section; covered Linux-side) |
+| WezTerm bootstrap / reuse | INST-06 | PASS | 07-04 Task 2: `install_macos` placed `~/Applications/WezTerm.app` sudo-free (auto-install gap CLOSED in 07-02) |
 | CWD inheritance | FOUND-01 | | per-shell OSC 7 |
 | Clear screen + scrollback (Cmd+K) | FOUND-02 | | Cmd vs Super |
 | Curated bindings | FOUND-03 | | |
 | Bindings runtime-verifiable | FOUND-04 | | |
 | Cross-platform parity (Cmd vs Super) | FOUND-05 | | |
-| `wez doctor` green / fails loudly | DIAG-01 | | |
+| `wez doctor` green / fails loudly | DIAG-01 | PASS | 07-04 Task 2: `doctor_exit=0`; all 5 core gates PASS on this Intel Mac (incl. fresh-install backup-gate exception) |
 | `wez keys` grouped | DIAG-02 | | |
 | `wez keys` conflict/source classify | DIAG-03 | | |
 | `wez keys --json` | DIAG-04 | | |
@@ -496,12 +543,15 @@ cross-platform pass to act on it. One row per issue.
 |---|-------------------|-------------------|---------------------------|--------------------------------------------------------------------------------------|--------------|
 | 1 | CI dispatch — D-11 version stamp restore (07-04 Task 1) | Build step aborted `mv: cannot stat '…/cli/spec.lua.bak.<pid>'` on ubuntu + macos-14 | Build completes; source tree restored after the luastatic bundle | Not BSD-specific — a `RETURN` trap consumed early by the luastatic `( )` subshell | FIXED `d85fa27`: explicit `mktemp` save + post-bundle restore (no RETURN trap) |
 | 2 | CI dispatch — Intel toolchain install (07-04 Task 1) | `macos-15-intel`: `luarocks install luastatic` → `install requires exclusive write access to /usr/local … Permission denied` (exit 4) | luastatic installs and is on PATH for the build step | Toolchain: the Intel Homebrew `/usr/local` luarocks tree is not user-writable without sudo | FIXED `d85fa27`: `luarocks install --local luastatic` (~/.luarocks) + `$GITHUB_PATH`, uniform across both arches |
-| 3 | _(Task 2 E2E quarantine probe — filled below)_ | | | | |
+| 3 | E2E quarantine probe (07-04 Task 2, D-07) | `xattr -p com.apple.quarantine` on both `~/.local/bin/wez` and `~/Applications/WezTerm.app` → **no quarantine**; Gatekeeper did not block first launch | (n/a — macOS-specific; Linux has no Gatekeeper) | curl/wget downloads do NOT set `com.apple.quarantine` (only browser downloads do) — RESEARCH Pitfall 5 / A4 | NONE — D-07 default: install.sh left unchanged (no `xattr -dr` strip); manual fallback note retained |
+| 4 | Fresh install on a clean machine (07-04 Task 2, INST-01/06) | `wez install-state` aborted `cannot read … No such file or directory` (exit 1); `wez doctor` then failed the core backup gate | install creates `wezterm.lua` + exits 0; doctor exits 0 | Not BSD-specific — the injection model assumed a pre-existing `wezterm.lua`; a clean machine has none | FIXED `eddef2e`: install-state seeds a config-builder base + creates the file (no backup needed); doctor backup gate passes on a fresh creation |
 
 **Candidate deviations to watch for (pre-identified from the code, confirm or clear each):**
 
-- [ ] **Gatekeeper quarantine on `WezTerm.app`** — `xattr -dr com.apple.quarantine` needed; not
-      handled by the installer (§C-1).
+- [x] **Gatekeeper quarantine on `WezTerm.app`** — CLEARED (07-04 Task 2, D-07): the curl-download
+      install set NO `com.apple.quarantine` on either `wez` or `WezTerm.app`, and Gatekeeper did not
+      block first launch on this Intel Mac. No installer change needed; the manual `xattr -d` /
+      right-click-open note is kept as a fallback for browser-download cases.
 - [ ] **Apple Silicon codesign of `dist/wez`** — unsigned Mach-O may be killed on first run;
       `codesign -s - dist/wez` needed; not handled by `build.sh` (§C-1).
 - [ ] **`sha256sum` absent** — only bites the `WEZ_REMOTE_BOOTSTRAP=1` release-download path in
@@ -509,9 +559,11 @@ cross-platform pass to act on it. One row per issue.
 - [ ] **`scene new --layout <Tab>` / `--color <Tab>` value completion** (was A-1, FIXED 2026-06-14)
       — wired + proven at runtime in bash; **confirm it also fires in zsh on macOS** (the zsh arm
       uses `${words[CURRENT-1]}` under `_arguments`, not headlessly testable here).
-- [ ] **WezTerm auto-install on macOS is design-only** — `install_macos` in
-      `tools/bootstrap-wezterm.sh` does not actually download/place `WezTerm.app`; users must
-      pre-install. Needs implementing for true INST-06 macOS parity.
+- [x] **WezTerm auto-install on macOS** — RESOLVED: `install_macos` (implemented in 07-02) now
+      really downloads the official nightly `.zip` and places `~/Applications/WezTerm.app`
+      sudo-free; confirmed live in the 07-04 Task 2 E2E (`[bootstrap] placed
+      /Users/ramon/Applications/WezTerm.app`, `wezterm 20260622-120102-6ff54928`). INST-06 macOS
+      parity is met.
 - [ ] **Test harness bash version** — `tools/run-tests.sh` uses `mapfile`; verify it runs under a
       bash that supports it (not stock macOS bash 3.2).
 - [ ] **`cp -R src/. dst/` trailing-dot semantics** on BSD `cp` (STEP 4 config copy).
