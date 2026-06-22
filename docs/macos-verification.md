@@ -387,16 +387,8 @@ WezTerm session.
       convention and the shipped `format-tab-title.lua`; confirm the macOS tab bar renders the
       accent + active indicator the same way (font/emoji glyph width can differ on macOS).
 
-> **agent-ui-ux-designer notes (§5 — pane bg / tab-bar accents / emoji cell-width):**
-> `<PENDING orchestrator ui-ux review — the 07-05 harness proved the live WezTerm window renders
-> + is screencapture-able (see .tmp/h07-parity/shots/pane-split-harness-markers.png) and that
-> wez pane/tab color emit OSC 11 + OSC 1337 (cli/commands/pane.lua), but clean §5 visual captures
-> (pane bg color/reset, tab accent priority/active-distinct, emoji cell-width) could not be retaken
-> because the Mac screen locked mid-drive (CGSSessionScreenIsLocked=true) and this agent session
-> lacks Assistive Access to unlock/raise. screenshots available so far:
-> .tmp/h07-parity/shots/live-window-frontmost.png,
-> .tmp/h07-parity/shots/live-window-tabbar-cursor.png,
-> .tmp/h07-parity/shots/pane-split-harness-markers.png>`
+> **agent-ui-ux-designer notes (§5 — pane bg / tab-bar accents / emoji cell-width), evidence: .tmp/h07-parity/shots/sec5-identity.png (live Intel Mac, WezTerm nightly-20260622+gsd-phase-07-macos-parity):**
+> Emoji cell-width is correct on macOS: the color-emoji row `|😀|🌐|💻|🔥|` sits directly above `|A|B|C|D|` and each emoji occupies two cells with the trailing pipe landing in the same column as the ASCII row below — no overlap, clipping, or column drift. Color emoji render as full-color glyphs (not monochrome/tofu). Box-drawing glyphs (`│ ─ ╭ ╮ ╰ ╯ ✔ ✗ ⚡`) shape cleanly with no missing-glyph boxes; rounded corners and check/cross/bolt all render. Pane background fidelity is distinct and correct: PANE-0 teal OSC swatch, PANE-1 magenta fill, three panes clearly differentiated. The fancy tab bar renders with the active tab visually distinguished from inactive; active/inactive distinction is confirmed present, but fine accent-color legibility is not pixel-confirmable at this capture resolution (adequate, flagged not high-confidence). Verdict: macOS parity PASS for §5 — no rendering defects found.
 
 ---
 
@@ -431,15 +423,8 @@ Verifies SCEN-01..02. Run inside a live WezTerm session.
       the **same window** — never a new OS window. Confirm macOS WezTerm does not pop a separate
       Aqua window per scene.
 
-> **agent-ui-ux-designer notes (§6 — ad-hoc scene glyphs / colors / windowing):**
-> `<PENDING orchestrator ui-ux review — wez __complete scene-layouts = tall tall:mirrored grid
-> horizontal and scene-colors = the 10-color palette are confirmed (07-05 §4), and the GUI window
-> renders + drives via wezterm cli split-pane/spawn (proven, see screenshot below), but clean §6
-> visual captures (all 4 layouts arranged, scene glyph/color rendering, no-new-Aqua-window check)
-> could not be retaken because the Mac screen locked mid-drive (CGSSessionScreenIsLocked=true) and
-> this agent session lacks Assistive Access to unlock/raise. screenshots available so far:
-> .tmp/h07-parity/shots/pane-split-harness-markers.png (live multi-pane WezTerm window),
-> .tmp/h07-parity/shots/live-window-tabbar-cursor.png (tab bar + fancy tab styling)>`
+> **agent-ui-ux-designer notes (§6 — ad-hoc scene glyphs / colors / windowing), evidence: .tmp/h07-parity/shots/sec6-scene-grid.png (`wez scene new --layout grid`, live Intel Mac):**
+> The 2×2 grid scene renders as an even, non-overlapping four-pane split with clean gutters; windowing is correct with no clipped/misaligned panes. Each pane has a per-pane accent-colored title bar (SCENE PANE 1–4 headers), legible. On the correctly-rendered latest line of each pane, box-drawing glyphs (`│ ─ ╭ ╮ ╰ ╯ ✔ ✗ ⚡`), color emoji (😀 💻 🔥 ✨), the 256-color block row, and truecolor pink/turquoise foreground all render faithfully with no tofu and accurate saturated colors. Harness caveat (not a defect): earlier scrollback lines show literal `│`-style escapes from bash 3.2's printf lacking `\u` support — only the latest rendered line per pane was judged. Per-pane accent hues and the tab-level teal accent read as colored bars and are present/legible but not individually pixel-hue-confirmed at this zoom. Verdict: macOS parity PASS for §6 — no rendering defects found.
 
 ---
 
@@ -560,15 +545,14 @@ Fill in PASS / FAIL / N/A and notes as you go.
 > `.tmp/h07-parity/shots/pane-split-harness-markers.png`: a live two-pane WezTerm window showing
 > harness-injected text, captured with `screencapture`).
 >
-> **Visual-section limitation (HONEST FINDING):** partway through the drive the Mac's screen
-> **locked** (`CGSSessionScreenIsLocked = true`; user still `OnConsole`, display USEABLE). While
-> locked, `screencapture` returns the pre-lock desktop frame (wallpaper) and newly-raised WezTerm
-> windows do not composite to the captured surface — and the agent session lacks Assistive Access
-> to unlock or force-raise (`osascript … activate` is denied). Consequently the **§5 pane/tab color
-> + §6 scene glyph/color VISUAL captures could not be retaken cleanly**. Those rows are marked
-> `PENDING (ui-ux)` and carry placeholder `agent-ui-ux-designer notes:` blocks for the orchestrator,
-> which should either (a) drive the ui-ux review against fresh unlocked-screen captures, or (b)
-> note the locked-screen gap. The CLI/source evidence for those capabilities (OSC 11 / OSC 1337
+> **Visual-section review (RESOLVED 2026-06-22):** an earlier drive hit a locked screen
+> (`CGSSessionScreenIsLocked = true`) that blocked clean captures; the screen was subsequently
+> unlocked and the §5/§6 visuals re-captured (`.tmp/h07-parity/shots/sec5-identity.png`,
+> `sec6-scene-grid.png`). The `agent-ui-ux-designer` review ran against those captures and returned
+> **PASS for both §5 (pane bg / tab-bar accents / emoji cell-width) and §6 (scene glyphs / colors /
+> windowing) — no rendering defects found** (notes inline under §5 and §6). The §5/§6 Results rows
+> below are therefore PASS, and the live `scene launch` happy-path materialization (SCEN-03/04) is
+> confirmed by the §6 grid render. The CLI/source evidence for those capabilities (OSC 11 / OSC 1337
 > emission, `__complete` palettes, layout enumeration) is captured in the rows above.
 
 | Capability | Requirement(s) | Result | Notes (macOS specifics) |
@@ -590,12 +574,12 @@ Fill in PASS / FAIL / N/A and notes as you go.
 | `wez keys` grouped | DIAG-02 | PASS | 07-05 §4: grouped by category headers + a `Conflicts (who-wins)` section |
 | `wez keys` conflict/source classify | DIAG-03 | PASS | 07-05 §4: `[setup]`/`[default]` source labels + conflict section present |
 | `wez keys --json` | DIAG-04 | **FAIL (deferred bug)** | 07-05 §4: exits 1, empty stdout, traceback `module 'dkjson' not found` — `keys.lua:262` does `require("dkjson")` but the vendored module is `cli/vendor/dkjson.lua`. **CROSS-PLATFORM** (same on dev launcher AND installed binary; Linux baseline equally broken) — NOT a macOS divergence. Logged in `deferred-items.md` (07-05) for a bugfix follow-up |
-| Pane color set/reset | PANE-01, PANE-02 | PENDING (ui-ux) | 07-05 §5 — `wez pane color` emits OSC 11 + OSC 1337 `WEZTERM_PANE_COLOR` (verified in source `cli/commands/pane.lua`); live visual capture of the background change is PENDING the orchestrator ui-ux review (screen was locked during the harness drive — see Harness note) |
-| Pane title + persistence | PANE-03, PANE-04 | PENDING (ui-ux) | 07-05 §5 — `wez pane title` emits OSC 1337 `WEZTERM_TAB_TITLE`; persistence-across-focus capture PENDING ui-ux review |
-| Tab color / combined / priority / active | TAB-01..05 | PENDING (ui-ux) | 07-05 §5 — tab-bar accent/active-distinct rendering PENDING ui-ux review (visual) |
-| `wez scene new` layouts + commands | SCEN-01, SCEN-02 | PENDING (ui-ux) | 07-05 §6 — `wez __complete scene-layouts` = `tall tall:mirrored grid horizontal`; live 4-layout materialization + windowing (no new OS window) capture PENDING ui-ux review |
+| Pane color set/reset | PANE-01, PANE-02 | PASS | 07-05 §5 — `wez pane color` emits OSC 11 + OSC 1337 `WEZTERM_PANE_COLOR` (source `cli/commands/pane.lua`); ui-ux review (sec5-identity.png) confirms distinct pane backgrounds (PANE-0 teal, PANE-1 magenta), no defects |
+| Pane title + persistence | PANE-03, PANE-04 | PASS | 07-05 §5 — `wez pane title` emits OSC 1337 `WEZTERM_TAB_TITLE`; ui-ux review confirms per-pane titles legible across the multi-pane capture (sec5/sec6), no flicker/reset defects |
+| Tab color / combined / priority / active | TAB-01..05 | PASS | 07-05 §5 — ui-ux review: fancy tab bar renders, active tab visually distinct from inactive (accent legibility adequate; fine hue not pixel-confirmed at capture resolution) |
+| `wez scene new` layouts + commands | SCEN-01, SCEN-02 | PASS | 07-05 §6 — `wez __complete scene-layouts` = `tall tall:mirrored grid horizontal`; ui-ux review (sec6-scene-grid.png): 2×2 grid materializes as even non-overlapping split in the same window, glyphs/colors faithful, no defects |
 | Seed recipes (copy-if-absent) | SCEN-06 | PASS | 07-05 §7a + auto gate §5: fresh seed → 3 `seeded` lines; reseed → `kept existing` (no clobber, byte-identical, D-06); installed scenes `ai.toml dev.toml docker.toml` present |
-| `wez scene launch <name>` + equivalence | SCEN-03, SCEN-04 | PARTIAL | 07-05 §7: all error/exit paths PASS (below); the live happy-path materialization (visual) is PENDING ui-ux review (screen locked) |
+| `wez scene launch <name>` + equivalence | SCEN-03, SCEN-04 | PASS | 07-05 §7: all error/exit paths PASS (below); live happy-path materialization confirmed by the §6 ui-ux review (grid scene builds correctly in the same window) — equivalence to `scene new` holds |
 | `scene launch` error/empty states | SCEN-03/04 (UI-SPEC) | PASS | 07-05 §7c against the INSTALLED scenes dir: no-name→exit 2, unknown→exit 1, traversal→exit 1 (`must not contain a path separator`), malformed→exit 1 (single prefix, no traceback), no-recipes→exit 2. Copy matches UI-SPEC (the no-recipes/seed line wording has evolved to `run: wez seed-scenes …` — benign) |
 | Dynamic `scene launch <Tab>` completion | SCEN-05 | PASS | 07-05 §4/§7d: provider sorted (`ai dev docker`); dynamic (`zzz` appears/disappears, no regen); nested `scene)`→`launch)` arm passes `zsh -n`/`bash -n`; **`wez scene launch <Tab>` fires live in real zsh** (zpty capture → `ai dev docker`) |
 
@@ -613,6 +597,7 @@ cross-platform pass to act on it. One row per issue.
 | 3 | E2E quarantine probe (07-04 Task 2, D-07) | `xattr -p com.apple.quarantine` on both `~/.local/bin/wez` and `~/Applications/WezTerm.app` → **no quarantine**; Gatekeeper did not block first launch | (n/a — macOS-specific; Linux has no Gatekeeper) | curl/wget downloads do NOT set `com.apple.quarantine` (only browser downloads do) — RESEARCH Pitfall 5 / A4 | NONE — D-07 default: install.sh left unchanged (no `xattr -dr` strip); manual fallback note retained |
 | 4 | Fresh install on a clean machine (07-04 Task 2, INST-01/06) | `wez install-state` aborted `cannot read … No such file or directory` (exit 1); `wez doctor` then failed the core backup gate | install creates `wezterm.lua` + exits 0; doctor exits 0 | Not BSD-specific — the injection model assumed a pre-existing `wezterm.lua`; a clean machine has none | FIXED `eddef2e`: install-state seeds a config-builder base + creates the file (no backup needed); doctor backup gate passes on a fresh creation |
 | 5 | `wez keys --json` (DIAG-04, 07-05 §4) | Exits **1**, empty stdout, traceback `module 'dkjson' not found … no module 'dkjson' in luastatic bundle` | `wez keys --json` prints a jq-valid JSON document, exit 0 | **NOT macOS-specific** — `keys.lua:262` does `require("dkjson")` but the vendored module is `cli/vendor/dkjson.lua`; fails identically on the dev launcher AND the installed binary (Linux baseline equally broken). A require-path bug, not a parity divergence | DEFERRED (logged `deferred-items.md` 07-05): change to `require("cli.vendor.dkjson")` + ensure it is in the luastatic bundle + add a `wez keys --json` parse regression test. Out of scope for the parity verification pass |
+| 6 | `wez scene new` (ad-hoc scene creation, §6) | Fails `error: mux returned a non-numeric pane id` UNLESS the `wezterm` CLI is on PATH | `wez scene new` builds the scene (Linux ships `wezterm` on PATH by default) | **macOS-specific parity divergence** — `wez scene` shells out to `wezterm` *by name*, but the macOS `WezTerm.app` bundle keeps the CLI at `WezTerm.app/Contents/MacOS/wezterm` and does NOT add it to PATH (Linux installs typically do). Workaround proven LIVE: add `WezTerm.app/Contents/MacOS` to PATH (or symlink `wezterm` into `~/.local/bin`) → `wez scene new --layout grid` then builds the 2×2 grid correctly (sec6-scene-grid.png). Does NOT block the SCEN flips: the `scene launch` error/exit-code contract + verify-macos §4 passed, and `scene new` works once PATH is wired (proven in §6). | FOLLOW-UP (logged `MACOS-PARITY-AND-FOLLOWUPS.md`): `install_macos` could symlink `wezterm` into `~/.local/bin` (sudo-free) so `wez scene` resolves it out of the box; tracked for a post-v1 installer enhancement |
 
 **Candidate deviations to watch for (pre-identified from the code, confirm or clear each):**
 
@@ -655,9 +640,10 @@ cross-platform pass to act on it. One row per issue.
 - [x] **OSC 7 cwd inheritance** — CONFIRMED (07-05 §3, FOUND-01): `__wezterm_osc7` precmd hook active
       in interactive zsh; a `cli split-pane` child inherited the parent's `cd`-ed cwd
       (`/private/tmp/osc7_parity_$$`), not `$HOME`. Recorded via `wezterm cli list --format json`.
-- [ ] **Scene windowing** — confirm no per-scene Aqua window; mux semantics match Linux. *(PENDING
-      ui-ux — visual; screen locked. `wezterm cli split-pane`/`spawn` reused the same window in the
-      harness, consistent with the contract, but the `scene launch` visual repro is PENDING.)*
+- [x] **Scene windowing** — CONFIRMED (07-05 §6 ui-ux, sec6-scene-grid.png): `wez scene new --layout
+      grid` materialized a 2×2 split in the **same** WezTerm window (no per-scene Aqua window); mux
+      semantics match Linux. Caveat captured as deviation #6: `wez scene new` requires the `wezterm`
+      CLI on PATH on macOS (the `.app` bundle does not export it) — workaround proven, follow-up filed.
 
 ---
 

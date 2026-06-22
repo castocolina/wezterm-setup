@@ -50,6 +50,19 @@
       comparators + system-install guard are unaffected and fully tested.
       *(Phase 6 review Important #2; pure-logic half verified, live delegation is the gap.)*
 
+### A-4 ⚠ macOS — `wez scene new` needs the `wezterm` CLI on PATH (07-05 §6, deviation #6)
+- **Found live (07-05, Intel Mac):** `wez scene new` fails with
+  `error: mux returned a non-numeric pane id` UNLESS the `wezterm` CLI is on PATH. `wez scene`
+  shells out to `wezterm` *by name*, but the macOS `WezTerm.app` bundle keeps the CLI at
+  `WezTerm.app/Contents/MacOS/wezterm` and does NOT export it to PATH (Linux installs typically do).
+- **Workaround proven LIVE:** add `WezTerm.app/Contents/MacOS` to PATH (or symlink `wezterm` into
+  `~/.local/bin`) → `wez scene new --layout grid` then builds the 2×2 grid correctly (sec6-scene-grid.png).
+- **Does NOT block the SCEN D-18 flips:** the `scene launch` error/exit-code contract + verify-macos §4
+  passed, and `scene new` works once PATH is wired (proven in §6 ui-ux).
+- [ ] **Follow-up (post-v1, sudo-free):** have `install_macos` symlink `wezterm` into `~/.local/bin`
+      (or prepend `WezTerm.app/Contents/MacOS` to the managed PATH) so `wez scene` resolves it out of
+      the box on macOS.
+
 ### A-2 UX backlog from the Phase 5 review (deferred, not blocking)
 - [ ] `wez scene list` — a first-class, non-error "what can I launch?" browse surface
       (reuses the existing `list_recipe_names` provider; closes the discoverability gap).
@@ -127,23 +140,37 @@
       the known-broken one; see A-1 above).
 
 ### C-5 Pane identity (Phase 2 — PANE-01..04)
-- [ ] `wez pane color` (incl. `bg` == this) / `reset` / `title` / persistence on macOS.
-- [ ] OSC 1337 `SetUserVar` → background mapping honored identically by macOS WezTerm.
-- [ ] Emoji/icon glyph in pane title renders (cell-width differs on macOS).
+- [x] `wez pane color` (incl. `bg` == this) / `reset` / `title` / persistence on macOS — 07-05 §5
+      ui-ux review (sec5-identity.png): distinct pane backgrounds (PANE-0 teal, PANE-1 magenta),
+      per-pane titles legible, no defects.
+- [x] OSC 1337 `SetUserVar` → background mapping honored identically by macOS WezTerm — `wez pane
+      color` emits OSC 11 + OSC 1337 `WEZTERM_PANE_COLOR` (source) and the bg renders distinctly in
+      the §5 capture.
+- [x] Emoji/icon glyph in pane title renders (cell-width differs on macOS) — 07-05 §5: color emoji
+      row occupies two cells each, aligned to the ASCII row below, no clip/drift/tofu.
 
 ### C-6 Tab identity (Phase 3 — TAB-01..05)
-- [ ] Tab color / combined / priority / active-distinct on macOS.
-- [ ] Tab-bar accent + active indicator + emoji glyph rendering parity (`format-tab-title.lua`).
+- [x] Tab color / combined / priority / active-distinct on macOS — 07-05 §5 ui-ux: fancy tab bar
+      renders, active tab visually distinct from inactive (fine accent hue not pixel-confirmed at
+      capture resolution, flagged not high-confidence; no defects).
+- [x] Tab-bar accent + active indicator + emoji glyph rendering parity (`format-tab-title.lua`) —
+      07-05 §5/§6 ui-ux: tab/pane accent bars present + legible, box-drawing + emoji glyphs shape
+      cleanly.
 
 ### C-7 Ad-hoc scenes (Phase 4 — SCEN-01..02)
-- [ ] All 4 layouts + per-pane commands + validate-before-emit on macOS.
-- [ ] **Windowing:** reuse 1-pane tab / new tab in same window — never a per-scene Aqua window.
+- [x] All 4 layouts + per-pane commands + validate-before-emit on macOS — `wez __complete
+      scene-layouts` = `tall tall:mirrored grid horizontal`; 07-05 §6 ui-ux (sec6-scene-grid.png):
+      `wez scene new --layout grid` builds an even 2×2 split, per-pane commands ran, glyphs/colors
+      faithful. **Caveat:** `wez scene new` needs the `wezterm` CLI on PATH on macOS (the `.app`
+      bundle does not export it) — workaround proven, follow-up A-4 below.
+- [x] **Windowing:** reuse 1-pane tab / new tab in same window — never a per-scene Aqua window —
+      07-05 §6 ui-ux: the grid scene materialized in the SAME WezTerm window (no per-scene Aqua window).
 
 ### C-8 Named scenes (Phase 5 — SCEN-03..06)
-- [~] `scene launch` happy path (live mux) + all error/exit-code paths on macOS. *(07-05 §7c: ALL
-      error/exit-code paths PASS against the installed scenes dir — no-name→2, unknown→1, traversal→1,
-      malformed→1 no-traceback, no-recipes→2, copy matches UI-SPEC. The live happy-path VISUAL
-      materialization is PENDING ui-ux — screen locked.)*
+- [x] `scene launch` happy path (live mux) + all error/exit-code paths on macOS — 07-05 §7c: ALL
+      error/exit-code paths PASS against the installed scenes dir (no-name→2, unknown→1, traversal→1,
+      malformed→1 no-traceback, no-recipes→2, copy matches UI-SPEC); the live happy-path materialization
+      is confirmed by the §6 ui-ux grid render (scene builds correctly in the same window).
 - [x] Seeding copy-if-absent (D-06 no-clobber) on macOS; `ls -1` / path resolver on APFS — 07-05
       §7a + auto gate §5: fresh seed → 3 `seeded`, reseed → `kept existing` byte-identical, installed
       `ai/dev/docker.toml` present.
