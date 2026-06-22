@@ -27,10 +27,13 @@
     `${words[CURRENT-1]}`, bash via `$prev`).
   - Regression tests: `completions_test.lua` (routing, both shells) + `complete_test.lua`
     (`scene-colors == scene.COLOR_NAMES`, no `reset`).
-- **Verified:** full suite 17/17; `verify-macos.sh` 24 PASS; **bash runtime proven**
+- **Verified:** full suite 31/31; `verify-macos.sh` PASS=26 FAIL=0; **bash runtime proven**
   (`--layout`→layouts, `--color`→10 colors, prefix `gr`→`grid`). zsh runtime: `zsh -n`-clean +
-  text-correct; **confirm on the macOS runbook §6** (the `${words[CURRENT-1]}` arm isn't
-  headlessly runtime-testable here).
+  text-correct.
+- **zsh runtime CONFIRMED on macOS (07-05 §4/§6, 2026-06-22):** driven live in a real interactive
+  zsh via `zsh/zpty` completion capture under `compinit -u` (no insecure-dir warning) — the
+  `${words[CURRENT-1]}` arm fires: `wez scene new --layout <Tab>` → `tall tall:mirrored grid
+  horizontal`; `wez scene new --color <Tab>` → the 10-color palette (no `reset`). A-1 fully closed.
 - **Still open (minor, low priority):** `--pane` / `--title` values don't complete (no obvious
   closed candidate set for a `--pane` spec).
 
@@ -77,34 +80,51 @@
 > `tools/verify-macos.sh`.
 
 ### C-1 Toolchain & Gatekeeper (blocks everything — do first)
-- [ ] Xcode CLT / `clang` present; `luastatic` links a runnable **Mach-O** binary.
-- [ ] **Gatekeeper / quarantine:** a downloaded `WezTerm.app` carries `com.apple.quarantine`
-      → Gatekeeper blocks first launch. Document `xattr -d com.apple.quarantine` / right-click-open.
-- [ ] **Apple Silicon codesign:** a self-built Mach-O may need ad-hoc signing
-      (`codesign -s - dist/wez`) or the OS SIGKILLs it on first run. Verify + document.
-- [ ] `tools/build.sh` remote path uses `sha256sum` (absent on macOS) → needs `shasum -a 256`.
-- [ ] `tools/run-tests.sh` uses `mapfile` → needs bash 4+ (not stock `/bin/bash` 3.2).
+- [x] Xcode CLT / `clang` present; `luastatic` links a runnable **Mach-O** binary. *(07-05: CLT
+      present, `setup-dev.sh` provisioned lua@5.4 + luastatic, `build.sh` built the static binary,
+      `verify-macos.sh` §1 PASS.)*
+- [x] **Gatekeeper / quarantine:** CLEARED (07-04 Task 2, D-07) — the curl-download install set NO
+      `com.apple.quarantine` on `wez` or `WezTerm.app`; Gatekeeper did not block first launch.
+      Manual `xattr -d` / right-click-open note retained as a browser-download fallback.
+- [x] **Apple Silicon codesign:** verified at BUILD time (07-04 §A, macos-14 leg):
+      `codesign --verify dist/wez` → valid + DesignatedRequirement satisfied; `./dist/wez version`
+      ran on the arm64 runner. Real-Silicon first-launch is the non-gating Phase 7.1 check (D-01/D-06).
+- [x] `tools/build.sh` remote path uses `shasum -a 256` (the D-08 portable branch); E2E checksum
+      gate verified before chmod (07-04 §B). `sha256sum` absence noted, not fatal.
+- [x] `tools/run-tests.sh` runs under this Mac's bash with the D-08 fix — unit suite green
+      (`all 31 file(s) passed`, 07-05 auto gate §1).
 
 ### C-2 Install / uninstall (Phase 1 — INST-01..06)
-- [ ] All INST checks pass on macOS (runbook Section 2).
-- [ ] **INST-06 real gap:** `install_macos()` in `tools/bootstrap-wezterm.sh` is design-only
-      (logs + returns 0, places nothing). Implement actual `.app` placement to `~/Applications`
-      for true macOS parity, or document "pre-install WezTerm" as the supported path.
-- [ ] `cp -R config/wezterm-setup/. dst/` trailing-dot semantics on BSD `cp` (no stray `.` entry).
+- [x] All INST checks pass on macOS — INST-01 single managed block, INST-02 backup
+      (fresh-install exception), INST-06 `.app` placement: 07-04 Task 2 live E2E (runbook §B).
+- [x] **INST-06 real gap CLOSED:** `install_macos()` (implemented 07-02) downloads the official
+      nightly `.zip` and places `~/Applications/WezTerm.app` sudo-free — confirmed live (07-04 §B,
+      `wezterm 20260622-120102-6ff54928`).
+- [x] `cp -R config/wezterm-setup/. dst/` trailing-dot semantics on BSD `cp` — no stray `.` entry;
+      the config tree (`init.lua keybindings.lua cwd.lua … scenes/`) placed correctly (07-04/07-05).
 
 ### C-3 Foundation + doctor (Phase 1 — FOUND-01..05, DIAG-01)
-- [ ] CWD inheritance (OSC 7) fires on macOS shells after rc registration (FOUND-01, headline item).
-- [ ] `Cmd+K` clears screen+scrollback (maps to Command, not Control) (FOUND-02).
-- [ ] `wez doctor` green / fails loudly on macOS (DIAG-01).
+- [x] CWD inheritance (OSC 7) fires on macOS shells after rc registration (FOUND-01, headline item)
+      — 07-05 §3: `__wezterm_osc7` precmd active in zsh; `cli split-pane` child inherited the
+      parent's `cd`-ed cwd (not `$HOME`), recorded via `wezterm cli list --format json`.
+- [ ] `Cmd+K` clears screen+scrollback (maps to Command, not Control) (FOUND-02). *(07-05:
+      modifier mapping CONFIRMED in the `wez keys` table — curated bindings ride `SUPER+…` = Command
+      on macOS; the live keystroke repro is PENDING — screen locked during the harness drive.)*
+- [x] `wez doctor` green / fails loudly on macOS (DIAG-01) — `doctor_exit=0`, all 5 core gates PASS
+      (07-04 §B + 07-05 §3).
 
 ### C-4 Diagnostics + completion (Phase 1 — DIAG-02..05)
-- [ ] `wez keys` / `--json` / grouping / source classification on macOS.
-- [ ] Completions install on macOS: `compinit` insecure-dir warnings (Homebrew fpath),
-      `bash-completion@2` for bash.
-- [ ] **Completion value coverage (verify all contexts complete on macOS):**
-      `wez pane color <Tab>`, `wez pane title <Tab>`, `wez tab color <Tab>`,
-      `wez tab title <Tab>`, `wez scene launch <Tab>` — and note A-1 (`scene new --layout <Tab>`
-      is the known-broken one).
+- [~] `wez keys` / `--json` / grouping / source classification on macOS. *(07-05 §4: grouping +
+      `[setup]`/`[default]` source classification + Conflicts section all PASS;
+      **`--json` FAILS** — cross-platform `dkjson` require-path bug, NOT a macOS divergence,
+      deferred to a bugfix — see `deferred-items.md` 07-05 + runbook deviation #5.)*
+- [x] Completions install on macOS: `compinit` loaded `_wez` with NO insecure-dir warning
+      (`compinit -u`, user-owned site-functions); zsh `wez <Tab>` fires live. *(bash-completion@2
+      runtime not exercised; generated bash script passes `bash -n`.)*
+- [x] **Completion value coverage** — all 7 `__complete` contexts non-empty + driven live in zsh:
+      `wez pane color <Tab>` (palette+reset), `wez tab color <Tab>`, `wez scene launch <Tab>`
+      (`ai dev docker`), and A-1 `wez scene new --layout/--color <Tab>` (CONFIRMED — A-1 no longer
+      the known-broken one; see A-1 above).
 
 ### C-5 Pane identity (Phase 2 — PANE-01..04)
 - [ ] `wez pane color` (incl. `bg` == this) / `reset` / `title` / persistence on macOS.
@@ -120,9 +140,15 @@
 - [ ] **Windowing:** reuse 1-pane tab / new tab in same window — never a per-scene Aqua window.
 
 ### C-8 Named scenes (Phase 5 — SCEN-03..06)
-- [ ] `scene launch` happy path (live mux) + all error/exit-code paths on macOS.
-- [ ] Seeding copy-if-absent (D-06 no-clobber) on macOS; `ls -1` / path resolver on APFS.
-- [ ] `scene launch <Tab>` dynamic completion on macOS shells.
+- [~] `scene launch` happy path (live mux) + all error/exit-code paths on macOS. *(07-05 §7c: ALL
+      error/exit-code paths PASS against the installed scenes dir — no-name→2, unknown→1, traversal→1,
+      malformed→1 no-traceback, no-recipes→2, copy matches UI-SPEC. The live happy-path VISUAL
+      materialization is PENDING ui-ux — screen locked.)*
+- [x] Seeding copy-if-absent (D-06 no-clobber) on macOS; `ls -1` / path resolver on APFS — 07-05
+      §7a + auto gate §5: fresh seed → 3 `seeded`, reseed → `kept existing` byte-identical, installed
+      `ai/dev/docker.toml` present.
+- [x] `scene launch <Tab>` dynamic completion on macOS shells — 07-05 §7d: live zsh TAB →
+      `ai dev docker`; dynamic add/remove `zzz` with no regeneration; `zsh -n`/`bash -n` clean.
 
 ---
 

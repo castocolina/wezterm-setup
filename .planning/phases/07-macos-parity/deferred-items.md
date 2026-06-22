@@ -45,3 +45,44 @@ discovering plan; they are pre-existing or belong to another plan's scope.
 - **Scope:** unchanged from the 07-02 entry — a separate Lua-5.5-compat follow-up.
   07-03's shell scripts are gated by `bash -n` + `shellcheck -x` in the suite (all
   PASS) and the new TEXT gate test, the correct verification path for shell glue.
+
+## 07-05 (Task 1 — harness drive)
+
+### `wez keys --json` (DIAG-04) fails — vendored `dkjson` not on the require path
+
+- **Discovered during:** 07-05 Task 1, runbook §4 (DIAG-04), on this Intel Mac.
+- **Symptom:** `wez keys --json` exits **1** with EMPTY stdout and a Lua traceback on
+  stderr: `[string "cli.commands.keys"]:262: module 'dkjson' not found … no module
+  'dkjson' in luastatic bundle`.
+- **Root cause:** `cli/commands/keys.lua:262` does `require("dkjson")` (bare name), but
+  the vendored module lives at `cli/vendor/dkjson.lua`. The bare require resolves in
+  NEITHER the luastatic single-binary bundle (installed `~/.local/bin/wez`,
+  `wez-macos-x86_64`) NOR the dev source-launcher (`dist/wez`), and `dkjson` is not on
+  the LuaRocks tree either.
+- **CROSS-PLATFORM, NOT a macOS divergence:** reproduced identically on (a) the installed
+  CI-built standalone binary and (b) the local dev launcher. The Linux baseline has the
+  same defect. Parity = same behavior both platforms; here both are equally broken, so
+  this is NOT a macOS parity gap — it is a pre-existing cross-platform DIAG-04 bug.
+- **Likely fix (FOLLOW-UP, not this verification task):** `require("dkjson")` →
+  `require("cli.vendor.dkjson")` in `cli/commands/keys.lua`, ensure `cli/vendor/dkjson.lua`
+  is in the luastatic bundle file list, and add a `wez keys --json` parse regression test.
+- **Disposition:** DEFER to a dedicated bugfix (`/gsd-quick` or a Phase 7 gap-closure plan).
+  DIAG-04 recorded as a deviation in the runbook; DIAG-02/03/05 (which pass) carry the DIAG-*
+  evidence. Because DIAG-05 is the requirement actually mapped to the macOS flip (RESEARCH Test
+  Map), this bug does not by itself block the DIAG-05 flip — but DIAG-04 cannot be claimed PASS.
+
+### `tools/setup-dev.sh` keg PATH is subshell-local (auto gate RED until exported)
+
+- **Discovered during:** 07-05 Task 1 — the FIRST `verify-macos.sh` run was RED (FAIL=12)
+  purely because `lua5.4`/`luastatic` were not on PATH; `dist/wez` (dev launcher) is inert
+  without `lua5.4` (`exec: lua5.4: not found`, exit 127 across §2/§4/§5).
+- **Fix applied in-session (Rule 3 blocking-issue):** ran the project's own sudo-free
+  `tools/setup-dev.sh` (autonomy #1; `lua@5.4` + `luarocks` already brew-installed,
+  `luastatic` installed `--local`), then exported the keg PATH in the executor's own shell:
+  `export PATH="$(brew --prefix lua@5.4)/bin:$HOME/.luarocks/bin:$PATH"`. Re-run → GREEN
+  (PASS=26 FAIL=0 exit 0).
+- **Sharp edge:** `setup-dev.sh` exports PATH only inside its own process, so a fresh dev who
+  runs `make setup` then `bash tools/verify-macos.sh` in the SAME shell still fails until they
+  export the keg bin. Consider having `make setup` print an `eval`-able `export PATH=…` line.
+- **Disposition:** DEFER (low priority). Does not affect the shipped artifact — the CI-built
+  `wez` is a standalone Mach-O needing no `lua5.4` at runtime (`env -i … wez version` works).

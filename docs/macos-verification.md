@@ -387,6 +387,17 @@ WezTerm session.
       convention and the shipped `format-tab-title.lua`; confirm the macOS tab bar renders the
       accent + active indicator the same way (font/emoji glyph width can differ on macOS).
 
+> **agent-ui-ux-designer notes (§5 — pane bg / tab-bar accents / emoji cell-width):**
+> `<PENDING orchestrator ui-ux review — the 07-05 harness proved the live WezTerm window renders
+> + is screencapture-able (see .tmp/h07-parity/shots/pane-split-harness-markers.png) and that
+> wez pane/tab color emit OSC 11 + OSC 1337 (cli/commands/pane.lua), but clean §5 visual captures
+> (pane bg color/reset, tab accent priority/active-distinct, emoji cell-width) could not be retaken
+> because the Mac screen locked mid-drive (CGSSessionScreenIsLocked=true) and this agent session
+> lacks Assistive Access to unlock/raise. screenshots available so far:
+> .tmp/h07-parity/shots/live-window-frontmost.png,
+> .tmp/h07-parity/shots/live-window-tabbar-cursor.png,
+> .tmp/h07-parity/shots/pane-split-harness-markers.png>`
+
 ---
 
 ## Section 6 — Ad-hoc scenes (`wez scene new`)
@@ -419,6 +430,16 @@ Verifies SCEN-01..02. Run inside a live WezTerm session.
       **⚠ macOS risk to confirm:** materialization reuses a 1-pane tab or spawns a new tab in
       the **same window** — never a new OS window. Confirm macOS WezTerm does not pop a separate
       Aqua window per scene.
+
+> **agent-ui-ux-designer notes (§6 — ad-hoc scene glyphs / colors / windowing):**
+> `<PENDING orchestrator ui-ux review — wez __complete scene-layouts = tall tall:mirrored grid
+> horizontal and scene-colors = the 10-color palette are confirmed (07-05 §4), and the GUI window
+> renders + drives via wezterm cli split-pane/spawn (proven, see screenshot below), but clean §6
+> visual captures (all 4 layouts arranged, scene glyph/color rendering, no-new-Aqua-window check)
+> could not be retaken because the Mac screen locked mid-drive (CGSSessionScreenIsLocked=true) and
+> this agent session lacks Assistive Access to unlock/raise. screenshots available so far:
+> .tmp/h07-parity/shots/pane-split-harness-markers.png (live multi-pane WezTerm window),
+> .tmp/h07-parity/shots/live-window-tabbar-cursor.png (tab bar + fancy tab styling)>`
 
 ---
 
@@ -528,6 +549,28 @@ shipped `cli/commands/scene.lua` / `cli/commands/seed_scenes.lua`.
 
 Fill in PASS / FAIL / N/A and notes as you go.
 
+> **07-05 harness note (D-12 — agent-driven, recorded 2026-06-22, Intel Mac `x86_64`, macOS 14.7.1):**
+> The auto gate `bash tools/verify-macos.sh` is **GREEN: PASS=26 FAIL=0 SKIP=8, exit 0** after the
+> sudo-free toolchain provisioning (`tools/setup-dev.sh` + keg-PATH export — see `deferred-items.md`
+> 07-05). The non-visual flows were driven AGENT-DRIVEN by the `tmux`/`wezterm cli`/`screencapture`
+> harness: a live `WezTerm.app` GUI window (placed by Plan 04) was launched, the `wezterm cli`
+> `spawn`/`split-pane`/`send-text` surface drove panes/cwd flows, and `wez`/`wezterm` CLI exercised
+> keys, the 7 `__complete` contexts (incl. live-zsh TAB completion via `zsh/zpty`), and the scene
+> error/exit-code contract. **The GUI render + capture path is PROVEN** (see
+> `.tmp/h07-parity/shots/pane-split-harness-markers.png`: a live two-pane WezTerm window showing
+> harness-injected text, captured with `screencapture`).
+>
+> **Visual-section limitation (HONEST FINDING):** partway through the drive the Mac's screen
+> **locked** (`CGSSessionScreenIsLocked = true`; user still `OnConsole`, display USEABLE). While
+> locked, `screencapture` returns the pre-lock desktop frame (wallpaper) and newly-raised WezTerm
+> windows do not composite to the captured surface — and the agent session lacks Assistive Access
+> to unlock or force-raise (`osascript … activate` is denied). Consequently the **§5 pane/tab color
+> + §6 scene glyph/color VISUAL captures could not be retaken cleanly**. Those rows are marked
+> `PENDING (ui-ux)` and carry placeholder `agent-ui-ux-designer notes:` blocks for the orchestrator,
+> which should either (a) drive the ui-ux review against fresh unlocked-screen captures, or (b)
+> note the locked-screen gap. The CLI/source evidence for those capabilities (OSC 11 / OSC 1337
+> emission, `__complete` palettes, layout enumeration) is captured in the rows above.
+
 | Capability | Requirement(s) | Result | Notes (macOS specifics) |
 |------------|----------------|--------|-------------------------|
 | Prereqs / toolchain (Xcode CLT, lua5.4, luastatic, WezTerm) | — | PASS | E2E uses the prebuilt release asset (no local luastatic needed); CI builds the asset on macos-15-intel + macos-14 |
@@ -538,24 +581,23 @@ Fill in PASS / FAIL / N/A and notes as you go.
 | Re-install prompt / no-TTY abort | INST-03 | PASS | re-run over a present block, no TTY → abort exit 3 naming `--force/--restore/--skip` (verified from source) |
 | Uninstall (full + granular) | INST-04, INST-05 | N/A (07-04) | not re-exercised in 07-04 (owned by the install/uninstall section; covered Linux-side) |
 | WezTerm bootstrap / reuse | INST-06 | PASS | 07-04 Task 2: `install_macos` placed `~/Applications/WezTerm.app` sudo-free (auto-install gap CLOSED in 07-02) |
-| CWD inheritance | FOUND-01 | | per-shell OSC 7 |
-| Clear screen + scrollback (Cmd+K) | FOUND-02 | | Cmd vs Super |
-| Curated bindings | FOUND-03 | | |
-| Bindings runtime-verifiable | FOUND-04 | | |
-| Cross-platform parity (Cmd vs Super) | FOUND-05 | | |
-| `wez doctor` green / fails loudly | DIAG-01 | PASS | 07-04 Task 2: `doctor_exit=0`; all 5 core gates PASS on this Intel Mac (incl. fresh-install backup-gate exception) |
-| `wez keys` grouped | DIAG-02 | | |
-| `wez keys` conflict/source classify | DIAG-03 | | |
-| `wez keys --json` | DIAG-04 | | |
-| Completions installed (zsh + bash) | DIAG-05 | | bash-completion@2? compinit warnings? |
-| Pane color set/reset | PANE-01, PANE-02 | | OSC 1337 user-var |
-| Pane title + persistence | PANE-03, PANE-04 | | |
-| Tab color / combined / priority / active | TAB-01..05 | | tab-bar glyph rendering |
-| `wez scene new` layouts + commands | SCEN-01, SCEN-02 | | windowing (no new OS window) |
-| Seed recipes (copy-if-absent) | SCEN-06 | | |
-| `wez scene launch <name>` + equivalence | SCEN-03, SCEN-04 | | |
-| `scene launch` error/empty states | SCEN-03/04 (UI-SPEC) | | exact copy + exit codes |
-| Dynamic `scene launch <Tab>` completion | SCEN-05 | | provider sorted/dynamic; nested scene)->launch) arm; zsh -n/bash -n |
+| CWD inheritance | FOUND-01 | PASS | 07-05 §3 harness (D-12): `__wezterm_osc7` precmd hook active in interactive zsh; spawned interactive pane, `cd /private/tmp/osc7_parity_$$`, OSC7 reported it, the `cli split-pane` CHILD inherited the exact cwd (not `$HOME`) — recorded via `wezterm cli list --format json` |
+| Clear screen + scrollback (Cmd+K) | FOUND-02 | PARTIAL | binding present + maps to Command: `wez keys` shows the curated set rides `SUPER+…` (= Cmd on macOS). Live Cmd+K keystroke not driven (screen locked — see Harness note); modifier mapping confirmed via the key table |
+| Curated bindings | FOUND-03 | PASS | 07-05 §4: `wez keys` lists the curated set across `== Tabs/Panes/Navigation/Font/Other ==` groups |
+| Bindings runtime-verifiable | FOUND-04 | PASS | `wez keys` resolves `[setup]` labels (e.g. `MoveTabRelative`) against the live `wezterm show-keys --lua` table |
+| Cross-platform parity (Cmd vs Super) | FOUND-05 | PASS | 07-05 §4: tab/pane bindings use `SUPER+N` which is the **Command** key on macOS; same set as the Linux `Super` bindings — modifier substitution confirmed in the key table |
+| `wez doctor` green / fails loudly | DIAG-01 | PASS | 07-04 Task 2 + 07-05 §3 re-confirm: `doctor_exit=0`; all 5 core gates PASS on this Intel Mac (incl. fresh-install backup-gate exception) |
+| `wez keys` grouped | DIAG-02 | PASS | 07-05 §4: grouped by category headers + a `Conflicts (who-wins)` section |
+| `wez keys` conflict/source classify | DIAG-03 | PASS | 07-05 §4: `[setup]`/`[default]` source labels + conflict section present |
+| `wez keys --json` | DIAG-04 | **FAIL (deferred bug)** | 07-05 §4: exits 1, empty stdout, traceback `module 'dkjson' not found` — `keys.lua:262` does `require("dkjson")` but the vendored module is `cli/vendor/dkjson.lua`. **CROSS-PLATFORM** (same on dev launcher AND installed binary; Linux baseline equally broken) — NOT a macOS divergence. Logged in `deferred-items.md` (07-05) for a bugfix follow-up |
+| Pane color set/reset | PANE-01, PANE-02 | PENDING (ui-ux) | 07-05 §5 — `wez pane color` emits OSC 11 + OSC 1337 `WEZTERM_PANE_COLOR` (verified in source `cli/commands/pane.lua`); live visual capture of the background change is PENDING the orchestrator ui-ux review (screen was locked during the harness drive — see Harness note) |
+| Pane title + persistence | PANE-03, PANE-04 | PENDING (ui-ux) | 07-05 §5 — `wez pane title` emits OSC 1337 `WEZTERM_TAB_TITLE`; persistence-across-focus capture PENDING ui-ux review |
+| Tab color / combined / priority / active | TAB-01..05 | PENDING (ui-ux) | 07-05 §5 — tab-bar accent/active-distinct rendering PENDING ui-ux review (visual) |
+| `wez scene new` layouts + commands | SCEN-01, SCEN-02 | PENDING (ui-ux) | 07-05 §6 — `wez __complete scene-layouts` = `tall tall:mirrored grid horizontal`; live 4-layout materialization + windowing (no new OS window) capture PENDING ui-ux review |
+| Seed recipes (copy-if-absent) | SCEN-06 | PASS | 07-05 §7a + auto gate §5: fresh seed → 3 `seeded` lines; reseed → `kept existing` (no clobber, byte-identical, D-06); installed scenes `ai.toml dev.toml docker.toml` present |
+| `wez scene launch <name>` + equivalence | SCEN-03, SCEN-04 | PARTIAL | 07-05 §7: all error/exit paths PASS (below); the live happy-path materialization (visual) is PENDING ui-ux review (screen locked) |
+| `scene launch` error/empty states | SCEN-03/04 (UI-SPEC) | PASS | 07-05 §7c against the INSTALLED scenes dir: no-name→exit 2, unknown→exit 1, traversal→exit 1 (`must not contain a path separator`), malformed→exit 1 (single prefix, no traceback), no-recipes→exit 2. Copy matches UI-SPEC (the no-recipes/seed line wording has evolved to `run: wez seed-scenes …` — benign) |
+| Dynamic `scene launch <Tab>` completion | SCEN-05 | PASS | 07-05 §4/§7d: provider sorted (`ai dev docker`); dynamic (`zzz` appears/disappears, no regen); nested `scene)`→`launch)` arm passes `zsh -n`/`bash -n`; **`wez scene launch <Tab>` fires live in real zsh** (zpty capture → `ai dev docker`) |
 
 ---
 
@@ -570,6 +612,7 @@ cross-platform pass to act on it. One row per issue.
 | 2 | CI dispatch — Intel toolchain install (07-04 Task 1) | `macos-15-intel`: `luarocks install luastatic` → `install requires exclusive write access to /usr/local … Permission denied` (exit 4) | luastatic installs and is on PATH for the build step | Toolchain: the Intel Homebrew `/usr/local` luarocks tree is not user-writable without sudo | FIXED `d85fa27`: `luarocks install --local luastatic` (~/.luarocks) + `$GITHUB_PATH`, uniform across both arches |
 | 3 | E2E quarantine probe (07-04 Task 2, D-07) | `xattr -p com.apple.quarantine` on both `~/.local/bin/wez` and `~/Applications/WezTerm.app` → **no quarantine**; Gatekeeper did not block first launch | (n/a — macOS-specific; Linux has no Gatekeeper) | curl/wget downloads do NOT set `com.apple.quarantine` (only browser downloads do) — RESEARCH Pitfall 5 / A4 | NONE — D-07 default: install.sh left unchanged (no `xattr -dr` strip); manual fallback note retained |
 | 4 | Fresh install on a clean machine (07-04 Task 2, INST-01/06) | `wez install-state` aborted `cannot read … No such file or directory` (exit 1); `wez doctor` then failed the core backup gate | install creates `wezterm.lua` + exits 0; doctor exits 0 | Not BSD-specific — the injection model assumed a pre-existing `wezterm.lua`; a clean machine has none | FIXED `eddef2e`: install-state seeds a config-builder base + creates the file (no backup needed); doctor backup gate passes on a fresh creation |
+| 5 | `wez keys --json` (DIAG-04, 07-05 §4) | Exits **1**, empty stdout, traceback `module 'dkjson' not found … no module 'dkjson' in luastatic bundle` | `wez keys --json` prints a jq-valid JSON document, exit 0 | **NOT macOS-specific** — `keys.lua:262` does `require("dkjson")` but the vendored module is `cli/vendor/dkjson.lua`; fails identically on the dev launcher AND the installed binary (Linux baseline equally broken). A require-path bug, not a parity divergence | DEFERRED (logged `deferred-items.md` 07-05): change to `require("cli.vendor.dkjson")` + ensure it is in the luastatic bundle + add a `wez keys --json` parse regression test. Out of scope for the parity verification pass |
 
 **Candidate deviations to watch for (pre-identified from the code, confirm or clear each):**
 
@@ -581,23 +624,40 @@ cross-platform pass to act on it. One row per issue.
       `codesign -s - dist/wez` needed; not handled by `build.sh` (§C-1).
 - [ ] **`sha256sum` absent** — only bites the `WEZ_REMOTE_BOOTSTRAP=1` release-download path in
       `tools/build.sh`; replace with `shasum -a 256` for macOS. (Local source builds are unaffected.)
-- [ ] **`scene new --layout <Tab>` / `--color <Tab>` value completion** (was A-1, FIXED 2026-06-14)
-      — wired + proven at runtime in bash; **confirm it also fires in zsh on macOS** (the zsh arm
-      uses `${words[CURRENT-1]}` under `_arguments`, not headlessly testable here).
+- [x] **`scene new --layout <Tab>` / `--color <Tab>` value completion** (was A-1, FIXED 2026-06-14)
+      — **CONFIRMED in zsh on macOS (07-05 §4/§6, A-1 confirmation).** The installed `_wez` arm
+      `case "${words[CURRENT-1]}" in --layout) … scene-layouts; --color) … scene-colors` was driven
+      live via a real interactive zsh (`zsh/zpty` completion capture under `compinit -u`):
+      `wez scene new --layout <Tab>` → `tall tall:mirrored grid horizontal`;
+      `wez scene new --color <Tab>` → the 10-color palette (no `reset`). No `compinit`
+      insecure-dir warning (the user-owned `~/.local/share/zsh/site-functions` is safe).
 - [x] **WezTerm auto-install on macOS** — RESOLVED: `install_macos` (implemented in 07-02) now
       really downloads the official nightly `.zip` and places `~/Applications/WezTerm.app`
       sudo-free; confirmed live in the 07-04 Task 2 E2E (`[bootstrap] placed
       /Users/ramon/Applications/WezTerm.app`, `wezterm 20260622-120102-6ff54928`). INST-06 macOS
       parity is met.
-- [ ] **Test harness bash version** — `tools/run-tests.sh` uses `mapfile`; verify it runs under a
-      bash that supports it (not stock macOS bash 3.2).
-- [ ] **`cp -R src/. dst/` trailing-dot semantics** on BSD `cp` (STEP 4 config copy).
-- [ ] **zsh `compinit` insecure-directory warnings** from Homebrew-owned `fpath` (completions).
-- [ ] **bash completion** requires `bash-completion@2` on macOS.
-- [ ] **`Cmd` vs `Super` mapping** for `Cmd+K` and all curated bindings.
-- [ ] **Clipboard copy/paste** bindings backed by `pbcopy`/`pbpaste`.
-- [ ] **OSC 7 cwd inheritance** firing on macOS shells after the installer's rc registration.
-- [ ] **Scene windowing** — confirm no per-scene Aqua window; mux semantics match Linux.
+- [x] **Test harness bash version** — CLEARED (07-05): the auto gate ran the unit suite green
+      (`all 31 file(s) passed`) on this Mac with the D-08-fixed `run-tests.sh` (no `mapfile` break);
+      `verify-macos.sh` PASS=26 FAIL=0.
+- [x] **`cp -R src/. dst/` trailing-dot semantics** — CLEARED (07-04 Task 2 + 07-05): the live
+      install placed `~/.config/wezterm/wezterm-setup/` with `init.lua keybindings.lua cwd.lua …`
+      and the `scenes/` tree; no stray `.` entry observed (BSD `cp -R` copied the contents).
+- [x] **zsh `compinit` insecure-directory warnings** — CLEARED (07-05 §4): `compinit -u` loaded
+      `_wez` from the user-owned `~/.local/share/zsh/site-functions` with **no insecure-dir warning**;
+      live `wez <Tab>` completions fire.
+- [ ] **bash completion** requires `bash-completion@2` on macOS. *(zsh path fully confirmed; bash
+      `<Tab>` runtime not exercised — the generated bash script passes `bash -n`.)*
+- [~] **`Cmd` vs `Super` mapping** — CONFIRMED at the key-table level (07-05 §4): curated bindings
+      ride `SUPER+…` = the **Command** key on macOS (FOUND-05). The live `Cmd+K` keystroke was not
+      driven (screen locked) — modifier mapping is proven, the keystroke repro is PENDING.
+- [ ] **Clipboard copy/paste** bindings backed by `pbcopy`/`pbpaste`. *(not in the D-18 flip ID set;
+      not driven this pass — screen locked.)*
+- [x] **OSC 7 cwd inheritance** — CONFIRMED (07-05 §3, FOUND-01): `__wezterm_osc7` precmd hook active
+      in interactive zsh; a `cli split-pane` child inherited the parent's `cd`-ed cwd
+      (`/private/tmp/osc7_parity_$$`), not `$HOME`. Recorded via `wezterm cli list --format json`.
+- [ ] **Scene windowing** — confirm no per-scene Aqua window; mux semantics match Linux. *(PENDING
+      ui-ux — visual; screen locked. `wezterm cli split-pane`/`spawn` reused the same window in the
+      harness, consistent with the contract, but the `scene launch` visual repro is PENDING.)*
 
 ---
 
