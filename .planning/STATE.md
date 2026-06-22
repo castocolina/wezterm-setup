@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-22T18:30:00.000Z"
+last_updated: "2026-06-22T20:00:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 53
-  completed_plans: 51
-  percent: 81
+  completed_plans: 52
+  percent: 83
 ---
 
 # Project State: wezterm-setup
@@ -26,7 +26,7 @@ progress:
 
 ## Current Position
 
-Phase: 07 (macos-parity) — EXECUTING
+Phase: 07 (macos-parity) — COMPLETE (5/5 plans; v1 macOS close gate met on Intel, 2026-06-22)
 
 > The historical "EXECUTING" notes below are preserved as session history — they document the round-1/2/3 reopen fixes that landed during Phase 6 / 6.3. The authoritative current status is the line above and the Phase Status table.
 
@@ -37,9 +37,10 @@ Phase: 07 (macos-parity) — EXECUTING
 **Reopen fix (round 3 — CI startup_failure):** after the binary fixes, the re-cut `v0.1.0` returned `startup_failure` with 0 jobs even on a minimal actionlint-clean workflow. Root cause: the repo's Actions policy was `allowed_actions=local_only`, which blocks `actions/checkout` (not a repo-local action) → no job can start. Fixed via `gh api` PUT `actions/permissions` → `selected` + `github_owned_allowed=true` (checkout allowed; third-party still blocked). Also simplified release.yml to a single hardcoded `ubuntu-latest` job (no matrix) for v1; Phase 7 reintroduces the matrix.
 
 **RESOLVED + LIVE-VERIFIED (2026-06-15):** CI run green (`build linux-x86_64`, 22s); GitHub release `v0.1.0` published `wez-linux-x86_64` + `.sha256`. Dogfooded on the real machine: `curl|bash` → checksum-verified download of the published static binary → `wez doctor` all gates PASS (exit 0); full `make uninstall` (clean removal) → fresh reinstall → doctor PASS again. The installer end-to-end works for a new Linux user. **Remaining:** macOS supply side + on-Mac verification = Phase 7 (the last v1 gate).
-Plan: 4 of 5
+Plan: 5 of 5 (Phase 7 complete)
 
 **07-04 DONE (2026-06-22):** the FULLY UNATTENDED end-to-end supply→consume loop ran green on this Intel Mac (D-09). Dispatched release.yml on the living branch with a D-11 `+<branchname>` version stamp (`tools/build.sh` stamps `cli/spec.lua` M.VERSION before the luastatic bundle; release.yml passes `WEZ_BUILD_VERSION`/`WEZ_BUILD_BRANCH`). D-09 auto-fix loop: attempt 1 (run 27970794764) red on all 3 legs → fixed `d85fa27` (spec.lua RETURN-trap restore was consumed by the luastatic subshell → explicit mktemp save/restore; macos-15-intel `luarocks install --local` — /usr/local not user-writable) → attempt 2 green; re-dispatch 27971403588 (HEAD `eddef2e`) green after the Task-2 fixes. Real `tools/install.sh` E2E of THIS branch's artifact: per-asset SHA-256 verified-before-chmod, `install_macos` placed ~/Applications/WezTerm.app (07-02), `wez version` = `nightly-20260622+gsd-phase-07-macos-parity` (D-11 match), `wez doctor` exit 0, single managed block, Gatekeeper clears. **Fresh-install bug fixed live (Rule 2, `eddef2e`):** `wez install-state` now CREATES wezterm.lua on a clean machine (config_builder base + one managed block, no backup) and `wez doctor`'s backup gate passes on a fresh creation (+12 tests, 70/70 + 29/29). **D-07:** no `com.apple.quarantine` on wez OR WezTerm.app (curl download) → install.sh UNCHANGED, sudo-free. **D-10:** green-gated on dispatch-dry-run-green AND E2E-green, auto-pushed **`v1.0.0`** (sorts above the pre-existing v0.1.0); stable run 27971643099 green; v1.0.0 published prerelease=false; /releases/latest → v1.0.0. No human checkpoint. Next: 07-05 (agent-driven parity verification, the v1 close).
+**07-05 DONE (2026-06-22) — Phase 7 v1 close gate met:** completed the agent-driven macOS runbook and flipped the D-18 statuses. Task 1 (`39aff7e`): inserted the orchestrator-run `agent-ui-ux-designer` notes verbatim for §5 (pane bg / tab-bar accents / emoji cell-width) and §6 (ad-hoc scene glyphs/colors/windowing) — **both PASS, no rendering defects** (emoji two-cell width aligned, box-drawing + color emoji faithful, distinct pane backgrounds, fancy tab active/inactive distinction, even 2×2 grid in the SAME window); flipped the §5/§6 Results rows PENDING(ui-ux)/PARTIAL → PASS (PANE-01..04, TAB-01..05, SCEN-01..04); recorded macOS **deviation #6** — `wez scene new` errors `mux returned a non-numeric pane id` unless the `wezterm` CLI is on PATH (the `.app` bundle keeps it at `Contents/MacOS/wezterm`, not exported); workaround proven live (symlink/PATH), filed A-4 installer follow-up, NON-BLOCKING (launch error/exit-code contract + verify-macos §4 passed, scene new works once PATH wired). Ticked §C C-5..C-8 boxes; resolved the Scene-windowing candidate. Task 2 (`92fa306`, D-09 autonomous): re-confirmed `verify-macos.sh` **PASS=26 FAIL=0 exit 0**, then flipped the **13 D-18 IDs** (INST-01 §2, INST-07 07-04 E2E+§2, FOUND-01 §3, DIAG-05 §4, PANE-01..04 §5, SCEN-03..06 §7/§7a/§7d) from the deferred qualifier to `macOS verified D-18 (§...)` in REQUIREMENTS (checkbox+Traceability) + ROADMAP (Coverage), byte-for-byte per ID; aligned ROADMAP INST-07 to REQUIREMENTS; left SCEN-01/02 + INST-08 deferred (out of the 13 scope); Phase 7.1 (arm64 end-user) untouched, arm64 cited via the shared CI/CD build + codesign + Intel-proven parity (D-01, no Silicon hardware claim). Deviation (Rule 1): the reconciliation footer notes literally contained `macOS deferred D-18` next to the ID list → false-positived the per-ID gate; reworded → all 13 IDs report `deferred=0` in both files and the per-ID consistency diff is clean. Phase 7 now 5/5 (progress 52/53, 83%). Next per roadmap order: Phase 6.5 (Keybinding Clarity) → 6.4 (doc audit).
 **06.2-01 DONE (2026-06-16):** pure-core identity helpers landed via TDD (RED `4d6e4b2` → GREEN `897a40f`). `cli/lib/title.lua` gains `M.resolve_icon(input)` (known ICONS name case-insensitive → glyph; any other input verbatim; nil/empty → "" — D-02, no reject since escaping is the emitter's job, T-06.2-01) and `M.fallback_title(title, icon, launch_dir)` — the SINGLE shared empty-title cwd fallback both the tab render (Plan 03) and the scene loop (Plan 04) will call: explicit title wins (D-11), else `basename(launch_dir)` (D-12), with icon → `icon .. " " .. base` (D-13); reuses the `basename` edge contract so odd paths don't crash (T-06.2-02). D-05: the first-word glyph swap is REMOVED from `resolve_title`/`resolve_title_str` — titles fully literal; `reset`/empty → "" + `expand_cwd` kept; the only `M.ICONS[` lookup now lives inside `resolve_icon`. Deviation (Rule 1): the stale glyph-swap assertions in `pane_test.lua` (t1/t4/t7/t8) + `tab_test.lua` (19/21) — which assert the old swap through the re-exported `resolve_title` — were flipped to the D-05 literal results (assertion-only, NO source change to pane.lua/tab.lua; those rewires are Plan 03/04). title_test 45/45, module purity grep 0, full suite 23/23. Next: Plans 02 (CLI icon subcommands + color split) / 03 (render).
 **06.1-01 DONE (2026-06-15):** shared `cli/lib/color.lua` landed via TDD (RED `f2d167d` → GREEN `8be8f33`). Consolidates the duplicated palette/normalize/validate + base64 + OSC 11/1337 builders (D-01) into one pure module, adds `build_user_var_octal` (Pitfall-2 octal emitter), and lands D-09 (`#RRGGBBAA` accepted + preserved; `strip_alpha` removed). `rgba()` rejected cleanly (D-09 floor is `#RRGGBBAA`). No consumer rewiring yet — Plan 03 deletes the duplicates and re-exports. Suite 22/22 green, purity grep 0.
 **06.1-03 DONE (2026-06-15):** decoupled tab color from title + consumed the shared color module, via TDD (pane RED `c6fdff4` → GREEN `80f55cc`; tab RED `ef70b12` → GREEN `caffe44`). `wez tab color` now emits `WEZTERM_TAB_COLOR` via OSC 1337 to the active pane TTY (io.write, same channel as `wez pane color`) — the `<color>:<title>` prefix encoding (the `cyan:` literal bug) is GONE from the steady state; `wez tab title` writes PURE text via set-tab-title; combined `--title` does two independent writes. D-01: deleted the duplicated `strip_alpha`/`normalize_color`/`validate_color` + base64 + OSC builders from pane.lua AND tab.lua, both now `require("cli.lib.color")` and re-export (net **-80 source lines**). D-09: `#RRGGBBAA` preserved end-to-end. D-04: `parse_stored`/`merge_title` demoted to migration-only helpers (kept callable for scene.lua until Plan 04), removed from the write path; `run_color` warns once on a legacy-prefixed live tab. Suite 23/23 green; D-01 purity grep 0.
@@ -49,7 +50,7 @@ Plan: 4 of 5
 **06.1 UAT (2026-06-15):** 8/8 happy-path PASS. Two in-session findings fixed in-phase (scene scrollback garbage; missing `{cwd}` titles). Two **design** gaps deferred (NOT defects — current behavior matches locked D-02/D-03/D-04): **G-1** icon should be its own attr (CLI + recipe), decoupled from the title's first word; **G-2** tab color vs pane color share one `WEZTERM_TAB_COLOR` var (confirmed OUR impl, not a WezTerm limit) → split into tab-own + per-pane vars, explicit tab color wins, opt-in `adopt_active_pane_color`. Both extend 06.1's decouple theme and revise locked decisions → **follow-up phase** (also pending backlog: nightly/latest release channel, `wez uninstall`, `{cwd}`-in-title auto-fallback). See `06.1-UAT.md` Gaps.
 **Current Phase**: Phases 0–6.3 COMPLETE (10/13). Phase 6.1 (Tab/Scene Identity Redesign, UAT-verified), 6.2 (Identity Orthogonality), and 6.3 (Distribution Channels) all shipped. Remaining: Phase 6.5 (Keybinding Clarity & `wez keys` output curation), then 6.4 (doc audit, runs last), then Phase 7 (macOS parity close gate, hardware-blocked).
 **Delta phases remaining, numeric = execution order:** **6.5 → 6.4 → 7**. 6.5 Keybinding Clarity (curated-first `wez keys` output, one display convention, de-noise, mapped:+Shift reconcile); 6.4 doc audit (documents the final reality, runs last — depends on 6.5); Phase 7 macOS = close gate (hardware-blocked).
-**Next action**: `/gsd-discuss-phase 06.5` (Keybinding Clarity & `wez keys` Output Curation) — the recommended next step while macOS hardware is unavailable.
+**Next action**: `/gsd-discuss-phase 06.5` (Keybinding Clarity & `wez keys` Output Curation) — the recommended next step. (Phase 7 macOS close gate is now DONE on Intel, so hardware is no longer the gating constraint; the arm64 end-user first-launch is the separate non-gating Phase 7.1.)
 **What shipped (6 plans, 21 commits, +1038 lines, suite 21/21):** `tools/install.sh` (pipe-safe one-liner: main()-last-line, /dev/tty open-probe, codeload tarball + mktemp/trap cleanup, WEZ_REMOTE_BOOTSTRAP=1 handoff, WEZ_REF pin); `tools/build.sh` repointed castocolina + per-asset .sha256 + portable verify; `tools/publish.sh` + `make build/publish`; `.github/workflows/release.yml` (matrix ubuntu/macos-15-intel/macos-14, arm64 codesign); `tools/ci-setup-toolchain.sh`; `tools/bootstrap-wezterm.sh` nightly-default + update-in-place + `wezterm_install_is_user_path` predicate; `cli/commands/update.lua` (`wez update`, split semver/datestamp comparators, system-install guard) + `cli/spec.lua` registration; README via crafting-effective-readmes; `bash -n` gate in run-tests.sh.
 **Verification:** 06-VERIFICATION.md status=passed-with-concerns, 8/8 SC. Live-checked: `wez update` refuses the system /usr/bin wezterm (P6-D09 holds); install.sh temp cleanup fixed (eb8a691, live-dogfound bug); deterministic headless-abort.
 **Known interim (deferred-by-design, NOT failures):** (1) no `v*` release tag cut yet → live wez-binary download not exercised end-to-end; dev source-launcher/local-checkout fallback keeps the installer working (Open Q3, maintainer action). (2) macOS on-Mac verification = Phase 7 (`install_macos()` stub; macOS asset BUILD is wired in CI). Coverage 34/34 reqs mapped (INST-07/08/09 added). Phases 0–6 done; Phase 7 is the v1 close gate.
@@ -70,10 +71,10 @@ Phase 6.2  [██████████]  Complete (2026-06-16)
 Phase 6.3  [██████████]  Complete (2026-06-18)
 Phase 6.5  [░░░░░░░░░░]  Not started (next, before 6.4)
 Phase 6.4  [░░░░░░░░░░]  Not started (after 6.5)
-Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
+Phase 7    [██████████]  Complete (2026-06-22, macOS close gate — Intel, agent-driven)
 ```
 
-**Overall**: 10/13 phases complete (~77%)
+**Overall**: 11/13 phases complete (~83%)
 
 ---
 
@@ -93,7 +94,7 @@ Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 | 6.3 | Distribution Channels | Complete | 2026-06-18 |
 | 6.5 | Keybinding Clarity & `wez keys` Output Curation | Pending — next (before 6.4) | - |
 | 6.4 | User Documentation Audit and Refactor | Pending — after 6.5 | - |
-| 7 | macOS Parity Pass (D-18) | Pending — needs a Mac | - |
+| 7 | macOS Parity Pass (D-18) | Complete (Intel, agent-driven; v1 close gate) | 2026-06-22 |
 
 ---
 
@@ -108,10 +109,10 @@ Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 
 ## Performance Metrics
 
-**Plans executed**: 48/48 (Phases 0–6.3; includes the retroactively backfilled 06.1-07 summary)  
+**Plans executed**: 52/53 (Phases 0–6.3 + Phase 7 complete; remaining = Phases 6.5/6.4)  
 **Plans verified**: tracked per-phase in the SUMMARY/VERIFICATION artifacts under `.planning/phases/`  
-**Requirements delivered**: 34/34 v1 requirements Done on Linux (platform-sensitive ones carry "macOS deferred D-18", flipped to Done in Phase 7)  
-**Phases complete**: 10/13
+**Requirements delivered**: 34/34 v1 requirements Done; the 13 platform-sensitive D-18 IDs flipped to "macOS verified D-18 (§...)" in Phase 7 (SCEN-01/02 + INST-08 remain deferred, out of the 07-05 flip scope; arm64 end-user check is non-gating Phase 7.1)  
+**Phases complete**: 11/13
 
 ---
 
@@ -163,6 +164,7 @@ Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 | Phase 06.3 P03 | 10min | 3 tasks | 2 files |
 | Phase 07 P01 | 25min | 2 tasks | 5 files |
 | Phase 07 P03 | 30min | 2 tasks | 5 files |
+| Phase 07 P05 | 20min | 2 tasks | 4 files |
 
 ### Validated Capabilities (pre-Phase 0)
 
@@ -175,7 +177,7 @@ Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 
 **Single tracker:** [`.planning/MACOS-PARITY-AND-FOLLOWUPS.md`](MACOS-PARITY-AND-FOLLOWUPS.md) — all post-Phase-5 pending work. Phases 1–4 are CLOSED, so items are NOT scattered into those dirs.
 
-- **macOS batched pass (D-18)** — the next milestone-level activity. Run `bash tools/verify-macos.sh` (auto, non-destructive) for the gate, then drive `docs/macos-verification.md` top-to-bottom on a real Mac (pair with `agent-ui-ux-designer` for the visual/UX steps). Tracker §C.
+- **✅ macOS batched pass (D-18) — DONE (Phase 7, 2026-06-22).** `verify-macos.sh` green (PASS=26 FAIL=0), `docs/macos-verification.md` driven agent-driven top-to-bottom with §5/§6 `agent-ui-ux-designer` PASS, all 13 platform-sensitive D-18 IDs flipped to "macOS verified D-18 (§...)". Remaining macOS follow-ups (non-gating): A-4 (`wez scene new` needs `wezterm` on PATH — installer symlink), deviation #5 (`wez keys --json` dkjson require-path, cross-platform), and arm64 end-user first-launch = Phase 7.1. Tracker §C all ticked.
 - **✅ A-1 RESOLVED 2026-06-14: `wez scene new --layout`/`--color <Tab>` value completion** — wired into both generated scripts (`--layout)→scene-layouts`, `--color)→scene-colors`; new `scene.COLOR_NAMES` single source + `scene-colors` context). Bash runtime proven; zsh confirm on the runbook §6. Suite 17/17. Tracker §A-1. (`--pane`/`--title` values remain uncompleted — minor.)
 - **UX backlog** (deferred, non-blocking): `wez scene list`, did-you-mean, unify error prefixes, dead dispatcher branch, README recipe caveats. Tracker §A-2.
 - **Clarified (NOT bugs):** `bg` == `wez pane color`; no separate `bg`/`opacity` ships in v1 (new requirement if wanted). Tracker §B.
@@ -250,7 +252,7 @@ Phase 7    [░░░░░░░░░░]  Not started (macOS close gate)
 ---
 
 *State initialized: 2026-06-07*  
-*Last updated: 2026-06-20 — reconciled the frozen ledger with delivered reality: frontmatter now reads 10/13 phases complete, 48/48 plans, ~77%; Current Position prose, Progress Bar, Phase Status table, and Performance Metrics all reflect completion through Phase 6.3 (next = Phase 6.5). The tab-color-prefix decision + validated bullet are annotated superseded by Phase 6.1 (history preserved). Quick task 260620-tf0.*
+*Last updated: 2026-06-22 — Phase 7 (macOS Parity Pass, D-18) COMPLETE via Plan 07-05: agent-driven runbook finished (§5/§6 agent-ui-ux-designer PASS), verify-macos.sh PASS=26 FAIL=0, and the 13 platform-sensitive D-18 IDs flipped to "macOS verified D-18 (§...)" in REQUIREMENTS + ROADMAP. Frontmatter now 11/13 phases, 52/53 plans, ~83%; Current Position, Progress Bar, Phase Status table, Performance Metrics updated. macOS deviation #6 (wez scene new needs wezterm on PATH) + A-4 follow-up recorded. Prior: 2026-06-20 — reconciled the ledger through Phase 6.3 (quick task 260620-tf0).*
 
 ## Decisions
 
