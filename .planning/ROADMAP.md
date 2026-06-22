@@ -351,7 +351,7 @@ Plans:
 
 - [x] 07-01-PLAN.md — Wave 0: sudo-free macOS compile toolchain (lua@5.4 keg + luastatic, `make setup`) + bash-3.2-safe run-tests.sh (mapfile removed) + sha256 sweep [wave 0]
 - [x] 07-02-PLAN.md — Real install_macos() .app placement to ~/Applications (integrity-gate-before-extract, ditto) + wezterm_macos_asset_url + unit test (INST-06, D-04/D-05/D-07) [wave 1]
-- [ ] 07-03-PLAN.md — CI/CD: re-introduce the 3-leg release.yml matrix (ubuntu/macos-15-intel/macos-14) + build-time ad-hoc codesign both arches + ci-setup-toolchain lua@5.4 fix + arm64 smoke + dispatch dry-run (D-01/D-06) [wave 1]
+- [x] 07-03-PLAN.md — CI/CD: re-introduce the 3-leg release.yml matrix (ubuntu/macos-15-intel/macos-14) + build-time ad-hoc codesign both arches + ci-setup-toolchain lua@5.4 fix + arm64 smoke + dispatch dry-run (D-01/D-06) [wave 1] (completed 2026-06-22; actionlint clean, TEXT gate 19/19; live dispatch is 07-04)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
