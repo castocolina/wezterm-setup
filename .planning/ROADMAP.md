@@ -19,7 +19,7 @@
 - [x] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback (completed 2026-06-16)
 - [x] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full) (completed 2026-06-18)
 - [ ] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua`
-- [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
+- [x] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close (completed 2026-06-22; verify-macos.sh PASS=26 FAIL=0, runbook driven agent-driven with §5/§6 ui-ux PASS, 13 D-18 IDs flipped to verified)
 
 > **Execution = numeric order:** 6.1 ✓ → **6.2 (identity orthogonality, next)** → **6.3 (distribution channels)** → **6.4 (doc audit — runs LAST so it documents the final icon/color/install reality)** → 7 (macOS close gate). 6.2 and 6.3 are independent and could run in either order; 6.4 depends on both. *(The old 6.2 "doc audit" is renumbered to 6.4 — it had not started, so no execution artifacts move.)*
 
@@ -359,7 +359,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-05-PLAN.md — Parity verification + evidence: verify-macos.sh auto gate green + drive the full runbook + agent-ui-ux-designer review + flip all D-18 statuses to Done with citations (D-02/D-03) [wave 3]
+- [x] 07-05-PLAN.md — Parity verification + evidence: verify-macos.sh auto gate green (PASS=26 FAIL=0) + drove the full runbook + agent-ui-ux-designer §5/§6 PASS review + flipped all 13 D-18 statuses to Done with §-citations (D-02/D-03/D-09) [wave 3] (completed 2026-06-22)
 
 > **Phase 7 / 7.1 split (CONTEXT D-01/D-01b, 2026-06-20):** Phase 7 is the v1 gate — it delivers the entire macOS build INCLUDING the arm64 asset (built + ad-hoc-codesigned via CI/CD) plus the full agent-driven ecosystem verification on the available **Intel** Mac. arm64 status flips on the shared CI/CD build + codesign + Intel-proven parity; **no Apple Silicon hardware run is required for the v1 close**. The Apple-Silicon end-user distribution check is the separate, **non-gating Phase 7.1** (out of scope here).
 
@@ -383,7 +383,7 @@ Plans:
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
-| 7. macOS Parity Pass (D-18) | 2/5 | In Progress|  |
+| 7. macOS Parity Pass (D-18) | 5/5 | Complete | 2026-06-22 |
 
 ---
 
@@ -391,13 +391,13 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INST-01 | Phase 1 | Done (01-04, Linux; macOS deferred D-18) |
+| INST-01 | Phase 1 | Done (01-04, Linux; macOS verified D-18 (§2)) |
 | INST-02 | Phase 1 | Done (01-04) |
 | INST-03 | Phase 1 | Done (01-04) |
 | INST-04 | Phase 1 | Done (01-06) |
 | INST-05 | Phase 1 | Done (01-06) |
 | INST-06 | Phase 1 | Done (01-02 Linux; macOS .app placement closed 07-02 — real install_macos, integrity-gated, live-verified on Intel) |
-| FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
+| FOUND-01 | Phase 1 | Done (01-03, Linux; macOS verified D-18 (§3 CWD)) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
 | FOUND-04 | Phase 1 | Done (Plan 05 `wez keys` + Plan 04 config install) |
@@ -406,11 +406,11 @@ Plans:
 | DIAG-02 | Phase 1 | Done (Plan 05) |
 | DIAG-03 | Phase 1 | Done (Plan 05) |
 | DIAG-04 | Phase 1 | Done (Plan 05) |
-| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS deferred D-18) |
-| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS verified D-18 (§4 completions + verify-macos §2/§3)) |
+| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
 | TAB-01 | Phase 3 | Done (Phase 3) |
 | TAB-02 | Phase 3 | Done (Phase 3) |
 | TAB-03 | Phase 3 | Done (Phase 3) |
@@ -418,12 +418,12 @@ Plans:
 | TAB-05 | Phase 3 | Done (Phase 3) |
 | SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
 | SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
-| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
+| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
+| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7d + §4 + A-1 zsh --layout/--color)) |
+| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7a + verify-macos §5)) |
 
-| INST-07 | Phase 6 | Done (Phase 6; macOS asset on-Mac verify deferred D-18) |
+| INST-07 | Phase 6 | Done (Phase 6; macOS on-Mac E2E verified 07-04 — real curl\|install.sh, SHA-256 gate, doctor exit 0, version match, Gatekeeper clears, on Intel) |
 | INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
 | INST-09 | Phase 6 | Done (Phase 6) |
 
@@ -432,4 +432,4 @@ Plans:
 ---
 
 *Roadmap created: 2026-06-07*  
-*Last updated: 2026-06-20 — reconciled the Coverage table with delivered reality (TAB-01..05, SCEN-01/02, INST-07/08/09 flipped from Pending to Done; all rows normalized to the "Done (Phase N, Linux; macOS deferred D-18)" form). The Coverage table now agrees byte-for-byte with the REQUIREMENTS.md Traceability table per requirement ID (quick task 260620-tf0). Prior: 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18); discuss-phase 6 added INST-08.*
+*Last updated: 2026-06-22 — Phase 7 (07-05) flipped the 13 platform-sensitive D-18 requirement IDs from the deferred qualifier to the "macOS verified D-18 (§...)" form on the green harness evidence (verify-macos.sh PASS=26 FAIL=0 + agent-driven runbook + §5/§6 ui-ux PASS). SCEN-01, SCEN-02 and INST-08 remain deferred (out of the 07-05 flip scope; the arm64 end-user check is the non-gating Phase 7.1). The Coverage table agrees byte-for-byte with the REQUIREMENTS.md Traceability table per ID. Prior: 2026-06-20 — reconciled the Coverage table with delivered reality (TAB-01..05, SCEN-01/02, INST-07/08/09 flipped from Pending to Done). 2026-06-14 — added Phase 6 (Ergonomic Installer, INST-07) + Phase 7 (macOS Parity Pass, D-18); discuss-phase 6 added INST-08.*

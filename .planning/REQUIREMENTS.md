@@ -19,7 +19,7 @@
 
 ### Foundation Behaviors
 
-- [x] **FOUND-01**: New tabs and panes open in the cwd of the active pane (Linux + macOS) — Linux mechanism shipped (01-03: OSC 7 emitters + cwd.lua); macOS verify deferred (D-18)
+- [x] **FOUND-01**: New tabs and panes open in the cwd of the active pane (Linux + macOS) — Linux mechanism shipped (01-03: OSC 7 emitters + cwd.lua); macOS verified D-18 (§3 CWD: split-pane child inherited the parent cwd live on Intel)
 - [x] **FOUND-02**: One keybinding clears screen + scrollback instantly (`Super+K` Linux / `Cmd+K` macOS) — 01-03
 - [x] **FOUND-03**: A curated keybinding set covers: tabs (new/close/next/prev/move), panes (split/close/zoom/navigate), font zoom, word navigation — 01-03
 - [x] **FOUND-04**: Every shipped binding is verifiable at runtime — no chord declared but silently ignored — `wez keys` (Plan 05) + Plan 04 installs the config so `[setup]` labels resolve
@@ -84,7 +84,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INST-01 | Phase 1 | Done (01-04, Linux; macOS deferred D-18) |
+| INST-01 | Phase 1 | Done (01-04, Linux; macOS verified D-18 (§2)) |
 | INST-02 | Phase 1 | Done (01-04) |
 | INST-03 | Phase 1 | Done (01-04) |
 | INST-04 | Phase 1 | Done (01-06) |
@@ -93,7 +93,7 @@
 | INST-07 | Phase 6 | Done (Phase 6; macOS on-Mac E2E verified 07-04 — real curl\|install.sh, SHA-256 gate, doctor exit 0, version match, Gatekeeper clears, on Intel) |
 | INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
 | INST-09 | Phase 6 | Done (Phase 6) |
-| FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |
+| FOUND-01 | Phase 1 | Done (01-03, Linux; macOS verified D-18 (§3 CWD)) |
 | FOUND-02 | Phase 1 | Done (01-03) |
 | FOUND-03 | Phase 1 | Done (01-03) |
 | FOUND-04 | Phase 1 | Done (Plan 05 `wez keys` + Plan 04 config install) |
@@ -102,11 +102,11 @@
 | DIAG-02 | Phase 1 | Done (Plan 05) |
 | DIAG-03 | Phase 1 | Done (Plan 05) |
 | DIAG-04 | Phase 1 | Done (Plan 05) |
-| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS deferred D-18) |
-| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
-| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS deferred D-18) |
+| DIAG-05 | Phase 1 | Done (Plan 07, Linux; macOS verified D-18 (§4 completions + verify-macos §2/§3)) |
+| PANE-01 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-02 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-03 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
+| PANE-04 | Phase 2 | Done (Phase 2, Linux; macOS verified D-18 (§5)) |
 | TAB-01 | Phase 3 | Done (Phase 3) |
 | TAB-02 | Phase 3 | Done (Phase 3) |
 | TAB-03 | Phase 3 | Done (Phase 3) |
@@ -114,10 +114,10 @@
 | TAB-05 | Phase 3 | Done (Phase 3) |
 | SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
 | SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
-| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
-| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS deferred D-18) |
+| SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
+| SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
+| SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7d + §4 + A-1 zsh --layout/--color)) |
+| SCEN-06 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7a + verify-macos §5)) |
 
 **Coverage:**
 
@@ -128,4 +128,4 @@
 
 ---
 *Requirements defined: 2026-06-07*  
-*Last updated: 2026-06-20 — reconciled the v1 checkbox list + Traceability table with delivered reality (all v1 requirements Done; platform-sensitive ones carry the "macOS deferred D-18" qualifier flipped to Done in Phase 7); corrected the SCEN-06 seed table to the shipped `scenes/*.toml` (seeds evolved in Phases 6.1/6.2). Traceability now agrees byte-for-byte with the ROADMAP coverage table (quick task 260620-tf0).*
+*Last updated: 2026-06-22 — Phase 7 (07-05) flipped the 13 platform-sensitive D-18 requirement IDs from the deferred qualifier to the "macOS verified D-18 (§...)" form on the green harness evidence (verify-macos.sh PASS=26 FAIL=0 + agent-driven runbook + §5/§6 agent-ui-ux-designer PASS). SCEN-01, SCEN-02 and INST-08 remain deferred (out of the 07-05 flip scope; the arm64 end-user check is the non-gating Phase 7.1). Traceability agrees byte-for-byte with the ROADMAP coverage table per ID. Prior: 2026-06-20 — reconciled the v1 checkbox list + Traceability table with delivered reality; corrected the SCEN-06 seed table to the shipped `scenes/*.toml` (seeds evolved in Phases 6.1/6.2).*
