@@ -349,7 +349,7 @@ Audit** so the documented keybindings reflect the curated output (6.4 still runs
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Wave 0: sudo-free macOS compile toolchain (lua@5.4 keg + luastatic, `make setup`) + bash-3.2-safe run-tests.sh (mapfile removed) + sha256 sweep [wave 0]
+- [x] 07-01-PLAN.md — Wave 0: sudo-free macOS compile toolchain (lua@5.4 keg + luastatic, `make setup`) + bash-3.2-safe run-tests.sh (mapfile removed) + sha256 sweep [wave 0]
 - [ ] 07-02-PLAN.md — Real install_macos() .app placement to ~/Applications (integrity-gate-before-extract, ditto) + wezterm_macos_asset_url + unit test (INST-06, D-04/D-05/D-07) [wave 1]
 - [ ] 07-03-PLAN.md — CI/CD: re-introduce the 3-leg release.yml matrix (ubuntu/macos-15-intel/macos-14) + build-time ad-hoc codesign both arches + ci-setup-toolchain lua@5.4 fix + arm64 smoke + dispatch dry-run (D-01/D-06) [wave 1]
 
@@ -383,7 +383,7 @@ Plans:
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 0/? | Not started (before 6.4) | - |
 | 6.4 User Documentation Audit and Refactor | 0/? | Not started (after 6.2/6.3/6.5) | - |
-| 7. macOS Parity Pass (D-18) | 0/5 | Planned (close gate) | - |
+| 7. macOS Parity Pass (D-18) | 1/5 | In Progress|  |
 
 ---
 
