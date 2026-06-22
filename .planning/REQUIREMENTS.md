@@ -90,7 +90,7 @@
 | INST-04 | Phase 1 | Done (01-06) |
 | INST-05 | Phase 1 | Done (01-06) |
 | INST-06 | Phase 1 | Done (01-02 Linux; macOS .app placement closed 07-02 — real install_macos, integrity-gated, live-verified on Intel) |
-| INST-07 | Phase 6 | Done (Phase 6; macOS asset on-Mac verify deferred D-18) |
+| INST-07 | Phase 6 | Done (Phase 6; macOS on-Mac E2E verified 07-04 — real curl\|install.sh, SHA-256 gate, doctor exit 0, version match, Gatekeeper clears, on Intel) |
 | INST-08 | Phase 6 | Done (Phase 6; macOS on-Mac verify deferred D-18) |
 | INST-09 | Phase 6 | Done (Phase 6) |
 | FOUND-01 | Phase 1 | Done (01-03, Linux; macOS deferred D-18) |

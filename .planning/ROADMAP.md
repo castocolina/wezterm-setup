@@ -355,7 +355,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-04-PLAN.md — E2E loop: dispatch→`gh run watch`→real install→verify (integrity gate, doctor exit 0) + D-07 quarantine verify-then-decide + first-v*-tag human checkpoint (INST-06/07, D-07) [wave 2]
+- [x] 07-04-PLAN.md — E2E loop: dispatch→`gh run watch`→real install→verify (integrity gate, doctor exit 0) + D-07 quarantine verify-then-decide + green-gated autonomous first-v*-tag push (INST-06/07, D-07/D-09/D-10/D-11) [wave 2] (completed 2026-06-22; D-09 loop 1 red→fixed→green; E2E doctor exit 0, version nightly-20260622+gsd-phase-07-macos-parity; D-07 no quarantine → install.sh unchanged; v1.0.0 auto-pushed, stable run 27971643099 green)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
