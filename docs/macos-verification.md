@@ -196,7 +196,24 @@ fresh creation. The fixes were rebuilt into the nightly asset via the green re-d
 
 ### §C — Green-gated stable tag decision (Task 3, D-10)
 
-_(filled by Task 3 below)_
+**GREEN-GATE — both binding signals GREEN → push authorized (no human checkpoint):**
+
+- **(a) Dispatch dry-run on the living branch:** run `27971403588` (HEAD `eddef2e`),
+  `gh run watch --exit-status` returned **exit 0** (§A). GREEN.
+- **(b) Real E2E install on this Intel Mac:** integrity gate verified-before-chmod,
+  `wez doctor` **exit 0** (`doctor_exit=0`), `wez version` match
+  `nightly-20260622+gsd-phase-07-macos-parity` (§B). GREEN.
+
+Both signals are green, so per D-10 the first real `v*` tag is auto-pushed
+**autonomously** (the green-gate is the sole safety rail; the user accepted that a
+stable tag is an irreversible public release in exchange for full unattended autonomy).
+
+- **Tag chosen:** `v1.0.0` — the v1.0 milestone (`v0.1.0` already exists from the earlier
+  Linux dogfood; `v1.0.0` sorts ABOVE it under `sort -V`, so the green-gate cross-check
+  applies to this new tag).
+- **Decision:** **PUSHED `v1.0.0`** (`git tag v1.0.0 && git push origin v1.0.0`). A `v*`
+  tag ref → the release workflow resolves `CHANNEL=stable` → the stable publish path.
+- **Stable run:** `<stable_run_id>` — `gh run watch --exit-status` result recorded below.
 
 ---
 
