@@ -112,8 +112,8 @@
 | TAB-03 | Phase 3 | Done (Phase 3) |
 | TAB-04 | Phase 3 | Done (Phase 3) |
 | TAB-05 | Phase 3 | Done (Phase 3) |
-| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
-| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS verified D-18 (§6)) |
+| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS verified D-18 (§6)) |
 | SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
 | SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
 | SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7d + §4 + A-1 zsh --layout/--color)) |
@@ -128,4 +128,4 @@
 
 ---
 *Requirements defined: 2026-06-07*  
-*Last updated: 2026-06-22 — Phase 7 (07-05) flipped the 13 platform-sensitive D-18 requirement IDs from the deferred qualifier to the "macOS verified D-18 (§...)" form on the green harness evidence (verify-macos.sh PASS=26 FAIL=0 + agent-driven runbook + §5/§6 agent-ui-ux-designer PASS). SCEN-01, SCEN-02 and INST-08 remain deferred (out of the 07-05 flip scope; the arm64 end-user check is the non-gating Phase 7.1). Traceability agrees byte-for-byte with the ROADMAP coverage table per ID. Prior: 2026-06-20 — reconciled the v1 checkbox list + Traceability table with delivered reality; corrected the SCEN-06 seed table to the shipped `scenes/*.toml` (seeds evolved in Phases 6.1/6.2).*
+*Last updated: 2026-06-22 — Phase 7 (07-05) flipped the 13 platform-sensitive D-18 requirement IDs PLUS SCEN-01/SCEN-02 from the deferred qualifier to the "macOS verified D-18 (§...)" form on the green harness evidence (verify-macos.sh PASS=26 FAIL=0 + agent-driven runbook + §5/§6 agent-ui-ux-designer PASS). SCEN-01/02 were verified via the §6 live grid-scene capture (layouts + styled panes + tab color/title); note macOS deviation #6 — the scene CLI requires `wezterm` on PATH, addressed by the installer PATH fix. INST-08 remains deferred (arm64 end-user check is the non-gating Phase 7.1). Traceability agrees byte-for-byte with the ROADMAP coverage table per ID. Prior: 2026-06-20 — reconciled the v1 checkbox list + Traceability table with delivered reality; corrected the SCEN-06 seed table to the shipped `scenes/*.toml` (seeds evolved in Phases 6.1/6.2).*

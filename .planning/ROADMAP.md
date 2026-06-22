@@ -416,8 +416,8 @@ Plans:
 | TAB-03 | Phase 3 | Done (Phase 3) |
 | TAB-04 | Phase 3 | Done (Phase 3) |
 | TAB-05 | Phase 3 | Done (Phase 3) |
-| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
-| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS deferred D-18) |
+| SCEN-01 | Phase 4 | Done (Phase 4, Linux; macOS verified D-18 (§6)) |
+| SCEN-02 | Phase 4 | Done (Phase 4, Linux; macOS verified D-18 (§6)) |
 | SCEN-03 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
 | SCEN-04 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7)) |
 | SCEN-05 | Phase 5 | Done (Phase 5, Linux; macOS verified D-18 (§7d + §4 + A-1 zsh --layout/--color)) |
