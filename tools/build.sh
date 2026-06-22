@@ -171,6 +171,23 @@ build_with_luastatic() {
     mv "${REPO_ROOT}/wez" "${OUT}"
   fi
   chmod +x "${OUT}"
+
+  # Build-time ad-hoc codesign (D-06) — macOS ONLY. The codesign calls MUST stay
+  # inside this platform_os=macos guard: Linux has no `codesign` binary, so an
+  # unguarded call would break the Linux leg. We sign BOTH macOS arches uniformly
+  # (the arm64 Mach-O is the one the kernel SIGKILLs when unsigned; signing the
+  # x86_64 binary too is harmless and keeps CI and `make publish` producing the
+  # same signed asset — the publish.sh same-contract rule, widened from arm64-only
+  # to both arches). `codesign --verify --verbose` is the EVIDENCE line proving a
+  # valid signature. We intentionally do NOT gate the build on Gatekeeper
+  # assessment: it ALWAYS rejects ad-hoc signatures (Pitfall 4), so its rejection
+  # is meaningless here — `codesign --verify` success is the real evidence.
+  if [ "$(platform_os)" = "macos" ]; then
+    log "macOS -> ad-hoc codesign + verify ${OUT}"
+    codesign --force --sign - "${OUT}"
+    codesign --verify --verbose "${OUT}"
+  fi
+
   log "built static binary: ${OUT}"
 }
 

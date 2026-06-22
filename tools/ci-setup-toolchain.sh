@@ -60,9 +60,31 @@ install_linux() {
 
 install_macos() {
   # GitHub Actions macos-* runners ship Homebrew + Xcode clang.
-  log "macos runner -> brew install lua luarocks, then luastatic"
-  brew install lua luarocks
+  #
+  # PIN lua@5.4 — NEVER bare `lua`: Homebrew's `lua` formula is now 5.5
+  # (Pitfall 1), and luastatic must bundle a Lua 5.4 interpreter to match the
+  # project's locked runtime (D-02). `lua@5.4` is KEG-ONLY, so Homebrew does NOT
+  # symlink its bin onto the default PATH (Pitfall 2) — we resolve the keg prefix
+  # and prepend it ourselves so `lua5.4`/`luarocks` are findable both for the
+  # version-capture gate below and for the SUBSEQUENT build.sh step in the job.
+  log "macos runner -> brew install lua@5.4 + luarocks, then luastatic"
+  brew install lua@5.4 luarocks
   luarocks install luastatic
+
+  # Keg-only lua@5.4 is not auto-on-PATH (Pitfall 2): prepend its bin so the
+  # version capture + the next build step resolve lua5.4 (not the bare 5.5 lua).
+  PREFIX="$(brew --prefix lua@5.4)"
+  PATH="${PREFIX}/bin:${PATH}"
+  export PATH
+  # Persist the keg bin onto the job PATH so the following steps (build.sh) find
+  # lua5.4 without re-resolving the keg.
+  if [ -n "${GITHUB_PATH:-}" ]; then
+    printf '%s\n' "${PREFIX}/bin" >>"${GITHUB_PATH}"
+  fi
+  # NOTE: if the macOS leg later surfaces a luastatic link error for the keg-only
+  # headers, the documented fix is the keg link flags
+  # `${PREFIX}/lib/liblua5.4.a -I${PREFIX}/include/lua5.4` — build.sh's macOS
+  # keg-only cflags/liblua fallback (build_with_luastatic) already resolves these.
 }
 
 # --- toolchain assertion + version capture (the legitimacy gate) -------------

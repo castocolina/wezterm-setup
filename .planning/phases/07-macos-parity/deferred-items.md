@@ -31,3 +31,17 @@ discovering plan; they are pre-existing or belong to another plan's scope.
 - **Scope:** these are runtime-version drift in the CONFIG/CLI layer (Lua 5.5 vs
   the project's pinned Lua 5.4), unrelated to the macOS bootstrap. Belongs to a
   separate Lua-5.5-compat or toolchain follow-up, not the macOS parity gate.
+
+## 07-03
+
+### Same 8 Lua-5.5 incompatibilities reconfirmed (NOT touched by 07-03)
+
+- **Discovered during:** 07-03 verification under `LUA_BIN=lua` (Lua 5.5) on this
+  Intel Mac (no `lua5.4` present — the 07-02 D-08 deferral above).
+- **Symptom:** the identical 8 files fail (`<const>` hard error). 07-03 changed
+  only `tools/ci-setup-toolchain.sh`, `tools/build.sh`, `.github/workflows/release.yml`,
+  and added `tests/cli/ci_macos_toolchain_test.lua` (which PASSES). The 8 failures
+  reproduce with the 07-03 diff stashed.
+- **Scope:** unchanged from the 07-02 entry — a separate Lua-5.5-compat follow-up.
+  07-03's shell scripts are gated by `bash -n` + `shellcheck -x` in the suite (all
+  PASS) and the new TEXT gate test, the correct verification path for shell glue.
