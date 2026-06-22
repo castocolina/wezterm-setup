@@ -127,6 +127,23 @@ build_with_luastatic() {
     [ -f "${cand}" ] && { liblua="${cand}"; break; }
   done
 
+  # macOS keg-only fallback (D-08): Homebrew's lua@5.4 is keg-only, so its .pc is
+  # NOT on the default pkg-config path (and pkg-config may be absent entirely),
+  # which makes the Debian-oriented probes above resolve to the wrong header path
+  # (/usr/include/lua5.4 does not exist on macOS) and the wrong static archive
+  # (/usr/local/lib/liblua.a points at the bare `lua` 5.5 formula). When running
+  # on macOS with the lua@5.4 keg present, resolve cflags + liblua directly from
+  # the keg prefix (setup-dev.sh installs it there). Branch on availability, not
+  # OS hard-coding: only override when the keg's header + static lib actually exist.
+  if [ "$(platform_os)" = "macos" ] && command -v brew >/dev/null 2>&1; then
+    local keg
+    keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+    if [ -n "${keg}" ] && [ -f "${keg}/include/lua5.4/lauxlib.h" ] && [ -f "${keg}/lib/liblua.a" ]; then
+      lua_cflags="-I${keg}/include/lua5.4"
+      liblua="${keg}/lib/liblua.a"
+    fi
+  fi
+
   # Collect every Lua source under cli/ (entry + spec + commands + vendored deps).
   # CRITICAL: luastatic derives each bundled module's name from the PATH STRING it
   # is given, so we must invoke it from REPO_ROOT with RELATIVE paths (cli/spec.lua

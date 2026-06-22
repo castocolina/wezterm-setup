@@ -3,10 +3,11 @@
 # See docs/agent-iteration.md (R3 — config layer is composable).
 
 .DEFAULT_GOAL := help
-.PHONY: help install build publish clean doctor test uninstall
+.PHONY: help setup install build publish clean doctor test uninstall
 
 help:
 	@echo "wezterm-setup targets:"
+	@echo "  setup                    install the sudo-free dev compile toolchain (lua@5.4 + luastatic)"
 	@echo "  install                  inject sentinel block into wezterm.lua + install wez CLI"
 	@echo "  build                    build dist/wez (luastatic single binary, same path CI uses)"
 	@echo "  publish                  build + upload this platform's wez-<os>-<arch> asset to the release"
@@ -17,6 +18,9 @@ help:
 	@echo "  uninstall KEEP_CONFIG=1  preserve ~/.config/wezterm/wezterm-setup/; remove CLI only"
 	@echo "  uninstall KEEP_CLI=1     preserve wez binary; remove config block"
 	@echo "  uninstall KEEP_BACKUP=1  preserve wezterm.lua.bak.*; remove the rest"
+
+setup:
+	@./tools/setup-dev.sh
 
 install:
 	@./tools/setup.sh
