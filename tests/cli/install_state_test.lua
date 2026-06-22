@@ -453,5 +453,51 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- FRESH INSTALL (07-04, Rule 2): on a clean machine with NO prior wezterm.lua,
+-- the install seeds the minimal config-builder base, injects exactly ONE managed
+-- block anchored on `return config` (Shape A), creates the file via atomic_write
+-- (no pre-existing file required), and takes NO backup (nothing to back up). The
+-- fresh file carries a `Created by wezterm-setup` marker the doctor backup gate
+-- keys off. This is the primary INST-06/INST-07 first-run path.
+-- ----------------------------------------------------------------------------
+do
+  local dir = scratch_dir()
+  local target = dir .. "/wezterm.lua" -- intentionally does NOT exist yet
+
+  -- The exact minimal base install-state seeds for a fresh file.
+  local base = table.concat({
+    "-- Created by wezterm-setup (no prior ~/.config/wezterm/wezterm.lua existed).",
+    "local wezterm = require('wezterm')",
+    "local config = wezterm.config_builder()",
+    "return config",
+    "",
+  }, "\n")
+
+  local injected, ierr = IS.inject_into_text(base)
+  check("fresh-install base injects cleanly (Shape A)", injected ~= nil, tostring(ierr))
+  if injected then
+    check("fresh inject yields exactly one managed block",
+      count_blocks(injected) == 1, "blocks=" .. tostring(count_blocks(injected)))
+    check("fresh inject keeps a top-level return", has_top_level_return(injected), injected)
+    check("fresh inject augments config via apply(config)",
+      injected:find("apply(config)", 1, true) ~= nil, injected)
+    check("fresh inject carries the Created-by marker",
+      injected:find("Created by wezterm-setup", 1, true) ~= nil, injected)
+  end
+
+  -- atomic_write CREATES a brand-new target (no pre-existing file required).
+  local wok = IS.atomic_write(target, injected or base)
+  check("atomic_write creates a brand-new file",
+    wok == true and read_file(target) ~= nil, tostring(wok))
+  check("created file has a single managed block",
+    count_blocks(read_file(target)) == 1,
+    "blocks=" .. tostring(count_blocks(read_file(target))))
+  -- No backup beside a freshly-created file (nothing existed to back up).
+  check("no backup taken for a fresh creation",
+    IS.newest_backup(target) == nil, tostring(IS.newest_backup(target)))
+  os.execute("rm -rf '" .. dir .. "'")
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

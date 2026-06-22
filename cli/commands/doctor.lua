@@ -180,6 +180,14 @@ end
 
 -- GATE 4 — a timestamped backup exists beside wezterm.lua. Reuses the
 -- install_state newest_backup selector. Injectable via opts.backup for testing.
+--
+-- FRESH-INSTALL EXCEPTION: when wezterm-setup CREATED wezterm.lua from scratch
+-- (no prior config existed — the common clean-machine first-run, INST-06/INST-07),
+-- there was nothing to back up, so the ABSENCE of a backup is the correct state,
+-- not a failure. install-state stamps a `-- Created by wezterm-setup` marker on a
+-- fresh file; when that marker is present and no backup exists, the gate PASSES
+-- (the backup-before-modify invariant is vacuously satisfied — there was no
+-- pre-existing user content to protect). A backup, if present, still passes.
 function M.gate_backup_exists(target, opts)
   opts = opts or {}
   local backup = opts.backup
@@ -188,6 +196,20 @@ function M.gate_backup_exists(target, opts)
   end
   if backup then
     return gate(true, "timestamped backup exists")
+  end
+  -- No backup: pass IFF the config was a wezterm-setup fresh creation.
+  local created_fresh = opts.created_fresh
+  if created_fresh == nil then
+    local fh = io.open(target, "rb")
+    if fh then
+      local data = fh:read("*a") or ""
+      fh:close()
+      created_fresh = data:find("Created by wezterm-setup", 1, true) ~= nil
+    end
+  end
+  if created_fresh then
+    return gate(true, "timestamped backup exists",
+      "fresh install (no prior wezterm.lua) — no backup needed")
   end
   return gate(false, "timestamped backup exists",
     "no wezterm.lua.bak.<timestamp> backup found")

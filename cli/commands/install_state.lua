@@ -400,10 +400,24 @@ function M.run(args)
   args = args or {}
   local target = config_path()
 
+  -- A FRESH install (no prior wezterm.lua at all) is the common first-run case on
+  -- a clean machine — the primary INST-06/INST-07 path. The non-destructive
+  -- managed-block injection degenerates to "create the file with just our block":
+  -- there is no user content to preserve and nothing to back up. So when the target
+  -- does not exist, treat it as empty content (state = absent) and inject fresh.
+  -- We distinguish ENOENT (fresh install — fine) from a genuine read failure
+  -- (e.g. EACCES on an existing file) by the error signature, so a real
+  -- permission error still aborts loudly rather than silently overwriting.
+  local fresh_install = false
   local text, rerr = read_all(target)
   if not text then
-    io.stderr:write("wez install-state: cannot read " .. target .. ": " .. tostring(rerr) .. "\n")
-    return 1
+    if tostring(rerr):find("[Nn]o such file or directory") then
+      text = ""
+      fresh_install = true
+    else
+      io.stderr:write("wez install-state: cannot read " .. target .. ": " .. tostring(rerr) .. "\n")
+      return 1
+    end
   end
 
   local parsed = M.parse(text)
@@ -477,6 +491,34 @@ function M.run(args)
       return 1
     end
     io.write("wez install-state: managed block overridden\n")
+    return 0
+  end
+
+  -- On a fresh install there is no existing file to back up, and the injection
+  -- needs a top-level `return <config>` to anchor against. An empty file has none,
+  -- so we seed the canonical MINIMAL WezTerm config (the config-builder idiom) as
+  -- the base, then inject our managed block before its `return config` (Shape A).
+  -- atomic_write then CREATES the file. On an existing (absent-block) file, the
+  -- normal backup-then-inject path runs unchanged.
+  if fresh_install then
+    local base = table.concat({
+      "-- Created by wezterm-setup (no prior ~/.config/wezterm/wezterm.lua existed).",
+      "local wezterm = require('wezterm')",
+      "local config = wezterm.config_builder()",
+      "return config",
+      "",
+    }, "\n")
+    local new_text, ierr = M.inject_into_text(base)
+    if not new_text then
+      io.stderr:write("wez install-state: inject failed: " .. tostring(ierr) .. "\n")
+      return 1
+    end
+    local ok, werr = M.atomic_write(target, new_text)
+    if not ok then
+      io.stderr:write("wez install-state: write failed: " .. tostring(werr) .. "\n")
+      return 1
+    end
+    io.write("wez install-state: managed block installed (new " .. target .. ")\n")
     return 0
   end
 

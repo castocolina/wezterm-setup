@@ -270,5 +270,36 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- BACKUP GATE — fresh-install exception (07-04). On a clean machine the install
+-- CREATES wezterm.lua from scratch, so there is no prior config to back up and
+-- the absence of a backup is correct, NOT a failure. The gate passes when a
+-- backup exists OR the config is a wezterm-setup fresh creation (detected via the
+-- `Created by wezterm-setup` marker, injectable as opts.created_fresh). A genuine
+-- missing-backup on a NON-fresh (pre-existing user) config still fails.
+-- ----------------------------------------------------------------------------
+do
+  -- A real backup present -> pass (existing behavior).
+  local g_bak = D.gate_backup_exists("/nonexistent/wezterm.lua",
+    { backup = "/nonexistent/wezterm.lua.bak.2026-06-22T00-00-00Z" })
+  check("backup gate passes when a timestamped backup exists", g_bak.ok == true, g_bak.detail)
+
+  -- No backup, but a fresh wezterm-setup creation -> pass (new exception).
+  local g_fresh = D.gate_backup_exists("/nonexistent/wezterm.lua",
+    { backup = false, created_fresh = true })
+  check("backup gate passes on a fresh install with no backup",
+    g_fresh.ok == true, tostring(g_fresh.detail))
+  check("fresh-install pass carries an explanatory detail",
+    type(g_fresh.detail) == "string"
+      and g_fresh.detail:find("fresh install", 1, true) ~= nil, tostring(g_fresh.detail))
+
+  -- No backup AND not a fresh creation (a pre-existing user config that was
+  -- modified without a backup) -> still fails loudly.
+  local g_miss = D.gate_backup_exists("/nonexistent/wezterm.lua",
+    { backup = false, created_fresh = false })
+  check("backup gate still fails when a non-fresh config has no backup",
+    g_miss.ok == false, tostring(g_miss.ok))
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
