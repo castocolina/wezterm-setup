@@ -29,8 +29,11 @@
 #      integrity-check it BEFORE extraction (T-02-01), extract into a fresh
 #      per-release dir under ~/.local/opt/wezterm (T-02-02), and symlink the
 #      in-archive binary into ~/.local/bin (T-02-03 user-path only).
-#   4. macOS — a `.app` -> ~/Applications branch is present but DESIGN-ONLY /
-#      deferred to the Mac pass (D-06, D-18); not exercised on Linux.
+#   4. macOS (REAL, D-04/D-05) — fetch the official nightly macOS `.zip`,
+#      integrity-gate it BEFORE extract (PK magic + size + member-safety), extract
+#      with `ditto -x -k`, and place WezTerm.app under ~/Applications (user-path,
+#      sudo-free, no DMG/hdiutil). Does NOT pre-strip com.apple.quarantine (D-07 —
+#      verify-then-decide is Plan 04's job).
 #
 # Usage:  ./tools/bootstrap-wezterm.sh        # interactive when a TTY is present
 #         ./tools/bootstrap-wezterm.sh < /dev/null   # non-interactive: pinned
@@ -465,18 +468,101 @@ install_linux() {
   esac
 }
 
-# --- macOS (DESIGN-ONLY / deferred to the Mac pass — D-06, D-18) -------------
+# --- macOS (REAL, sudo-free `.app` placement — D-04/D-05/D-07) ---------------
 #
-# Present for cross-platform shape; NOT exercised on Linux. The macOS asset is a
-# zip containing WezTerm.app, placed under ~/Applications (sudo-free, user-path).
-# Verified in the deferred Mac pass — see D-06/D-18. Kept as a branch so the
-# control flow is complete and the Mac pass fills in the fetch/unzip specifics.
+# The structural mirror of install_linux with the OS/asset specifics swapped:
+# fetch the official WezTerm nightly macOS `.zip` (via the SHARED fetch_to — never
+# a new downloader), integrity-gate it BEFORE extraction (T-07-04 PK magic + size
+# floor; T-07-05 reject absolute/`..` members — NEVER extract-then-check), extract
+# with Apple-native `ditto -x -k` (fall back to `unzip` only if ditto is absent)
+# into a scratch dir, then rm -rf + cp -R the WezTerm.app bundle into
+# ${HOME}/Applications (user-path only — never the system /Applications, never
+# sudo, never hdiutil/DMG — D-05). Version selection (the `tag` arg) is fed by the
+# SAME resolve_want_datestamp + select_release path the Linux branch uses, so both
+# OSes track the same nightly contract (D-05).
+#
+# D-07: this does NOT pre-strip com.apple.quarantine. Whether curl downloads carry
+# quarantine and trip Gatekeeper is verified empirically on hardware in Plan 04
+# (verify-then-decide); a non-launching binary here is LOGGED, not a hard fail.
 install_macos() {
   local tag="$1"
   local app_dir="${HOME}/Applications"
-  log "macOS path is DESIGN-ONLY / deferred to the Mac pass (D-06, D-18): would place WezTerm.app for ${tag} under ${app_dir}"
-  log "skipping macOS install on this run (not verified outside the Mac pass)"
-  return 0
+  local url tmpdir zip size magic
+
+  url="$(wezterm_macos_asset_url "${tag}")"
+  log "fetching ${url}"
+
+  tmpdir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '${tmpdir}'" RETURN
+  zip="${tmpdir}/WezTerm.zip"
+
+  if ! fetch_to "${url}" "${zip}"; then
+    err "download failed for ${url}"
+    return 1
+  fi
+
+  # T-07-04: integrity gate BEFORE extraction. Reject empty / implausibly small
+  # downloads and anything lacking the PK zip local-file-header magic 504b0304.
+  if [ ! -s "${zip}" ]; then
+    err "downloaded archive is empty — refusing to extract"
+    return 1
+  fi
+  size="$(wc -c < "${zip}")"
+  if [ "${size}" -lt 1000000 ]; then
+    err "downloaded archive is implausibly small (${size} bytes) — refusing to extract"
+    return 1
+  fi
+  magic="$(od -An -tx1 -N4 "${zip}" | tr -d ' \n')"
+  if [ "${magic}" != "504b0304" ]; then
+    err "downloaded archive is not a valid zip stream (magic=${magic}) — refusing to extract"
+    return 1
+  fi
+
+  # T-07-05: reject absolute / '..' members BEFORE copying any bundle out (zip
+  # path-traversal). `unzip -Z1` (zipinfo "names only" mode) emits ONE bare member
+  # name per line with NO header/footer — unlike `unzip -l`, whose "Archive: <abs
+  # path>" header would itself be a false-positive absolute match. BSD unzip ships
+  # stock on macOS and on Linux CI.
+  if unzip -Z1 "${zip}" 2>/dev/null | grep -Eq '^/|(^|/)\.\.(/|$)'; then
+    err "archive contains absolute or '..' members — refusing to extract (path traversal)"
+    return 1
+  fi
+
+  # Extract into a scratch dir with Apple-native ditto (preserves the bundle's
+  # extended attributes / symlinks); fall back to unzip only if ditto is absent.
+  local unzipped="${tmpdir}/unzipped"
+  mkdir -p "${unzipped}"
+  if command -v ditto >/dev/null 2>&1; then
+    ditto -x -k "${zip}" "${unzipped}"
+  else
+    unzip -q "${zip}" -d "${unzipped}"
+  fi
+
+  # The nightly macOS `.zip` wraps the bundle inside a top-level dated dir
+  # (WezTerm-macos-<tag>/WezTerm.app/...), so locate WezTerm.app anywhere in the
+  # extracted tree rather than assuming it sits at the scratch root.
+  local app_src
+  app_src="$(find "${unzipped}" -maxdepth 3 -type d -name 'WezTerm.app' 2>/dev/null | head -n1)"
+  if [ -z "${app_src}" ] || [ ! -d "${app_src}" ]; then
+    err "expected WezTerm.app not found in the extracted archive — layout drift?"
+    return 1
+  fi
+
+  # Place under ${HOME}/Applications (user-path only — never /Applications, never
+  # sudo). Fresh placement: rm -rf the prior bundle then cp -R the new one.
+  mkdir -p "${app_dir}"
+  rm -rf "${app_dir}/WezTerm.app"
+  cp -R "${app_src}" "${app_dir}/WezTerm.app"
+  log "placed ${app_dir}/WezTerm.app"
+
+  # Run-the-binary evidence (exit code is the proof). D-07: a non-launch here is a
+  # NOTE, not a hard fail — Gatekeeper/quarantine is Plan 04's verify-then-decide.
+  if "${app_dir}/WezTerm.app/Contents/MacOS/wezterm" --version >/dev/null 2>&1; then
+    log "installed: $("${app_dir}/WezTerm.app/Contents/MacOS/wezterm" --version)"
+  else
+    log "note: ${app_dir}/WezTerm.app/Contents/MacOS/wezterm did not run cleanly — if Gatekeeper blocks it, see Plan 04 (quarantine is verify-then-decide, D-07)"
+  fi
 }
 
 # --- main --------------------------------------------------------------------
