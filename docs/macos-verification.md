@@ -101,6 +101,58 @@ Assumptions and one-time setup. Tick each as you satisfy it.
 
 ---
 
+## Unattended supply→consume loop evidence (Plan 07-04, D-09/D-10/D-11)
+
+> Recorded by the autonomous executor on this Intel Mac (`uname -m` = `x86_64`,
+> `os=macos arch=x86_64`). The loop dispatches the release workflow on the LIVING
+> BRANCH, waits non-interactively for green, runs the real E2E install, probes
+> quarantine (D-07), and green-gates the stable tag (D-10). `gh` 2.93 authed as
+> `castocolina`.
+
+### §A — Dispatch dry-run on the living branch (Task 1, D-09/D-11)
+
+- **Living branch:** `gsd/phase-07-macos-parity` (dispatched via
+  `gh workflow run release.yml --ref "$(git branch --show-current)"`).
+- **Autonomous auto-fix loop (D-09):**
+  - **Attempt 1 — run `27970794764` → `failure` (all 3 legs red).** `gh run view --log-failed`
+    surfaced two distinct bugs: (1) the D-11 `cli/spec.lua` version stamp used a `RETURN`
+    trap whose restore the luastatic `( )` subshell fired early
+    (`mv: cannot stat '…/cli/spec.lua.bak.<pid>'`, hit on ubuntu + macos-14); (2) the
+    Intel leg failed earlier in toolchain install —
+    `luarocks install luastatic` could not write `/usr/local`
+    (`install requires exclusive write access to /usr/local … Permission denied`, exit 4).
+  - **Fix (commit `d85fa27`):** replaced the RETURN-trap restore with an explicit
+    `mktemp` save + post-bundle restore; switched `install_macos` to
+    `luarocks install --local luastatic` (+ `~/.luarocks/bin` on `$GITHUB_PATH`).
+  - **Attempt 2 — run `27970971643` → `success`.** `gh run watch <id> --exit-status`
+    returned **exit 0** (the dispatch dry-run is **green**). No further iteration; the
+    same failure did NOT recur, so no human stop was triggered.
+- **Branch-built version (D-11):** on this non-`main` branch the embedded version carries
+  the `+<branchname>` suffix — build log line
+  `[build] D-11: stamped version -> nightly-20260622+gsd-phase-07-macos-parity`, and the
+  built binary reports `wez nightly-20260622+gsd-phase-07-macos-parity`. The GitHub
+  release **tag** stays bare `nightly-20260622` (`+` is not tag-name-safe).
+- **macOS assets published** to the `nightly-20260622` prerelease (`prerelease=true`):
+  `wez-macos-x86_64`, `wez-macos-x86_64.sha256`, `wez-macos-aarch64`,
+  `wez-macos-aarch64.sha256` (plus the linux pair). Confirmed via
+  `gh release view nightly-20260622 --json assets`.
+- **arm64 in-build smoke (macos-14 leg, Open Q3 / D-06 — no local Silicon needed):**
+  `codesign --verify --verbose dist/wez` → `dist/wez: valid on disk` +
+  `dist/wez: satisfies its Designated Requirement`; `./dist/wez version` →
+  `wez nightly-20260622+gsd-phase-07-macos-parity`.
+- **actionlint:** NOT re-run here — Plan 07-03 owns the static lint (it ran clean there);
+  this task is the live dispatch run only.
+
+### §B — Real E2E install of THIS branch's artifact (Task 2, D-07)
+
+_(filled by Task 2 below)_
+
+### §C — Green-gated stable tag decision (Task 3, D-10)
+
+_(filled by Task 3 below)_
+
+---
+
 ## Section 1 — Build & test the CLI (no install side effects)
 
 Run these first; they have no install side effects and gate everything below.
@@ -442,9 +494,9 @@ cross-platform pass to act on it. One row per issue.
 
 | # | Capability / step | Observed on macOS | Expected (Linux baseline) | Suspected cause (BSD flag / Cmd-vs-Super / clipboard / windowing / toolchain / path) | Proposed fix |
 |---|-------------------|-------------------|---------------------------|--------------------------------------------------------------------------------------|--------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
+| 1 | CI dispatch — D-11 version stamp restore (07-04 Task 1) | Build step aborted `mv: cannot stat '…/cli/spec.lua.bak.<pid>'` on ubuntu + macos-14 | Build completes; source tree restored after the luastatic bundle | Not BSD-specific — a `RETURN` trap consumed early by the luastatic `( )` subshell | FIXED `d85fa27`: explicit `mktemp` save + post-bundle restore (no RETURN trap) |
+| 2 | CI dispatch — Intel toolchain install (07-04 Task 1) | `macos-15-intel`: `luarocks install luastatic` → `install requires exclusive write access to /usr/local … Permission denied` (exit 4) | luastatic installs and is on PATH for the build step | Toolchain: the Intel Homebrew `/usr/local` luarocks tree is not user-writable without sudo | FIXED `d85fa27`: `luarocks install --local luastatic` (~/.luarocks) + `$GITHUB_PATH`, uniform across both arches |
+| 3 | _(Task 2 E2E quarantine probe — filled below)_ | | | | |
 
 **Candidate deviations to watch for (pre-identified from the code, confirm or clear each):**
 
