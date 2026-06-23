@@ -165,6 +165,24 @@ do
 
   check("install_macos: a mktemp scratch dir + RETURN-trap cleanup (mirror install_linux)",
     body:find("mktemp", 1, true) ~= nil and body:find("trap", 1, true) ~= nil)
+
+  -- ------------------------------------------------------------------------
+  -- SCENE-PATH SYMLINK (Plan 07.1-01, deviation #6 / A-4): install_macos must
+  -- mirror install_linux's `ln -sfn` block so the bundled WezTerm CLI is
+  -- resolvable by name on the user PATH (~/.local/bin/wezterm) — `wez scene`
+  -- shells out to `wezterm` by name. Sudo-free, user-path only, idempotent.
+  -- These three checks FAIL RED in Task 1 (install_macos has no symlink yet)
+  -- and PASS GREEN once Task 2 lands the block.
+  -- ------------------------------------------------------------------------
+  local lnsfn_idx = body:find("ln -sfn", 1, true)
+  local mkdir_idx = body:find("mkdir -p", 1, true)
+  check("install_macos symlinks wezterm onto the user PATH via ln -sfn",
+    lnsfn_idx ~= nil)
+  check("install_macos symlink target is ${BIN_DIR}/wezterm (user-path, sudo-free)",
+    body:find("${BIN_DIR}/wezterm", 1, true) ~= nil)
+  check("install_macos symlink source is the bundle Contents/MacOS/wezterm + mkdir -p ${BIN_DIR} precedes it",
+    mkdir_idx ~= nil and lnsfn_idx ~= nil and mkdir_idx < lnsfn_idx,
+    "mkdir=" .. tostring(mkdir_idx) .. " ln=" .. tostring(lnsfn_idx))
 end
 
 -- ----------------------------------------------------------------------------
