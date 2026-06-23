@@ -25,16 +25,24 @@
 --                              pane id read back from mux output is int-validated
 --                              via scenelib.validate_pane_id BEFORE it is ever
 --                              interpolated into a later command line (T-04-01).
---   3. Phase B (styling/cmd) : per-pane OSC-11 background + OSC-1337 title (reusing
---                              pane.lua's builders + MUTED_BG, never re-derived),
---                              a ScrollbackAndViewport clear (the Ctrl+Shift+K
---                              wipe) folded into the SAME printf so the setup line
---                              self-erases, then the startup command as a DISTINCT
---                              trailing line (never concatenated into an escape
---                              sequence — T-04-02). Tab-level color rides
---                              WEZTERM_TAB_COLOR, folded into pane 1's setup printf,
---                              and the tab title is PURE text via set-tab-title —
---                              no `<color>:<title>` encoding (D-02/D-03/D-04).
+--   2b. Phase A styling     : per-pane OSC-11 background + OSC-1337 title (reusing
+--                              pane.lua's builders + MUTED_BG, never re-derived) +
+--                              a ScrollbackAndViewport clear are delivered as the
+--                              spawn PRELUDE — every pane is launched as
+--                              `<shell> -c 'printf "<octal>"; exec "$SHELL" -l'` so
+--                              the OSC bytes are emitted as PROGRAM OUTPUT (parsed
+--                              by the terminal) BEFORE the interactive shell starts,
+--                              then the pane becomes the user's login shell. This
+--                              avoids the interactive shell's line editor that
+--                              caused both the printf-leak and the blank-pane hang
+--                              (07.1-scene-prelude). Tab-level WEZTERM_TAB_COLOR
+--                              rides every pane's prelude (D-02/D-03/D-04).
+--   3. Phase B (cmd)         : the startup command as a DISTINCT send-text line
+--                              (never concatenated into an escape sequence —
+--                              T-04-02); a reused pane (no spawn -> no prelude) also
+--                              gets its styling here via per-escape self-erasing
+--                              printf. The tab title is PURE text via set-tab-title
+--                              — no `<color>:<title>` encoding.
 --   4. Focus                 : activate-pane on the focus=true pane if any, else
 --                              the layout's main pane (pane 1) — D-05.
 --
@@ -130,6 +138,32 @@ end
 local DIR_FLAG = {
   left = "--left", right = "--right", top = "--top", bottom = "--bottom",
 }
+
+-- The throwaway interpreter for the spawn prelude (`<shell> -c '...'`). This only
+-- runs the one-shot `printf <octal>; exec "$SHELL" -l` body — the LASTING pane
+-- shell is the user's interactive login shell exec'd by the body's `exec
+-- "$SHELL"`. We resolve $SHELL here so the prelude interpreter matches the user's
+-- shell where possible, falling back to /bin/sh (always present; POSIX printf +
+-- exec). os.getenv is the IO trust boundary, so this lives in the IO-shell.
+local function prelude_shell()
+  local sh = os.getenv("SHELL")
+  if sh and sh ~= "" then return sh end
+  return "/bin/sh"
+end
+
+-- Render the spawn-prelude PROG argv (from M.build_pane_spawn_command) into a
+-- shquoted ` -- <shell> <-c> <body>` suffix appended to a `wezterm cli
+-- spawn`/`split-pane` command line. Every argv element is shquote'd individually
+-- (T-04-02 / T-04-01): the body carries octal-only printf bytes + a fixed exec,
+-- and nothing user-derived is concatenated raw into it.
+local function prelude_suffix(escapes)
+  local argv = M.build_pane_spawn_command(escapes, prelude_shell())
+  local parts = { "--" }
+  for _, a in ipairs(argv) do
+    parts[#parts + 1] = shquote(a)
+  end
+  return " " .. table.concat(parts, " ")
+end
 
 -- ---------------------------------------------------------------------------
 -- M.build_pane_escapes(spec_parsed, opts) -> array of escape strings.
@@ -239,38 +273,60 @@ function M.build_pane_escapes(spec_parsed, opts)
 end
 
 -- ---------------------------------------------------------------------------
--- M.build_styling_printf_lines(escapes) -> array of `printf '<octal>'\n` lines.
+-- M.build_pane_spawn_command(escapes, shell_path) -> PROG argv {shell, "-c", body}.
 --
--- PURE (no io/os/mux) Phase B styling-delivery chunker. Emits EACH escape in the
--- list as its OWN short `printf '<octal-of-that-escape>'` line, instead of one
--- giant concatenated printf carrying every escape at once.
+-- PURE (no io/os/mux) builder for the styling-delivery SPAWN PRELUDE. Returns the
+-- PROG argv that EVERY pane (the initial spawn AND each split) is launched with:
+-- a NON-interactive `<shell> -c '<body>'` whose body
+--   1. emits the pane's styling OSC bytes via ONE octal `printf '<octal>'` — run
+--      as the spawned PROGRAM, so the bytes go to the program's STDOUT and are
+--      parsed by the TERMINAL's output parser; then
+--   2. `exec "$SHELL" -l` — replaces the prelude process with the user's
+--      interactive LOGIN shell, so the pane ends up a normal working shell.
 --
--- WHY chunk per escape (07.1-scene-leak): the styling escapes are typed into a
--- freshly-spawned interactive shell via `wezterm cli send-text --no-paste`. The
--- old single line concatenated ALL of a pane's escapes — for the `ai` scene that
--- is ~1100-1130 bytes in ONE typed line. A very large line typed into a not-yet-
--- ready macOS interactive shell is fragile: if the tail (closing `'` + newline)
--- is lost, the shell strands at zsh's `quote>` continuation prompt, the literal
--- `printf '...'` leaks into the pane, and the styling never applies — defeating
--- the D-09 clean-pane contract. One short printf per escape keeps every typed
--- line well under 1KB so no single line can overflow / lose its closing quote.
+-- WHY a spawn prelude and NOT `send-text` into the interactive shell
+-- (07.1-scene-prelude): the prior delivery typed `printf '<octal>'` into the
+-- pane's freshly-spawned INTERACTIVE shell. That runs the bytes through the
+-- shell's LINE EDITOR (zsh's zle / bash's readline), which is racy on a
+-- not-yet-ready shell — and BOTH prior attempts failed live there:
+--   * one giant ~1.1KB printf  -> the closing `'`+newline was lost, zsh stranded
+--     at `quote>`, and the literal `printf '...'` leaked into the pane.
+--   * one printf PER escape (53a49cf, SUPERSEDED) -> broke the single
+--     self-erasing printf's clean-pane property; the pane showed a BLANK/FROZEN
+--     screen (a hang).
+-- Emitting the OSC as the SPAWNED PROGRAM'S OUTPUT bypasses the line editor
+-- entirely: no typing, no race, no `quote>`, no hang, no leak. Proven in a plain
+-- shell: `sh -c 'printf "<octal>"; exec "$SHELL" -l'` emits the OSC then gives a
+-- clean working login shell.
 --
--- The mechanism is UNCHANGED (Pitfall 2): the shell EXECUTES each printf and its
--- output carries the OSC bytes to the terminal's output parser. The octal idiom
--- is identical (\%03o per byte -> pure printable ASCII, no raw ESC for readline to
--- mangle, no shell quoting). The self-erasing clean-pane behavior is preserved:
--- the caller appends CLEAR_SCROLLBACK_AND_VIEWPORT as the LAST escape, so its
--- printf line still wipes every prior echo (viewport + scrollback + cursor home).
+-- The octal idiom is UNCHANGED (\%03o per byte -> pure printable ASCII, no raw
+-- ESC, no shell quoting; printf '\nnn' octal works in bash & zsh). The
+-- self-erasing clean-pane behavior is preserved: the caller appends
+-- CLEAR_SCROLLBACK_AND_VIEWPORT as the LAST escape, so the printf's own (here
+-- nonexistent, since it's program output not a typed line) echo plus any banner
+-- is wiped (viewport + scrollback + cursor home) and the pane starts clean.
+--
+-- `exec "$SHELL"` (the spawned shell's OWN $SHELL env var), not the build-time
+-- shell_path: shell_path only chooses the throwaway prelude interpreter; the
+-- pane's lasting shell must be the user's configured login shell. shell_path nil
+-- -> /bin/sh (always present, POSIX printf + exec).
 -- ---------------------------------------------------------------------------
-function M.build_styling_printf_lines(escapes)
-  local lines = {}
-  for i = 1, #escapes do
-    local octal = (escapes[i]:gsub(".", function(c)
+function M.build_pane_spawn_command(escapes, shell_path)
+  local shell = (shell_path ~= nil and shell_path ~= "") and shell_path or "/bin/sh"
+  local body
+  if escapes and #escapes > 0 then
+    local octal = (table.concat(escapes):gsub(".", function(c)
       return string.format("\\%03o", string.byte(c))
     end))
-    lines[#lines + 1] = "printf '" .. octal .. "'\n"
+    -- printf (program output -> terminal parser) THEN hand the pane to the user's
+    -- interactive login shell. The `;` sequences them in one POSIX -c body.
+    body = "printf '" .. octal .. "'; exec \"$SHELL\" -l"
+  else
+    -- No styling for this pane: still exec the interactive login shell so the
+    -- pane is a normal working shell (the prelude is total).
+    body = "exec \"$SHELL\" -l"
   end
-  return lines
+  return { shell, "-c", body }
 end
 
 -- ---------------------------------------------------------------------------
@@ -401,16 +457,68 @@ function M.run_new(args)
     return cwdlib.resolve(raw, ldir, env)
   end
 
+  -- ---------------------------------------------------------------------------
+  -- Pre-compute each pane's styling escapes BEFORE Phase A (07.1-scene-prelude):
+  -- the styling OSC bytes are now delivered as the spawn PRELUDE (program output),
+  -- so they must be known at spawn time, not in a later send-text. This is PURE
+  -- (build_pane_escapes) and depends only on already-validated values.
+  -- ---------------------------------------------------------------------------
+  -- Tab accent (D-02/D-03): WEZTERM_TAB_COLOR rides every pane's prelude (folded
+  -- into the escapes below). Resolved once; scene colors are names-only + already
+  -- validated.
+  local tab_color_value = nil
+  if args.color ~= nil then
+    tab_color_value = tostring(args.color):lower()
+  end
+  -- D-03: resolve the tab-level icon ONCE to a glyph. Panes that set no icon of
+  -- their own inherit it (build_pane_escapes), so the tab's identity glyph rides
+  -- every pane and renders no matter which pane is focused.
+  local tab_icon_value = nil
+  if args.icon ~= nil and tostring(args.icon) ~= "" then
+    tab_icon_value = titlelib.resolve_icon(args.icon)
+  end
+
+  -- The same ScrollbackAndViewport wipe the Ctrl+Shift+K binding performs: ED
+  -- viewport (\27[2J) + ED scrollback (\27[3J) + cursor home (\27[H). Appended
+  -- LAST to every pane's escapes so the prelude self-erases any banner/echo and
+  -- the pane starts clean (D-09 clean-pane).
+  local CLEAR_SCROLLBACK_AND_VIEWPORT = "\27[2J\27[3J\27[H"
+
+  -- escapes_by_idx[i] = the styling escapes for parsed pane i, with the CLEAR
+  -- appended last. Always non-empty (the CLEAR is always present), so every pane
+  -- gets a styling prelude.
+  local escapes_by_idx = {}
+  for i = 1, n do
+    local spec_parsed = parsed[i]
+    local escapes = M.build_pane_escapes(spec_parsed, {
+      tab_color_value = tab_color_value,
+      tab_icon_value = tab_icon_value,
+      follow_pane_color = args.follow_pane_color,
+      ldir = ldir,
+    })
+    escapes[#escapes + 1] = CLEAR_SCROLLBACK_AND_VIEWPORT
+    escapes_by_idx[i] = escapes
+  end
+
   if plan.mode == "reuse" then
     -- Pane 1 already exists (the current pane), opened in the launch dir. D-07's
     -- default IS the launch dir, so a reused pane with no explicit cwd is already
-    -- correct; no spawn happens, so no `--cwd` can be applied to it.
+    -- correct; no spawn happens, so no `--cwd` can be applied to it. The reused
+    -- pane already runs an interactive shell, so its styling cannot ride a spawn
+    -- prelude — it is delivered via the per-escape send-text fallback in Phase B
+    -- (a reused pane is the user's CURRENT shell, already past the line-editor
+    -- race that broke fresh spawns; one printf per escape is safe here).
     pane_ids[1] = plan.first_pane_id
   else
     -- new-tab: a spawn makes a new tab in the SAME window (D-11/D-12), opened
     -- DIRECTLY in pane 1's resolved cwd (D-08 clean pane), and prints the new id.
+    -- The spawn PRELUDE (D-09): the pane is launched as `<shell> -c 'printf
+    -- "<octal>"; exec "$SHELL" -l'` so the OSC bytes are emitted as program output
+    -- (never typed into a line editor) and the pane then becomes the user's
+    -- interactive login shell. --cwd still applies so the pane opens in its dir.
     local pid, spawn_err = run_capture_pane_id(
-      "wezterm cli spawn --cwd " .. shquote(resolved_cwd_for(1)))
+      "wezterm cli spawn --cwd " .. shquote(resolved_cwd_for(1))
+      .. prelude_suffix(escapes_by_idx[1]))
     if not pid then
       io.stderr:write((spawn_err or "error: spawn failed") .. "\n")
       return 1
@@ -433,9 +541,14 @@ function M.run_new(args)
     -- D-06: an explicit size= on the new pane overrides the equal-share percent.
     local pct = scenelib.size_percent(parsed[new_idx], tonumber(step.percent) or 50)
     -- D-08: the split pane opens DIRECTLY in its resolved cwd (clean pane).
+    -- D-09 (07.1-scene-prelude): the split carries the SAME spawn prelude as the
+    -- initial spawn — `-- <shell> -c 'printf "<octal>"; exec "$SHELL" -l'` — so its
+    -- styling OSC is emitted as program output (no line-editor race) and the pane
+    -- becomes the user's interactive login shell.
     local cmd = string.format(
       "wezterm cli split-pane --pane-id %d %s --percent %d --cwd %s",
       target_pid, flag, pct, shquote(resolved_cwd_for(new_idx)))
+      .. prelude_suffix(escapes_by_idx[new_idx])
     local new_pid, split_err = run_capture_pane_id(cmd)
     if not new_pid then
       io.stderr:write((split_err or "error: split-pane failed") .. "\n")
@@ -453,93 +566,54 @@ function M.run_new(args)
   end
 
   -- =========================================================================
-  -- Step 3: PHASE B -- per-pane styling + startup command (strict two-phase:
-  -- runs only AFTER all of Phase A completed, never interleaved, per Pitfall 2).
+  -- Step 3: PHASE B -- per-pane STARTUP COMMAND (+ the reuse pane's styling).
+  -- Strict two-phase: runs only AFTER all of Phase A completed (Pitfall 2).
+  --
+  -- 07.1-scene-prelude: the styling OSC for every SPAWNED pane was already
+  -- emitted by the spawn PRELUDE (program output, before the interactive shell)
+  -- in Phase A — it is NO LONGER typed into the interactive shell here. Phase B's
+  -- remaining job is:
+  --   1. (reuse pane only) deliver the reused pane's styling. A reused pane is the
+  --      user's CURRENT, already-ready interactive shell — it was not spawned, so
+  --      it has no prelude — but it is also past the line-editor race that broke
+  --      fresh spawns. Its styling is delivered as one short self-erasing `printf
+  --      '<octal>'` PER escape (each well under 1KB; the CLEAR appended last wipes
+  --      the echoes). This is the ONLY send-text styling path left.
+  --   2. (every pane) the STARTUP COMMAND, as a DISTINCT short send-text line
+  --      `<cmd>\n` — small and safe (NOT the giant OSC payload), delivered the
+  --      same way as before. NEVER concatenated into an escape/OSC string
+  --      (prevents OSC injection/breakout — T-04-02). A `shell` pane gets none.
   -- =========================================================================
-  -- Tab accent (D-02/D-03): the WEZTERM_TAB_COLOR user var rides pane 1's
-  -- self-erasing setup printf (folded in below) — NOT a separate post-spawn
-  -- send-text, which would leave its own `printf '...'` line in pane 1's
-  -- scrollback. Resolved once; scene colors are names-only + already validated.
-  local tab_color_value = nil
-  if args.color ~= nil then
-    tab_color_value = tostring(args.color):lower()
-  end
-  -- D-03: resolve the tab-level icon ONCE to a glyph. Panes that set no icon of
-  -- their own inherit it (build_pane_escapes), so the tab's identity glyph rides
-  -- every pane and renders no matter which pane is focused. Previously args.icon
-  -- was dropped entirely — the tab icon never showed.
-  local tab_icon_value = nil
-  if args.icon ~= nil and tostring(args.icon) ~= "" then
-    tab_icon_value = titlelib.resolve_icon(args.icon)
-  end
+  local reuse_pane1 = (plan.mode == "reuse")
 
   for i = 1, #pane_ids do
     local pid = pane_ids[i]
     local spec_parsed = parsed[i]
     if spec_parsed then
-      local payload = {}
-      -- All per-pane styling escapes (background + title incl. the D-12/D-13
-      -- cwd-basename fallback, per-pane icon D-03, per-pane WEZTERM_PANE_COLOR
-      -- accent D-07, and on pane 1 the tab's own WEZTERM_TAB_COLOR + the
-      -- WEZTERM_TAB_FOLLOW_PANE opt-in D-09) come from the PURE builder so they
-      -- stay one testable rule. They ride the same self-erasing printf below.
-      local escapes = M.build_pane_escapes(spec_parsed, {
-        tab_color_value = tab_color_value,
-        tab_icon_value = tab_icon_value,
-        follow_pane_color = args.follow_pane_color,
-        ldir = ldir,
-      })
+      -- 1. Reused pane 1's styling via per-escape self-erasing printf (the only
+      --    pane without a spawn prelude). escapes_by_idx already has the CLEAR
+      --    appended last. Octal-encode each escape into its own short printf so no
+      --    single typed line overflows the interactive shell's line editor.
+      if reuse_pane1 and i == 1 then
+        local pane1_escapes = escapes_by_idx[1] or {}
+        for _, esc in ipairs(pane1_escapes) do
+          local octal = (esc:gsub(".", function(c)
+            return string.format("\\%03o", string.byte(c))
+          end))
+          os.execute(string.format(
+            "wezterm cli send-text --pane-id %d --no-paste %s",
+            pid, shquote("printf '" .. octal .. "'\n")))
+        end
+      end
 
-      local has_styling = #escapes > 0
+      -- 2. Startup command (D-04): a DISTINCT short line, NEVER folded into an
+      --    escape sequence (T-04-02). A `shell` pane sends nothing.
       local has_cmd = spec_parsed.cmd ~= nil and not spec_parsed.shell
-
-      if has_styling or has_cmd then
-        -- D-09 clean-pane: the styling OSCs AND the screen wipe are emitted as a
-        -- run of self-erasing `printf` lines — ONE short printf PER escape — then
-        -- the user's command runs on a pristine pane. The wipe is a
-        -- ScrollbackAndViewport clear — the SAME wipe the Ctrl+Shift+K binding
-        -- (ClearScreenAndScrollback -> ClearScrollback "ScrollbackAndViewport")
-        -- performs: ED viewport (\27[2J) + ED scrollback (\27[3J) + cursor home
-        -- (\27[H). Plain `clear` only wiped the VIEWPORT, so the injected setup
-        -- lines survived a scroll-up as scrollback garbage; the \27[3J erases the
-        -- scrollback too, including the setup lines' own echoes. The CLEAR is
-        -- appended LAST so its printf line wipes every prior echo.
-        --
-        -- Why a `printf` and not raw bytes (Pitfall 2): send-text writes to the pane
-        -- PTY = the shell's stdin, so raw control bytes are eaten by the line editor
-        -- (zsh's zle swallows them; bash's readline echoes the printable tail as
-        -- `11;#...1337;...` garbage). The shell EXECUTES printf and ITS OUTPUT carries
-        -- the bytes to the terminal's output parser. Octal-escape every byte so the
-        -- typed lines are pure printable ASCII (no raw ESC for readline to mangle) and
-        -- need no shell quoting; printf '\nnn' octal works in bash & zsh.
-        --
-        -- Why ONE printf PER escape, not one giant concatenated printf
-        -- (07.1-scene-leak): the `ai` scene's full styling concatenated to a single
-        -- ~1100-1130-byte line typed into a freshly-spawned shell. A >1KB single
-        -- line typed into a not-yet-ready macOS interactive shell is fragile — if
-        -- the tail (closing `'` + newline) is lost the shell strands at zsh's
-        -- `quote>` prompt, the literal `printf '...'` leaks into the pane, and the
-        -- styling never applies. Splitting into short per-escape lines (each well
-        -- under 1KB) means no single typed line can overflow / lose its closing
-        -- quote, while delivering the IDENTICAL OSC bytes (round-trip equivalent).
-        local CLEAR_SCROLLBACK_AND_VIEWPORT = "\27[2J\27[3J\27[H"
-        escapes[#escapes + 1] = CLEAR_SCROLLBACK_AND_VIEWPORT
-        local printf_lines = M.build_styling_printf_lines(escapes)
-        for li = 1, #printf_lines do
-          payload[#payload + 1] = printf_lines[li]
-        end
-        -- Startup command as a DISTINCT trailing line (NOT concatenated into an
-        -- escape sequence — prevents OSC injection/breakout, T-04-02). A `shell`
-        -- pane (D-04) gets no command appended.
-        if has_cmd then
-          payload[#payload + 1] = tostring(spec_parsed.cmd) .. "\n"
-        end
-        local text = table.concat(payload)
+      if has_cmd then
         os.execute(string.format(
           "wezterm cli send-text --pane-id %d --no-paste %s",
-          pid, shquote(text)))
+          pid, shquote(tostring(spec_parsed.cmd) .. "\n")))
       end
-      -- A `shell` pane with no color/title sends NOTHING (truly untouched, D-09).
     end
   end
 
@@ -551,10 +625,11 @@ function M.run_new(args)
   -- removed in IN-03). Only runs when a tab-level --color or --title was given.
   -- =========================================================================
   if args.color ~= nil or args.title ~= nil then
-    -- COLOR (D-02/D-03): the WEZTERM_TAB_COLOR accent is emitted by pane 1's
-    -- self-erasing Phase B setup printf (folded in above via tab_color_value) — NOT
-    -- a separate post-spawn send-text, which left a `printf '...'` line in pane 1's
-    -- scrollback. format-tab-title reads the active pane's WEZTERM_TAB_COLOR.
+    -- COLOR (D-02/D-03): the WEZTERM_TAB_COLOR accent rides EVERY pane's spawn
+    -- prelude (folded into escapes_by_idx above via tab_color_value), emitted as
+    -- program output — NOT a separate post-spawn send-text, which would leave a
+    -- `printf '...'` line in a pane's scrollback. format-tab-title reads the
+    -- active pane's WEZTERM_TAB_COLOR.
 
     -- TITLE: pure resolved text via set-tab-title --tab-id (no color prefix, no
     -- read-modify-write). Reuses tab.lua's write_tab_title sink + the shared
