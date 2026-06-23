@@ -108,6 +108,9 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 | 260613-dup | ci-colocated-tests | `make test` now discovers co-located `*_test.lua` under `cli/` and `config/` (8 → 14 files); 6 previously-orphaned suites (pane/tab/title/scene/complete/format-tab-title) now run in CI | 2026-06-13 | 77b76bb |
 | 260623-gbk | macos-dev-launcher-lua-resolve | `tools/build.sh` dev launcher resolves a Lua 5.4 interpreter (PATH `lua5.4` → `$(brew --prefix lua@5.4)/bin/lua5.4` → a `lua` reporting 5.4) instead of hardcoding `exec lua5.4`; fixes keg-only-Homebrew `make install` abort (`dist/wez version` exit 127 → 0) on macOS | 2026-06-23 | 39aa3b6 |
 | 260623-gn7 | uninstall-idempotent-when-wez-absent | `tools/uninstall.sh` now warns + `exit 0` (was ERROR + `exit 1`) when the `wez` binary is already gone, so `make uninstall install` no longer aborts from a clean state; glue stays decision-free (D-01, no rm/path-branching), delegation untouched | 2026-06-23 | 9d117cd |
+| 07.1-live | keys-siblings-symlink | LIVE-TEST FIX: `install_macos` symlinks ALL WezTerm bundle binaries (wezterm-gui, wezterm-mux-server, strip-ansi-escapes), not just `wezterm` — `wezterm show-keys --lua` re-execs sibling `wezterm-gui` relative to the resolved `wezterm` path, so symlinking only `wezterm` (07.1-01) regressed `wez keys`. Verified live: keys plain 174 lines + `--json` valid. | 2026-06-23 | 4c765e1 |
+| 07.1-live | tabtitle-column-truncation | LIVE-TEST FIX (#3 reported): column-aware single-pass tab-title truncation (was codepoint-based double-truncation → uneven across emoji); `tab_max_width` defaults to 32. Unit-tested; GUI render is HUMAN-GUI. | 2026-06-23 | 3d4f072 |
+| 07.1-live | scene-styling-leak | LIVE-TEST FIX (#4 reported): scene Phase B styling chunked to one short `printf` per OSC (was one ~1.1KB line → leaked literal `printf`/`quote>` into ai-scene panes). Verified live: 0 leaks across ai/dev/docker. | 2026-06-23 | 53a49cf |
 
 ---
 
