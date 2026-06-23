@@ -436,11 +436,17 @@ Plans:
 
 ### Phase 07.1: macOS post-v1 follow-ups (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Close the macOS items deferred out of the Phase 7 v1 gate (NON-gating; v1.0.0 already shipped): make `wez scene` work out-of-box on a clean macOS install (symlink `wezterm` onto PATH in `install_macos`), fix the cross-platform `wez keys --json` dkjson require-path bug, ship an Apple-Silicon end-user first-launch self-check kit (INST-08), and record the keep-both keybindings rationale durably.
+**Requirements**: INST-08 (Apple-Silicon end-user check; non-gating). Also closes macOS deviation #6 / follow-up A-4 (scene PATH) and deviation #5 (`wez keys --json`, cross-platform) — no new requirement IDs.
 **Depends on:** Phase 7
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
+**Wave 1** *(parallel — disjoint files)*
 
-- [ ] TBD (run /gsd-plan-phase 07.1 to break down)
+- [ ] 07.1-01-PLAN.md — Scene PATH fix (TDD): mirror install_linux's `ln -sfn` symlink into install_macos so `wez scene` resolves `wezterm` out-of-box (D-01/D-02, deviation #6/A-4) [wave 1]
+- [ ] 07.1-02-PLAN.md — `wez keys --json` fix (TDD): resolve dkjson via the bundle module `cli.vendor.dkjson` (dual-resolve) + parse regression (D-04/D-05, deviation #5) [wave 1]
+
+**Wave 2** *(blocked on Wave 1 — owns the shared runbook + cross-docs)*
+
+- [ ] 07.1-03-PLAN.md — Docs consolidation: Apple-Silicon self-check kit `tools/silicon-check.sh` + runbook section (INST-08) + keep-both keybindings rationale (D-08) + flip deviation #5/#6 and SCEN/A-4 footers to fixed-in-07.1 (D-03/D-05/D-06/D-07/D-08) [wave 2]
