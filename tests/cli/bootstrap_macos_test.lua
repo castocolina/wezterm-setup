@@ -183,6 +183,22 @@ do
   check("install_macos symlink source is the bundle Contents/MacOS/wezterm + mkdir -p ${BIN_DIR} precedes it",
     mkdir_idx ~= nil and lnsfn_idx ~= nil and mkdir_idx < lnsfn_idx,
     "mkdir=" .. tostring(mkdir_idx) .. " ln=" .. tostring(lnsfn_idx))
+
+  -- ------------------------------------------------------------------------
+  -- SIBLING-BINARY SYMLINK (Plan 07.1 keys-siblings regression): symlinking
+  -- ONLY `wezterm` breaks `wez keys` — `wezterm show-keys --lua` re-execs the
+  -- SIBLING `wezterm-gui` RELATIVE TO its own resolved path (${BIN_DIR}), which
+  -- does not exist when only `wezterm` was linked. install_macos must symlink
+  -- ALL sibling executables in WezTerm.app/Contents/MacOS/ (`wezterm`,
+  -- `wezterm-gui`, `wezterm-mux-server`, `strip-ansi-escapes`) so sibling
+  -- discovery resolves on the user PATH. These FAIL RED (only `wezterm` linked)
+  -- and PASS GREEN once the loop over the bundle MacOS dir lands. Sudo-free,
+  -- user-path only, idempotent (`ln -sfn`).
+  -- ------------------------------------------------------------------------
+  check("install_macos symlinks the sibling `wezterm-gui` (so `wezterm show-keys --lua` re-exec resolves)",
+    body:find("wezterm-gui", 1, true) ~= nil)
+  check("install_macos symlinks the sibling `wezterm-mux-server`",
+    body:find("wezterm-mux-server", 1, true) ~= nil)
 end
 
 -- ----------------------------------------------------------------------------
