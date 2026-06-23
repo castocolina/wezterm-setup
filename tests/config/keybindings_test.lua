@@ -135,6 +135,83 @@ check(punctuation_ok, "no binding uses a forbidden punctuation key (D-10)")
 check(type(kb.disabled_defaults) == "table" and #kb.disabled_defaults > 0,
   "disabled_defaults list is present and non-empty")
 
+-- 7. Hybrid modifier reachability (feat 07.1-keys-hybrid).
+-- EVERY load-bearing action must be reachable from BOTH modifier families:
+--   * at least one binding whose mods contain SUPER (Cmd family), AND
+--   * at least one binding whose mods contain CTRL (Ctrl family).
+-- macOS sometimes routes a Cmd combo to the shell / OS, and many Linux WMs grab
+-- the Super key; shipping both families keeps every action reachable on both
+-- platforms regardless of which modifier the environment intercepts.
+local function mods_contains(b, token)
+  return tostring(b.mods or ""):find(token, 1, true) ~= nil
+end
+
+-- For an ActivateTabRelative / RotatePanes / ActivatePaneDirection action we must
+-- match on arg too, so "next tab" and "prev tab" are each independently checked.
+local function reachable(label, pred)
+  check(any(function(b) return pred(b) and mods_contains(b, "SUPER") end),
+    label .. " reachable from Cmd family (SUPER)")
+  check(any(function(b) return pred(b) and mods_contains(b, "CTRL") end),
+    label .. " reachable from Ctrl family (CTRL)")
+end
+
+reachable("ClearScreenAndScrollback",
+  function(b) return action_type(b) == "ClearScreenAndScrollback" end)
+reachable("SpawnTab",
+  function(b) return action_type(b) == "SpawnTab" end)
+reachable("CloseCurrentTab",
+  function(b) return action_type(b) == "CloseCurrentTab" end)
+reachable("SplitHorizontal",
+  function(b) return action_type(b) == "SplitHorizontal" end)
+reachable("SplitVertical",
+  function(b) return action_type(b) == "SplitVertical" end)
+reachable("TogglePaneZoomState",
+  function(b) return action_type(b) == "TogglePaneZoomState" end)
+reachable("RotatePanes Clockwise",
+  function(b) return action_type(b) == "RotatePanes" and b.action.arg == "Clockwise" end)
+reachable("RotatePanes CounterClockwise",
+  function(b) return action_type(b) == "RotatePanes" and b.action.arg == "CounterClockwise" end)
+reachable("ActivateTabRelative next",
+  function(b) return action_type(b) == "ActivateTabRelative" and b.action.arg == 1 end)
+reachable("ActivateTabRelative prev",
+  function(b) return action_type(b) == "ActivateTabRelative" and b.action.arg == -1 end)
+reachable("IncreaseFontSize",
+  function(b) return action_type(b) == "IncreaseFontSize" end)
+reachable("DecreaseFontSize",
+  function(b) return action_type(b) == "DecreaseFontSize" end)
+reachable("ResetFontSize",
+  function(b) return action_type(b) == "ResetFontSize" end)
+reachable("ActivatePaneDirection Left",
+  function(b) return action_type(b) == "ActivatePaneDirection" and b.action.arg == "Left" end)
+reachable("ActivatePaneDirection Right",
+  function(b) return action_type(b) == "ActivatePaneDirection" and b.action.arg == "Right" end)
+reachable("ActivatePaneDirection Up",
+  function(b) return action_type(b) == "ActivatePaneDirection" and b.action.arg == "Up" end)
+reachable("ActivatePaneDirection Down",
+  function(b) return action_type(b) == "ActivatePaneDirection" and b.action.arg == "Down" end)
+-- Word navigation (SendString ESC b / ESC f) is a Ctrl-family default today; it
+-- must also be reachable from the Cmd family.
+reachable("word navigation left (ESC b)",
+  function(b) return action_type(b) == "SendString" and b.action.arg == "\027b" end)
+reachable("word navigation right (ESC f)",
+  function(b) return action_type(b) == "SendString" and b.action.arg == "\027f" end)
+
+-- 8. No DUPLICATE identical {key, mods} entries — that is a config error
+-- (two rows fighting over the same chord). Allowed: same key+mods is NEVER
+-- repeated; same action under DIFFERENT mods is the whole point of the hybrid.
+local seen = {}
+local dup_ok = true
+for _, b in ipairs(kb.keys) do
+  local sig = tostring(b.key) .. "\0" .. tostring(b.mods)
+  if seen[sig] then
+    io.stderr:write("FAIL: duplicate {key,mods} entry: " .. tostring(b.key)
+      .. " / " .. tostring(b.mods) .. "\n")
+    dup_ok = false
+  end
+  seen[sig] = true
+end
+check(dup_ok, "no duplicate identical {key, mods} bindings")
+
 if failures > 0 then
   io.stderr:write(string.format("\n%d assertion(s) failed\n", failures))
   os.exit(1)
