@@ -187,6 +187,43 @@ do
     encoded and (encoded:sub(1, 60)) or "nil")
 end
 
+-- --json must resolve dkjson via the BUNDLE module name (cli.vendor.dkjson) — the
+-- name the luastatic bundle exposes. The shipped binary has no top-level `dkjson`
+-- module, so a bare `require("dkjson")` fails `module 'dkjson' not found` even
+-- though it resolves under this runner (cli/vendor/?.lua is on package.path).
+-- See 07.1-RESEARCH.md Pitfall 3.
+do
+  -- (1) Bundle-module round-trip: pins the BUNDLE require PATH (passes today via
+  -- package.path; guards the require name, not the fix).
+  local ok, json = pcall(require, "cli.vendor.dkjson")
+  check("require('cli.vendor.dkjson') (bundle module name) succeeds", ok)
+  if ok and type(json) == "table" then
+    local doc = keys.build_json(classified, conflicts)
+    local decoded = json.decode(json.encode(doc, { indent = true }))
+    check("wez keys --json round-trips through the BUNDLE module cli.vendor.dkjson",
+      type(decoded) == "table" and decoded.bindings ~= nil and decoded.conflicts ~= nil)
+  end
+
+  -- (2) Source-text guard (RED→GREEN with the fix): the keys.lua --json branch must
+  -- use the bundle require path and must NOT carry a bare require("dkjson").
+  local function read_file(path)
+    local fh = io.open(path, "r")
+    if not fh then return nil end
+    local content = fh:read("*a")
+    fh:close()
+    return content
+  end
+  local src = read_file(repo_root .. "/cli/commands/keys.lua")
+  check("keys.lua source is readable", type(src) == "string")
+  if type(src) == "string" then
+    local has_bundle = string.find(src, "cli.vendor.dkjson", 1, true) ~= nil
+    local has_bare = string.find(src, 'require("dkjson")', 1, true) ~= nil
+    check("keys.lua --json branch uses the bundle require path, not bare require(\"dkjson\")",
+      has_bundle and not has_bare,
+      string.format("has_bundle=%s has_bare=%s", tostring(has_bundle), tostring(has_bare)))
+  end
+end
+
 -- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
