@@ -50,18 +50,19 @@
       comparators + system-install guard are unaffected and fully tested.
       *(Phase 6 review Important #2; pure-logic half verified, live delegation is the gap.)*
 
-### A-4 ⚠ macOS — `wez scene new` needs the `wezterm` CLI on PATH (07-05 §6, deviation #6)
-- **Found live (07-05, Intel Mac):** `wez scene new` fails with
-  `error: mux returned a non-numeric pane id` UNLESS the `wezterm` CLI is on PATH. `wez scene`
+### A-4 ✅ RESOLVED in 07.1 — `wez scene new` needs the `wezterm` CLI on PATH (07-05 §6, deviation #6)
+- **Found live (07-05, Intel Mac):** `wez scene new` failed with
+  `error: mux returned a non-numeric pane id` UNLESS the `wezterm` CLI was on PATH. `wez scene`
   shells out to `wezterm` *by name*, but the macOS `WezTerm.app` bundle keeps the CLI at
   `WezTerm.app/Contents/MacOS/wezterm` and does NOT export it to PATH (Linux installs typically do).
 - **Workaround proven LIVE:** add `WezTerm.app/Contents/MacOS` to PATH (or symlink `wezterm` into
   `~/.local/bin`) → `wez scene new --layout grid` then builds the 2×2 grid correctly (sec6-scene-grid.png).
 - **Does NOT block the SCEN D-18 flips:** the `scene launch` error/exit-code contract + verify-macos §4
   passed, and `scene new` works once PATH is wired (proven in §6 ui-ux).
-- [ ] **Follow-up (post-v1, sudo-free):** have `install_macos` symlink `wezterm` into `~/.local/bin`
-      (or prepend `WezTerm.app/Contents/MacOS` to the managed PATH) so `wez scene` resolves it out of
-      the box on macOS.
+- [x] **FIXED in 07.1 (Plan 07.1-01), sudo-free:** `install_macos` now symlinks `~/.local/bin/wezterm`
+      → the bundle CLI (`~/Applications/WezTerm.app/Contents/MacOS/wezterm`), mirroring `install_linux`'s
+      `ln -sfn` idiom, so `wez scene new`/`launch` resolve `wezterm` out of the box on a clean macOS
+      install. Existing macOS installs get it on the next `make install` / `wez update`.
 
 ### A-2 UX backlog from the Phase 5 review (deferred, not blocking)
 - [ ] `wez scene list` — a first-class, non-error "what can I launch?" browse surface
@@ -127,10 +128,12 @@
       (07-04 §B + 07-05 §3).
 
 ### C-4 Diagnostics + completion (Phase 1 — DIAG-02..05)
-- [~] `wez keys` / `--json` / grouping / source classification on macOS. *(07-05 §4: grouping +
+- [x] `wez keys` / `--json` / grouping / source classification on macOS. *(07-05 §4: grouping +
       `[setup]`/`[default]` source classification + Conflicts section all PASS;
-      **`--json` FAILS** — cross-platform `dkjson` require-path bug, NOT a macOS divergence,
-      deferred to a bugfix — see `deferred-items.md` 07-05 + runbook deviation #5.)*
+      **`--json` FIXED in 07.1 (Plan 07.1-02)** — the cross-platform `dkjson` require-path bug
+      (bare `require("dkjson")` vs the bundled `cli.vendor.dkjson`) is fixed via the dual-resolve
+      idiom + a parse regression; NOT a macOS divergence. NOTE: the shipped v1.0.0 binary still
+      carries the bug — the fix reaches end users only via a new release. See runbook deviation #5.)*
 - [x] Completions install on macOS: `compinit` loaded `_wez` with NO insecure-dir warning
       (`compinit -u`, user-owned site-functions); zsh `wez <Tab>` fires live. *(bash-completion@2
       runtime not exercised; generated bash script passes `bash -n`.)*
@@ -161,8 +164,9 @@
 - [x] All 4 layouts + per-pane commands + validate-before-emit on macOS — `wez __complete
       scene-layouts` = `tall tall:mirrored grid horizontal`; 07-05 §6 ui-ux (sec6-scene-grid.png):
       `wez scene new --layout grid` builds an even 2×2 split, per-pane commands ran, glyphs/colors
-      faithful. **Caveat:** `wez scene new` needs the `wezterm` CLI on PATH on macOS (the `.app`
-      bundle does not export it) — workaround proven, follow-up A-4 below.
+      faithful. **Caveat RESOLVED in 07.1 (Plan 07.1-01):** `wez scene new` needed the `wezterm` CLI
+      on PATH on macOS (the `.app` bundle does not export it); `install_macos` now symlinks
+      `~/.local/bin/wezterm` → the bundle CLI so it resolves out of the box — see A-4 above (FIXED).
 - [x] **Windowing:** reuse 1-pane tab / new tab in same window — never a per-scene Aqua window —
       07-05 §6 ui-ux: the grid scene materialized in the SAME WezTerm window (no per-scene Aqua window).
 
