@@ -237,5 +237,121 @@ check("36 handler follow ON + pane color paints pane accent", r_follow[1].Backgr
 local r_nofollow = captured(fake_tab({ WEZTERM_PANE_COLOR = "cyan" }, false, "", "sh", 0), {}, {}, {}, false, 40)
 check("37 handler follow OFF + pane color -> neutral", r_nofollow[1].Background.Color == M.DEFAULT_PROFILE.bg)
 
+-- ===========================================================================
+-- Bug (07.1-tabtitle): identical titles with DIFFERENT-codepoint icons must
+-- truncate to the SAME display-COLUMN width. The pencil "✏️" is 2 codepoints
+-- (pencil + VS16) and the tea "🍵" is 1 codepoint, yet BOTH occupy 2 display
+-- columns. The old codepoint-based pre-truncation (format_label cutting to
+-- max_width-4 by utf8.len) burned a different amount of the SAME budget per
+-- icon, so equal titles landed at unequal column widths. The fix makes the
+-- live handler column-aware and single-pass via wezterm.truncate_right.
+--
+-- To make this assertion meaningful we re-register the handler with a COLUMN-
+-- ACCURATE truncate_right mock (counts each emoji as 2 columns) instead of the
+-- naive byte-based s:sub(1, n) used above. We also measure final width in
+-- COLUMNS, not bytes/codepoints.
+-- ===========================================================================
+
+-- Per-codepoint display width matching how WezTerm measures the glyphs used here:
+--   ASCII            -> 1 column
+--   VS16 (U+FE0F)    -> 0 columns (combines with the preceding base, no advance)
+--   "●" (U+25CF)     -> 1 column (ambiguous-width symbol, the active indicator dot)
+--   emoji base glyph -> 2 columns (wide)
+-- This is column-accurate (NOT the naive byte-based s:sub used by the earlier
+-- mock) so the equal-width assertion below is meaningful. "✏️" = base(2) + VS16(0)
+-- = 2 cols; "🍵" = 2 cols — same display width, different codepoint counts.
+local function cp_cols(cp)
+  if cp < 0x80 then return 1 end
+  if cp == 0xFE0F then return 0 end   -- variation selector: combines, no advance
+  if cp == 0x25CF then return 1 end   -- "●" black circle: ambiguous, 1 column
+  return 2                            -- emoji base glyph: wide, 2 columns
+end
+
+local function display_width(s)
+  local cols = 0
+  for _, cp in utf8.codes(s) do
+    cols = cols + cp_cols(cp)
+  end
+  return cols
+end
+
+-- A column-accurate truncate_right: keep the longest codepoint-boundary prefix
+-- whose display width is <= max_cols (never splits a glyph; respects columns).
+local function col_truncate_right(s, max_cols)
+  if max_cols <= 0 then return "" end
+  local out, cols = "", 0
+  for _, cp in utf8.codes(s) do
+    local w = cp_cols(cp)
+    if cols + w > max_cols then break end
+    out = out .. utf8.char(cp)
+    cols = cols + w
+  end
+  return out
+end
+
+local captured_col
+-- Clear the cached wezterm module so M.apply's `require("wezterm")` picks up the
+-- new column-accurate mock below instead of the byte-based one registered earlier.
+package.loaded["wezterm"] = nil
+package.preload["wezterm"] = function()
+  return {
+    on = function(name, fn) if name == "format-tab-title" then captured_col = fn end end,
+    truncate_right = col_truncate_right,
+  }
+end
+M.apply({})
+check("38 apply registered handler (column-accurate mock)", type(captured_col) == "function")
+
+local SHARED_TITLE = "wezterm-setup-config"
+-- A NARROW width that forces truncation. Under the OLD handler the codepoint
+-- pre-truncation (format_label cut to max_width-4 by utf8.len) was the binding
+-- constraint, so the pencil label (extra VS16 codepoint) came out exactly one
+-- COLUMN shorter than the tea label — the "@wez" vs "@wezte" inconsistency from
+-- the bug report. The fix drops codepoint pre-truncation and fits with a SINGLE
+-- column-aware wezterm.truncate_right, so identical titles land at EQUAL width.
+local MW = 16
+
+-- END-TO-END through the live handler with a COLUMN-accurate truncate_right:
+-- same title, different-codepoint icons -> EQUAL rendered column width AND the
+-- SAME visible title tail (regression guard against the codepoint pre-truncation
+-- ever returning — both must hold once the binding path is column-aware).
+local r_pencil = captured_col(
+  fake_tab({ WEZTERM_TAB_ICON = "✏️", WEZTERM_TAB_TITLE = SHARED_TITLE }, false, "", "sh", 0),
+  {}, {}, {}, false, MW)
+local r_tea = captured_col(
+  fake_tab({ WEZTERM_TAB_ICON = "🍵", WEZTERM_TAB_TITLE = SHARED_TITLE }, false, "", "sh", 0),
+  {}, {}, {}, false, MW)
+check("39 same title + different-codepoint icons -> EQUAL rendered column width",
+  display_width(find_text(r_pencil)) == display_width(find_text(r_tea)))
+check("39a same title + different icons -> identical visible title tail",
+  find_text(r_pencil):gsub("✏️", "") == find_text(r_tea):gsub("🍵", ""))
+
+-- The fix must USE the available width (bug "too short"): with a long binding
+-- title and NO icon, the inactive label fills exactly max_width columns — the
+-- 2-col inactive indicator prefix plus a (max_width - 2)-col label. The OLD path
+-- (codepoint cut to max_width-4, then truncate_right to max_width-4, while the
+-- "  " prefix was uncounted) wasted columns and rendered SHORTER than max_width.
+local LONG = string.rep("z", 60)
+local FILL_MW = 20
+local r_fill = captured_col(
+  fake_tab({ WEZTERM_TAB_TITLE = LONG }, false, "", "sh", 0),
+  {}, {}, {}, false, FILL_MW)
+check("39b long title fills exactly max_width columns (no wasted room, no overflow)",
+  display_width(find_text(r_fill)) == FILL_MW)
+
+-- The rendered label must also FIT the tab: its column width (incl. the 2-col
+-- inactive prefix) never exceeds max_width.
+check("40 pencil label fits max_width in columns", display_width(find_text(r_pencil)) <= MW)
+check("41 tea label fits max_width in columns", display_width(find_text(r_tea)) <= MW)
+
+-- Active variant: the active run prepends " ●-> " (5 cols). The fitted label
+-- (prefix included) must still not exceed max_width — proving the indicator
+-- width is accounted for in the budget (no more uncounted prefix overflow).
+local r_active = captured_col(
+  fake_tab({ WEZTERM_TAB_ICON = "✏️", WEZTERM_TAB_TITLE = SHARED_TITLE }, true, "", "sh", 0),
+  {}, {}, {}, false, MW)
+check("42 active label (indicator included) fits max_width in columns",
+  display_width(find_text(r_active)) <= MW)
+
 io.write(string.format("\nformat-tab-title_test: %d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)
