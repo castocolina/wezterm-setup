@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-06-23T12:07:31.589Z"
+status: Phase complete — ready for verification
+last_updated: "2026-06-23T12:17:36.548Z"
 progress:
   total_phases: 14
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 56
-  completed_plans: 55
-  percent: 79
+  completed_plans: 56
+  percent: 86
 ---
 
 # Project State: wezterm-setup
@@ -169,6 +169,7 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 | Phase 07 P05 | 20min | 2 tasks | 4 files |
 | Phase 07.1 P01 | 6min | 2 tasks | 2 files |
 | Phase 07.1 P02 | 6min | 2 tasks | 2 files |
+| Phase 07.1 P03 | 6min | 2 tasks | 5 files |
 
 ### Validated Capabilities (pre-Phase 0)
 
@@ -282,3 +283,5 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 - [Phase 07]: 07-01: luastatic installed via luarocks --local (sudo-free ~/.luarocks), not the system tree
 - [Phase 07]: 07-01: build.sh resolves lua@5.4 keg cflags/liblua directly on macOS when pkg-config absent (branch-on-availability, D-08)
 - [Phase 07.1]: wez keys --json resolves dkjson via the bundle module name cli.vendor.dkjson (bare fallback for the dev launcher); a regression pins the require path (07.1-02, D-04/#5)
+- [Phase ?]: 07.1-03: spctl intentionally NOT used in silicon-check.sh (always rejects ad-hoc, Pitfall 1); evidence is codesign --verify + the binary running
+- [Phase ?]: 07.1-03: INST-08 stays DEFERRED/non-gating — flips only when a real Apple-Silicon silicon-check.sh report is pasted into the runbook (D-07)

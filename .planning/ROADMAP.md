@@ -439,7 +439,7 @@ Plans:
 **Goal:** Close the macOS items deferred out of the Phase 7 v1 gate (NON-gating; v1.0.0 already shipped): make `wez scene` work out-of-box on a clean macOS install (symlink `wezterm` onto PATH in `install_macos`), fix the cross-platform `wez keys --json` dkjson require-path bug, ship an Apple-Silicon end-user first-launch self-check kit (INST-08), and record the keep-both keybindings rationale durably.
 **Requirements**: INST-08 (Apple-Silicon end-user check; non-gating). Also closes macOS deviation #6 / follow-up A-4 (scene PATH) and deviation #5 (`wez keys --json`, cross-platform) — no new requirement IDs.
 **Depends on:** Phase 7
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1** *(parallel — disjoint files)*
@@ -449,4 +449,4 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — owns the shared runbook + cross-docs)*
 
-- [ ] 07.1-03-PLAN.md — Docs consolidation: Apple-Silicon self-check kit `tools/silicon-check.sh` + runbook section (INST-08) + keep-both keybindings rationale (D-08) + flip deviation #5/#6 and SCEN/A-4 footers to fixed-in-07.1 (D-03/D-05/D-06/D-07/D-08) [wave 2]
+- [x] 07.1-03-PLAN.md — Docs consolidation: Apple-Silicon self-check kit `tools/silicon-check.sh` + runbook section (INST-08) + keep-both keybindings rationale (D-08) + flip deviation #5/#6 and SCEN/A-4 footers to fixed-in-07.1 (D-03/D-05/D-06/D-07/D-08) [wave 2]
