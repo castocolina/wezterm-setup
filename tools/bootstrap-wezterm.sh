@@ -570,10 +570,23 @@ install_macos() {
   # install fails `mux returned a non-numeric pane id`. Sudo-free, user-path only,
   # no shell-rc edits; `ln -sfn` is idempotent on re-install/update (D-01 / A-4,
   # closes macOS deviation #6 — restores Linux↔macOS install symmetry).
-  local wez_bin="${app_dir}/WezTerm.app/Contents/MacOS/wezterm"
+  #
+  # Link ALL sibling executables, not just `wezterm`: `wezterm show-keys --lua`
+  # (the engine behind `wez keys`) re-execs the SIBLING `wezterm-gui` RELATIVE TO
+  # the resolved path of the `wezterm` it ran — i.e. ${BIN_DIR}/wezterm-gui. With
+  # only `wezterm` linked that path is absent and the re-exec fails NotFound
+  # (Os code 2). Mirroring every bundle binary into ${BIN_DIR} keeps sibling
+  # discovery intact. Bundle ships: wezterm, wezterm-gui, wezterm-mux-server,
+  # strip-ansi-escapes (link each that exists; Bash-3.2-safe for-loop).
+  local macos_dir="${app_dir}/WezTerm.app/Contents/MacOS"
   mkdir -p "${BIN_DIR}"
-  ln -sfn "${wez_bin}" "${BIN_DIR}/wezterm"
-  log "symlinked ${BIN_DIR}/wezterm -> ${wez_bin}"
+  local wez_sib
+  for wez_sib in wezterm wezterm-gui wezterm-mux-server strip-ansi-escapes; do
+    if [ -x "${macos_dir}/${wez_sib}" ]; then
+      ln -sfn "${macos_dir}/${wez_sib}" "${BIN_DIR}/${wez_sib}"
+      log "symlinked ${BIN_DIR}/${wez_sib} -> ${macos_dir}/${wez_sib}"
+    fi
+  done
 
   case ":${PATH}:" in
     *":${BIN_DIR}:"*) : ;;
