@@ -563,6 +563,22 @@ install_macos() {
   else
     log "note: ${app_dir}/WezTerm.app/Contents/MacOS/wezterm did not run cleanly — if Gatekeeper blocks it, see Plan 04 (quarantine is verify-then-decide, D-07)"
   fi
+
+  # Symlink the bundled CLI onto the user PATH, mirroring install_linux:449-451.
+  # `wez scene new` / `wez scene launch` shell out to `wezterm` BY NAME; the macOS
+  # `.app` keeps the CLI at Contents/MacOS/wezterm and never exports it, so a clean
+  # install fails `mux returned a non-numeric pane id`. Sudo-free, user-path only,
+  # no shell-rc edits; `ln -sfn` is idempotent on re-install/update (D-01 / A-4,
+  # closes macOS deviation #6 — restores Linux↔macOS install symmetry).
+  local wez_bin="${app_dir}/WezTerm.app/Contents/MacOS/wezterm"
+  mkdir -p "${BIN_DIR}"
+  ln -sfn "${wez_bin}" "${BIN_DIR}/wezterm"
+  log "symlinked ${BIN_DIR}/wezterm -> ${wez_bin}"
+
+  case ":${PATH}:" in
+    *":${BIN_DIR}:"*) : ;;
+    *) log "note: ${BIN_DIR} is not on PATH — add it so 'wezterm' resolves" ;;
+  esac
 }
 
 # --- main --------------------------------------------------------------------
