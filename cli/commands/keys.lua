@@ -259,7 +259,16 @@ function M.run(args)
   local entries, conflicts = M.classify(effective, baseline, ours)
 
   if args.json then
-    local json = require("dkjson")
+    -- Resolve the vendored encoder by the BUNDLE module name first (the luastatic
+    -- bundle bakes cli/vendor/dkjson.lua as cli.vendor.dkjson and has no top-level
+    -- `dkjson`), falling back to the bare name only for the dev source-launcher.
+    -- Mirrors cli/lib/shell.lua:32-33.
+    local ok, json = pcall(require, "cli.vendor.dkjson")
+    if not ok then ok, json = pcall(require, "dkjson") end
+    if not ok or type(json) ~= "table" then
+      io.stderr:write("wez keys: JSON encoder (dkjson) unavailable\n")
+      return 1
+    end
     io.write(json.encode(M.build_json(entries, conflicts), { indent = true }))
     io.write("\n")
     return 0
