@@ -26,7 +26,6 @@
 set -euo pipefail
 
 log() { printf '[uninstall] %s\n' "$*"; }
-err() { printf '[uninstall] ERROR: %s\n' "$*" >&2; }
 
 # Locate the wez binary: prefer one on PATH, else the default install location.
 BIN_DIR="${WEZ_BIN_DIR:-${HOME}/.local/bin}"
@@ -35,9 +34,16 @@ if command -v wez >/dev/null 2>&1; then
 elif [ -x "${BIN_DIR}/wez" ]; then
   WEZ="${BIN_DIR}/wez"
 else
-  err "wez binary not found (looked on PATH and at ${BIN_DIR}/wez)"
-  err "if you only need to remove the binary, it is already gone"
-  exit 1
+  # The wez binary is gone (it self-deletes as the LAST step of its own
+  # uninstall, D-01). Nothing reachable means there is nothing for the glue to
+  # delegate to -- so treat a re-run / clean-state run as a no-op SUCCESS rather
+  # than aborting (keeps `make uninstall` idempotent and `make uninstall install`
+  # from a clean state working). NO rm / NO path-branching here -- removal stays
+  # owned by the binary; if the binary is absent, any leftover config artifacts
+  # need it present again to be cleaned.
+  log "wez binary not found (looked on PATH and at ${BIN_DIR}/wez); already uninstalled, nothing to remove"
+  log "if config artifacts remain, reinstall the wez binary to clean them (removal is owned by the binary, D-01)"
+  exit 0
 fi
 
 # Translate the Makefile KEEP_* env into uninstall-state flags. A value is "keep"
