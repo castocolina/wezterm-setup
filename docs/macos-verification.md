@@ -243,6 +243,52 @@ Run these first; they have no install side effects and gate everything below.
 
 ---
 
+## Section 1a — Apple-Silicon first-launch self-check (INST-08)
+
+> **This is the single remaining NON-gating macOS item (D-07).** v1.0.0 already shipped; this
+> check confirms the **published** `wez-macos-aarch64` asset downloads, verifies, and runs on a
+> real Apple-Silicon Mac. It is run by an **end-user on real arm64 hardware** (the project's
+> agents have no Apple-Silicon machine), and it does NOT gate the phase — INST-08's macOS status
+> flips from deferred to verified only when a real run is pasted into the landing spot below.
+
+The kit `tools/silicon-check.sh` is **sudo-free, user-path only**, and **verify-before-run**: it
+downloads the published `wez-macos-aarch64` + `wez-macos-aarch64.sha256` (via `gh` with a `curl`
+fallback) into a scratch dir, verifies the checksum with `shasum -a 256` **before** it makes the
+binary executable or runs it, then OBSERVES (never mutates) the quarantine + ad-hoc codesign
+state and runs `wez version` / `wez doctor` for real evidence.
+
+- [ ] **Run the self-check.** On a real Apple-Silicon Mac:
+
+      ```sh
+      bash tools/silicon-check.sh
+      ```
+
+- [ ] **Expected outcomes.**
+  - **Checksum verifies** — `shasum -a 256` of the downloaded asset equals its `.sha256`
+    (the script aborts before running anything if they differ).
+  - **`codesign --verify` OK** — the ad-hoc signature is valid. Note: the script does **NOT**
+    use `spctl`; Gatekeeper assessment ALWAYS rejects ad-hoc signatures (Pitfall 1), so an
+    `spctl` rejection is **EXPECTED and is not a failure**. The real evidence is
+    `codesign --verify` succeeding **and** the binary running.
+  - **`wez version` = v1.0.0** (or the published nightly/version string for the tag).
+  - **`wez doctor` exits 0.**
+  - **Quarantine absent** on a `gh`/`curl` download — only browser downloads set
+    `com.apple.quarantine`. If you downloaded via a browser instead and it is PRESENT, the
+    script reports it (it never strips it, D-07); the user-side fallback is to remove the
+    `com.apple.quarantine` xattr (`xattr` delete) **or** right-click → **Open** once to clear
+    Gatekeeper for that binary.
+
+- [ ] **Paste the report here.** The script prints a copy-pasteable report block. Paste it into
+      the fenced block below. **Filling this landing spot is what flips INST-08's macOS status
+      from deferred to verified** (a clean report = checksum OK, codesign verify OK, version
+      v1.0.0, doctor exit 0).
+
+      ```text
+      (paste the `silicon-check.sh` report block here — INST-08 first-real-Silicon run)
+      ```
+
+---
+
 ## Section 2 — Install / uninstall (non-destructive)
 
 Verifies INST-01..06. **Do this against a real `~/.config/wezterm/wezterm.lua`** (back it up
