@@ -439,13 +439,13 @@ Plans:
 **Goal:** Close the macOS items deferred out of the Phase 7 v1 gate (NON-gating; v1.0.0 already shipped): make `wez scene` work out-of-box on a clean macOS install (symlink `wezterm` onto PATH in `install_macos`), fix the cross-platform `wez keys --json` dkjson require-path bug, ship an Apple-Silicon end-user first-launch self-check kit (INST-08), and record the keep-both keybindings rationale durably.
 **Requirements**: INST-08 (Apple-Silicon end-user check; non-gating). Also closes macOS deviation #6 / follow-up A-4 (scene PATH) and deviation #5 (`wez keys --json`, cross-platform) — no new requirement IDs.
 **Depends on:** Phase 7
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1** *(parallel — disjoint files)*
 
 - [x] 07.1-01-PLAN.md — Scene PATH fix (TDD): mirror install_linux's `ln -sfn` symlink into install_macos so `wez scene` resolves `wezterm` out-of-box (D-01/D-02, deviation #6/A-4) [wave 1]
-- [ ] 07.1-02-PLAN.md — `wez keys --json` fix (TDD): resolve dkjson via the bundle module `cli.vendor.dkjson` (dual-resolve) + parse regression (D-04/D-05, deviation #5) [wave 1]
+- [x] 07.1-02-PLAN.md — `wez keys --json` fix (TDD): resolve dkjson via the bundle module `cli.vendor.dkjson` (dual-resolve) + parse regression (D-04/D-05, deviation #5) [wave 1]
 
 **Wave 2** *(blocked on Wave 1 — owns the shared runbook + cross-docs)*
 

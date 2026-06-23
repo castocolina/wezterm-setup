@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-23T12:03:15.017Z"
+last_updated: "2026-06-23T12:07:31.589Z"
 progress:
   total_phases: 14
   completed_phases: 11
   total_plans: 56
-  completed_plans: 54
+  completed_plans: 55
   percent: 79
 ---
 
@@ -37,7 +37,7 @@ Phase: 07.1 (macos-post-v1-follow-ups) — EXECUTING
 **Reopen fix (round 3 — CI startup_failure):** after the binary fixes, the re-cut `v0.1.0` returned `startup_failure` with 0 jobs even on a minimal actionlint-clean workflow. Root cause: the repo's Actions policy was `allowed_actions=local_only`, which blocks `actions/checkout` (not a repo-local action) → no job can start. Fixed via `gh api` PUT `actions/permissions` → `selected` + `github_owned_allowed=true` (checkout allowed; third-party still blocked). Also simplified release.yml to a single hardcoded `ubuntu-latest` job (no matrix) for v1; Phase 7 reintroduces the matrix.
 
 **RESOLVED + LIVE-VERIFIED (2026-06-15):** CI run green (`build linux-x86_64`, 22s); GitHub release `v0.1.0` published `wez-linux-x86_64` + `.sha256`. Dogfooded on the real machine: `curl|bash` → checksum-verified download of the published static binary → `wez doctor` all gates PASS (exit 0); full `make uninstall` (clean removal) → fresh reinstall → doctor PASS again. The installer end-to-end works for a new Linux user. **Remaining:** macOS supply side + on-Mac verification = Phase 7 (the last v1 gate).
-Plan: 2 of 3
+Plan: 3 of 3
 
 **Next: Phase 07.1 (INSERTED 2026-06-22) — macOS post-v1 follow-ups (non-gating).** Registered in ROADMAP after Phase 7; directory `.planning/phases/07.1-macos-post-v1-follow-ups/` (not planned yet). Scope to be settled at discuss/plan time — candidate items: (a) `install_macos` symlink `wezterm`→`~/.local/bin` so `wez scene` resolves out-of-box [A-4 / deviation #6]; (b) Apple-Silicon end-user first-launch distribution check [INST-08]; (c) keybindings keep-both rationale documented; (d) OPEN — whether the cross-platform `wez keys --json` dkjson bug [deviation #5] belongs here or as a standalone bugfix. Recommended next run: `/gsd-discuss-phase 07.1`.
 
@@ -168,6 +168,7 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 | Phase 07 P03 | 30min | 2 tasks | 5 files |
 | Phase 07 P05 | 20min | 2 tasks | 4 files |
 | Phase 07.1 P01 | 6min | 2 tasks | 2 files |
+| Phase 07.1 P02 | 6min | 2 tasks | 2 files |
 
 ### Validated Capabilities (pre-Phase 0)
 
@@ -280,3 +281,4 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 - [Phase ?]: [Phase 6.3]: build.sh channel resolver mirrors bootstrap-wezterm.sh SHAPE — stable=/releases/latest (prereleases excluded), nightly=newest nightly-*, <vX.Y.Z>=literal; tr/grep -oE parse (no jq); no-TTY deterministic + fail-loud before chmod; checksum gate byte-identical (06.3-03)
 - [Phase 07]: 07-01: luastatic installed via luarocks --local (sudo-free ~/.luarocks), not the system tree
 - [Phase 07]: 07-01: build.sh resolves lua@5.4 keg cflags/liblua directly on macOS when pkg-config absent (branch-on-availability, D-08)
+- [Phase 07.1]: wez keys --json resolves dkjson via the bundle module name cli.vendor.dkjson (bare fallback for the dev launcher); a regression pins the require path (07.1-02, D-04/#5)
