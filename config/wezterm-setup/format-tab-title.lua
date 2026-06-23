@@ -133,16 +133,34 @@ function M.title_with_fallback(title, icon, launch_dir)
   return M.compose_label_text(icon, M.basename(launch_dir))
 end
 
+--- Compose the bare tab label "<n>: <title> " (1-based index, single trailing
+-- space) with NO truncation. Pure, unit-testable under plain lua5.4.
+-- The live handler fits this to the tab width with a SINGLE column-aware pass
+-- (wezterm.truncate_right) so identical titles always land at the SAME column
+-- width regardless of the icon's codepoint count (bug 07.1-tabtitle).
+function M.compose_label(index, title)
+  return tostring((index or 0) + 1) .. ": " .. (title or "") .. " "
+end
+
+-- Column width (in display cells) of the active/inactive indicator prefix that
+-- M.build_runs PREPENDS before the label. The handler subtracts the relevant
+-- prefix width from max_width so the rendered tab (indicator + label) fits the
+-- column budget — the prefix is no longer uncounted (bug 07.1-tabtitle).
+M.INDICATOR_COLS = { active = 5, inactive = 2 } -- " ●-> " = 5 cols, "  " = 2 cols
+
 --- Build the tab label string: "<n>: <title> ", 1-based index, right-truncated
--- to max_width-4 on a CODEPOINT boundary (the live handler additionally applies
--- wezterm.truncate_right for proper column width).
--- WR-03: the label now routinely begins with a multibyte icon glyph (D-04 composes
--- `icon .. " " .. title`). A byte-based `label:sub(1, limit)` could cut INSIDE a
--- UTF-8 sequence, emitting a bare continuation byte. Truncate on a codepoint
--- boundary via utf8.offset so a narrow tab never splits a glyph. The byte length
--- is still the fallback guard for any value utf8.len cannot measure (invalid UTF-8).
+-- to max_width-4 on a CODEPOINT boundary.
+-- DEPRECATED for width-limiting in the live render path: codepoint truncation is
+-- NOT column-correct — a 2-codepoint glyph (e.g. "✏️" = pencil + VS16) burns more
+-- of the codepoint budget than a 1-codepoint glyph ("🍵") of the SAME display
+-- width, so identical titles truncated here land at DIFFERENT column widths
+-- (bug 07.1-tabtitle). The live handler now uses wezterm.truncate_right (column-
+-- aware, codepoint-boundary-safe) as the SINGLE truncator. This helper is kept
+-- for back-compat / non-WezTerm callers that have no column truncator.
+-- WR-03: still cuts on a codepoint boundary (utf8.offset) so a narrow tab never
+-- splits a glyph; the byte length remains the fallback guard for invalid UTF-8.
 function M.format_label(index, title, max_width)
-  local label = tostring((index or 0) + 1) .. ": " .. (title or "") .. " "
+  local label = M.compose_label(index, title)
   local limit = (max_width or 0) - 4
   if limit > 0 then
     local cp_len = utf8.len(label)
@@ -190,6 +208,14 @@ function M.apply(config)
     return config
   end
 
+  -- Raise the effective title room (bug 07.1-tabtitle "too short"): the default
+  -- tab_max_width=16 leaves only a few columns once the indicator prefix and the
+  -- "<n>: " index prefix are accounted for. Default to a more generous 32 columns
+  -- WITHOUT clobbering an explicit user value (AUGMENT contract D-17).
+  if config.tab_max_width == nil then
+    config.tab_max_width = 32
+  end
+
   wezterm.on("format-tab-title", function(tab, _tabs, _panes, _cfg, _hover, max_width)
     local uv = (tab.active_pane and tab.active_pane.user_vars) or {}
 
@@ -224,8 +250,19 @@ function M.apply(config)
     -- compose displayed text: icon left of the title, with the empty-title cwd fallback.
     local display = M.title_with_fallback(title, icon, launch_dir)
 
-    local label = M.format_label(tab.tab_index, display, max_width)
-    label = wezterm.truncate_right(label, math.max(1, (max_width or 8) - 4))
+    -- Build the full label WITHOUT any codepoint pre-truncation, then fit it with
+    -- a SINGLE column-aware pass. wezterm.truncate_right measures DISPLAY COLUMNS
+    -- and respects codepoint boundaries, so identical titles land at the SAME
+    -- column width regardless of the icon's codepoint count (bug 07.1-tabtitle:
+    -- "✏️" 2cp and "🍵" 1cp are both 2 columns -> same truncation now).
+    local label = M.compose_label(tab.tab_index, display)
+
+    -- Budget = tab width minus the indicator prefix build_runs PREPENDS, so the
+    -- rendered tab (indicator + label) actually fits max_width — no more uncounted
+    -- prefix overflow and no magic -4 reserve.
+    local prefix_cols = tab.is_active and M.INDICATOR_COLS.active or M.INDICATOR_COLS.inactive
+    local budget = math.max(1, (max_width or 8) - prefix_cols)
+    label = wezterm.truncate_right(label, budget)
     return M.build_runs(tab.is_active, profile, label)
   end)
 
