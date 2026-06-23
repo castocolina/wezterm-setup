@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-23T00:13:23.418Z"
+last_updated: "2026-06-23T12:03:15.017Z"
 progress:
   total_phases: 14
   completed_phases: 11
-  total_plans: 53
-  completed_plans: 53
+  total_plans: 56
+  completed_plans: 54
   percent: 79
 ---
 
@@ -26,7 +26,7 @@ progress:
 
 ## Current Position
 
-Phase: 07 (macos-parity) — COMPLETE (5/5 plans; v1 macOS close gate met on Intel, 2026-06-22)
+Phase: 07.1 (macos-post-v1-follow-ups) — EXECUTING
 
 > The historical "EXECUTING" notes below are preserved as session history — they document the round-1/2/3 reopen fixes that landed during Phase 6 / 6.3. The authoritative current status is the line above and the Phase Status table.
 
@@ -37,7 +37,7 @@ Phase: 07 (macos-parity) — COMPLETE (5/5 plans; v1 macOS close gate met on Int
 **Reopen fix (round 3 — CI startup_failure):** after the binary fixes, the re-cut `v0.1.0` returned `startup_failure` with 0 jobs even on a minimal actionlint-clean workflow. Root cause: the repo's Actions policy was `allowed_actions=local_only`, which blocks `actions/checkout` (not a repo-local action) → no job can start. Fixed via `gh api` PUT `actions/permissions` → `selected` + `github_owned_allowed=true` (checkout allowed; third-party still blocked). Also simplified release.yml to a single hardcoded `ubuntu-latest` job (no matrix) for v1; Phase 7 reintroduces the matrix.
 
 **RESOLVED + LIVE-VERIFIED (2026-06-15):** CI run green (`build linux-x86_64`, 22s); GitHub release `v0.1.0` published `wez-linux-x86_64` + `.sha256`. Dogfooded on the real machine: `curl|bash` → checksum-verified download of the published static binary → `wez doctor` all gates PASS (exit 0); full `make uninstall` (clean removal) → fresh reinstall → doctor PASS again. The installer end-to-end works for a new Linux user. **Remaining:** macOS supply side + on-Mac verification = Phase 7 (the last v1 gate).
-Plan: 5 of 5 (Phase 7 complete)
+Plan: 2 of 3
 
 **Next: Phase 07.1 (INSERTED 2026-06-22) — macOS post-v1 follow-ups (non-gating).** Registered in ROADMAP after Phase 7; directory `.planning/phases/07.1-macos-post-v1-follow-ups/` (not planned yet). Scope to be settled at discuss/plan time — candidate items: (a) `install_macos` symlink `wezterm`→`~/.local/bin` so `wez scene` resolves out-of-box [A-4 / deviation #6]; (b) Apple-Silicon end-user first-launch distribution check [INST-08]; (c) keybindings keep-both rationale documented; (d) OPEN — whether the cross-platform `wez keys --json` dkjson bug [deviation #5] belongs here or as a standalone bugfix. Recommended next run: `/gsd-discuss-phase 07.1`.
 
@@ -167,6 +167,7 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 | Phase 07 P01 | 25min | 2 tasks | 5 files |
 | Phase 07 P03 | 30min | 2 tasks | 5 files |
 | Phase 07 P05 | 20min | 2 tasks | 4 files |
+| Phase 07.1 P01 | 6min | 2 tasks | 2 files |
 
 ### Validated Capabilities (pre-Phase 0)
 
