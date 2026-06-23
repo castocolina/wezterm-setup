@@ -10,11 +10,18 @@
 -- `log()` warning + `exit 0` ("already uninstalled; nothing to remove"). The glue
 -- stays decision-free (D-01): NO `rm`, NO path-branching, NO config inspection.
 --
+-- The binary search now has THREE fallbacks (fix 07.1-install-cycle, bug 2): PATH
+-- `wez`, ${BIN_DIR}/wez, and a repo-local `<script_dir>/../dist/wez` dev build. The
+-- warn + exit 0 branch fires ONLY when ALL THREE miss. To exercise that genuinely-
+-- absent case this test stages an ISOLATED COPY of uninstall.sh under a temp
+-- `tools/` dir with NO sibling `../dist/wez`, then runs it with PATH= and
+-- WEZ_BIN_DIR pointed at an empty dir — so every fallback misses.
+--
 -- Unlike build_dev_launcher_test.lua (which SOURCES its target), uninstall.sh has
--- NO $0/BASH_SOURCE sourcing guard, so this test RUNS the script directly with a
--- controlled env (PATH= + WEZ_BIN_DIR pointed at an empty temp dir) and captures
--- the exit status + combined output. The rm-guard (Test 3) reuses the
--- comment-filtered grep idiom from setup_dev_test.lua / build_dev_launcher_test.lua.
+-- NO $0/BASH_SOURCE sourcing guard, so this test RUNS the (copied) script directly
+-- with a controlled env and captures the exit status + combined output. The
+-- rm-guard (Test 3) reuses the comment-filtered grep idiom from setup_dev_test.lua
+-- / build_dev_launcher_test.lua, asserted on the REAL script.
 --
 -- Run directly: `lua5.4 tests/cli/uninstall_idempotent_test.lua`.
 
@@ -55,9 +62,34 @@ do
   if BASH_BIN == "" then BASH_BIN = "/bin/bash" end
 end
 
+-- Read uninstall.sh once so we can stage an ISOLATED copy for the run. The script
+-- now adds a THIRD binary-search fallback (fix 07.1-install-cycle, bug 2): a
+-- repo-local dev build at `<script_dir>/../dist/wez`. To exercise the TRULY-ABSENT
+-- branch (all three fallbacks miss -> warn + exit 0), the script copy must live in
+-- an isolated `tools/` dir whose sibling `../dist/wez` does NOT exist — so this
+-- regression guard tests genuine absence, not "found the repo's own dev build".
+local UNINSTALL_SRC
+do
+  local fh = assert(io.open(SCRIPT, "rb"), "cannot read " .. SCRIPT)
+  UNINSTALL_SRC = fh:read("*a"); fh:close()
+end
+
 local function run_uninstall_no_wez()
-  local empty_dir = os.tmpname()
-  os.remove(empty_dir)
+  local base = os.getenv("TMPDIR") or "/tmp"
+  local sandbox = string.format("%s/wezsetup-uninst-absent-%d-%d", base, os.time(), math.random(1, 1e6))
+  -- Lay out <sandbox>/tools/uninstall.sh with NO <sandbox>/dist/wez sibling, so the
+  -- script's pure-bash `<script_dir>/../dist/wez` resolution points at a path that
+  -- does NOT exist (the dist fallback misses). EMPTY WEZ_BIN_DIR + empty PATH make
+  -- the other two fallbacks miss too.
+  os.execute("mkdir -p '" .. sandbox .. "/tools'")
+  local script_copy = sandbox .. "/tools/uninstall.sh"
+  do
+    local fh = assert(io.open(script_copy, "wb"))
+    fh:write(UNINSTALL_SRC); fh:close()
+  end
+  os.execute("chmod +x '" .. script_copy .. "'")
+
+  local empty_dir = sandbox .. "/empty-bin"
   local out_file = os.tmpname()
   local tmp = os.tmpname()
   local fh = assert(io.open(tmp, "w"))
@@ -68,10 +100,12 @@ local function run_uninstall_no_wez()
   fh:write("export WEZ_BIN_DIR='" .. empty_dir .. "'\n")
   -- Empty PATH so `command -v wez` finds nothing.
   fh:write("export PATH=\n")
-  -- Run uninstall.sh via an ABSOLUTE bash path (resolved before PATH was emptied,
-  -- shebang not needed). Capture stdout+stderr together; stdin from /dev/null
-  -- (non-interactive). The not-found branch is pure bash builtins (printf + exit).
-  fh:write("'" .. BASH_BIN .. "' '" .. SCRIPT .. "' </dev/null\n")
+  -- Run the ISOLATED COPY via an ABSOLUTE bash path (resolved before PATH was
+  -- emptied, shebang not needed). Capture stdout+stderr together; stdin from
+  -- /dev/null (non-interactive). The not-found branch is pure bash builtins
+  -- (printf + exit) and the script dir resolves with pure parameter expansion,
+  -- so no external coreutil is needed for the asserted path.
+  fh:write("'" .. BASH_BIN .. "' '" .. script_copy .. "' </dev/null\n")
   fh:write("rc=$?\n")
   -- Propagate the script's exit code as this driver's exit code.
   fh:write("exit $rc\n")
@@ -88,7 +122,7 @@ local function run_uninstall_no_wez()
   end
   os.remove(tmp)
   os.remove(out_file)
-  os.execute("rm -rf '" .. empty_dir .. "' 2>/dev/null || true")
+  os.execute("rm -rf '" .. sandbox .. "' 2>/dev/null || true")
   return status, text
 end
 

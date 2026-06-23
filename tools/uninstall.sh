@@ -27,22 +27,41 @@ set -euo pipefail
 
 log() { printf '[uninstall] %s\n' "$*"; }
 
-# Locate the wez binary: prefer one on PATH, else the default install location.
+# Locate the wez binary: prefer one on PATH, else the default install location,
+# else a repo-local DEV build (so `make build && make uninstall` can clean up even
+# when nothing is installed on PATH). Resolve the repo-local fallback relative to
+# THIS script's own directory so it works from any CWD: <script_dir>/../dist/wez.
+# Derive the script dir with pure bash parameter expansion (no external `dirname`)
+# so resolution still works under a stripped PATH — the only externals this script
+# may invoke are the delegated `wez` itself (bash-3.2-safe, sudo-free).
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+case "${SCRIPT_SOURCE}" in
+  */*) SCRIPT_DIR="${SCRIPT_SOURCE%/*}" ;;
+  *)   SCRIPT_DIR="." ;;
+esac
+DIST_WEZ="${SCRIPT_DIR}/../dist/wez"
 BIN_DIR="${WEZ_BIN_DIR:-${HOME}/.local/bin}"
 if command -v wez >/dev/null 2>&1; then
   WEZ="$(command -v wez)"
 elif [ -x "${BIN_DIR}/wez" ]; then
   WEZ="${BIN_DIR}/wez"
+elif [ -x "${DIST_WEZ}" ]; then
+  # Repo-local dev build (e.g. fresh from `make build`). Using it keeps removal
+  # owned by the binary (D-01) — this glue still adds NO rm / NO path-branching;
+  # it only points the delegation at a reachable binary so `make uninstall`
+  # actually cleans up the managed block when nothing is installed on PATH yet.
+  WEZ="${DIST_WEZ}"
+  log "using repo-local dev build ${DIST_WEZ} (nothing installed on PATH)"
 else
-  # The wez binary is gone (it self-deletes as the LAST step of its own
-  # uninstall, D-01). Nothing reachable means there is nothing for the glue to
-  # delegate to -- so treat a re-run / clean-state run as a no-op SUCCESS rather
-  # than aborting (keeps `make uninstall` idempotent and `make uninstall install`
-  # from a clean state working). NO rm / NO path-branching here -- removal stays
-  # owned by the binary; if the binary is absent, any leftover config artifacts
-  # need it present again to be cleaned.
-  log "wez binary not found (looked on PATH and at ${BIN_DIR}/wez); already uninstalled, nothing to remove"
-  log "if config artifacts remain, reinstall the wez binary to clean them (removal is owned by the binary, D-01)"
+  # No wez is reachable ANYWHERE (PATH, ${BIN_DIR}/wez, or the repo-local
+  # ${DIST_WEZ}). The binary self-deletes as the LAST step of its own uninstall
+  # (D-01), so a re-run / clean-state run has nothing to delegate to -- treat it
+  # as a no-op SUCCESS rather than aborting (keeps `make uninstall` idempotent and
+  # `make uninstall install` from a clean state working). NO rm / NO path-branching
+  # here -- removal stays owned by the binary; if the binary is absent, any leftover
+  # config artifacts need it present again (e.g. `make build`) to be cleaned.
+  log "wez binary not found (looked on PATH, at ${BIN_DIR}/wez, and at ${DIST_WEZ}); already uninstalled, nothing to remove"
+  log "if config artifacts remain, build/reinstall the wez binary to clean them (removal is owned by the binary, D-01)"
   exit 0
 fi
 
