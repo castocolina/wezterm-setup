@@ -239,6 +239,41 @@ function M.build_pane_escapes(spec_parsed, opts)
 end
 
 -- ---------------------------------------------------------------------------
+-- M.build_styling_printf_lines(escapes) -> array of `printf '<octal>'\n` lines.
+--
+-- PURE (no io/os/mux) Phase B styling-delivery chunker. Emits EACH escape in the
+-- list as its OWN short `printf '<octal-of-that-escape>'` line, instead of one
+-- giant concatenated printf carrying every escape at once.
+--
+-- WHY chunk per escape (07.1-scene-leak): the styling escapes are typed into a
+-- freshly-spawned interactive shell via `wezterm cli send-text --no-paste`. The
+-- old single line concatenated ALL of a pane's escapes — for the `ai` scene that
+-- is ~1100-1130 bytes in ONE typed line. A very large line typed into a not-yet-
+-- ready macOS interactive shell is fragile: if the tail (closing `'` + newline)
+-- is lost, the shell strands at zsh's `quote>` continuation prompt, the literal
+-- `printf '...'` leaks into the pane, and the styling never applies — defeating
+-- the D-09 clean-pane contract. One short printf per escape keeps every typed
+-- line well under 1KB so no single line can overflow / lose its closing quote.
+--
+-- The mechanism is UNCHANGED (Pitfall 2): the shell EXECUTES each printf and its
+-- output carries the OSC bytes to the terminal's output parser. The octal idiom
+-- is identical (\%03o per byte -> pure printable ASCII, no raw ESC for readline to
+-- mangle, no shell quoting). The self-erasing clean-pane behavior is preserved:
+-- the caller appends CLEAR_SCROLLBACK_AND_VIEWPORT as the LAST escape, so its
+-- printf line still wipes every prior echo (viewport + scrollback + cursor home).
+-- ---------------------------------------------------------------------------
+function M.build_styling_printf_lines(escapes)
+  local lines = {}
+  for i = 1, #escapes do
+    local octal = (escapes[i]:gsub(".", function(c)
+      return string.format("\\%03o", string.byte(c))
+    end))
+    lines[#lines + 1] = "printf '" .. octal .. "'\n"
+  end
+  return lines
+end
+
+-- ---------------------------------------------------------------------------
 -- M.run_new(args) -> exit code.
 -- args.layout   : string (the --layout value)
 -- args.pane     : array of raw --pane spec strings (argparse repeatable option);
@@ -459,28 +494,40 @@ function M.run_new(args)
       local has_cmd = spec_parsed.cmd ~= nil and not spec_parsed.shell
 
       if has_styling or has_cmd then
-        -- D-09 clean-pane: the styling OSCs AND the screen wipe are emitted as ONE
-        -- self-erasing `printf` line, then the user's command runs on a pristine
-        -- pane. The wipe is a ScrollbackAndViewport clear — the SAME wipe the
-        -- Ctrl+Shift+K binding (ClearScreenAndScrollback -> ClearScrollback
-        -- "ScrollbackAndViewport") performs: ED viewport (\27[2J) + ED scrollback
-        -- (\27[3J) + cursor home (\27[H). Plain `clear` only wiped the VIEWPORT, so
-        -- the injected setup line survived a scroll-up as scrollback garbage; the
-        -- \27[3J erases the scrollback too, including the setup line's own echo.
+        -- D-09 clean-pane: the styling OSCs AND the screen wipe are emitted as a
+        -- run of self-erasing `printf` lines — ONE short printf PER escape — then
+        -- the user's command runs on a pristine pane. The wipe is a
+        -- ScrollbackAndViewport clear — the SAME wipe the Ctrl+Shift+K binding
+        -- (ClearScreenAndScrollback -> ClearScrollback "ScrollbackAndViewport")
+        -- performs: ED viewport (\27[2J) + ED scrollback (\27[3J) + cursor home
+        -- (\27[H). Plain `clear` only wiped the VIEWPORT, so the injected setup
+        -- lines survived a scroll-up as scrollback garbage; the \27[3J erases the
+        -- scrollback too, including the setup lines' own echoes. The CLEAR is
+        -- appended LAST so its printf line wipes every prior echo.
         --
         -- Why a `printf` and not raw bytes (Pitfall 2): send-text writes to the pane
         -- PTY = the shell's stdin, so raw control bytes are eaten by the line editor
         -- (zsh's zle swallows them; bash's readline echoes the printable tail as
         -- `11;#...1337;...` garbage). The shell EXECUTES printf and ITS OUTPUT carries
         -- the bytes to the terminal's output parser. Octal-escape every byte so the
-        -- typed line is pure printable ASCII (no raw ESC for readline to mangle) and
-        -- needs no shell quoting; printf '\nnn' octal works in bash & zsh.
+        -- typed lines are pure printable ASCII (no raw ESC for readline to mangle) and
+        -- need no shell quoting; printf '\nnn' octal works in bash & zsh.
+        --
+        -- Why ONE printf PER escape, not one giant concatenated printf
+        -- (07.1-scene-leak): the `ai` scene's full styling concatenated to a single
+        -- ~1100-1130-byte line typed into a freshly-spawned shell. A >1KB single
+        -- line typed into a not-yet-ready macOS interactive shell is fragile — if
+        -- the tail (closing `'` + newline) is lost the shell strands at zsh's
+        -- `quote>` prompt, the literal `printf '...'` leaks into the pane, and the
+        -- styling never applies. Splitting into short per-escape lines (each well
+        -- under 1KB) means no single typed line can overflow / lose its closing
+        -- quote, while delivering the IDENTICAL OSC bytes (round-trip equivalent).
         local CLEAR_SCROLLBACK_AND_VIEWPORT = "\27[2J\27[3J\27[H"
         escapes[#escapes + 1] = CLEAR_SCROLLBACK_AND_VIEWPORT
-        local octal = table.concat(escapes):gsub(".", function(c)
-          return string.format("\\%03o", string.byte(c))
-        end)
-        payload[#payload + 1] = "printf '" .. octal .. "'\n"
+        local printf_lines = M.build_styling_printf_lines(escapes)
+        for li = 1, #printf_lines do
+          payload[#payload + 1] = printf_lines[li]
+        end
         -- Startup command as a DISTINCT trailing line (NOT concatenated into an
         -- escape sequence — prevents OSC injection/breakout, T-04-02). A `shell`
         -- pane (D-04) gets no command appended.
