@@ -107,6 +107,7 @@ Phase 7    [██████████]  Complete (2026-06-22, macOS close g
 | 260613-dlh | doctor-config-path | `wez doctor` GATE 3 now replicates WezTerm's `<config-dir>/?.lua` path so the installed config's dotted requires resolve (fixes a false `[FAIL] config dofiles cleanly`) | 2026-06-13 | aace2ff |
 | 260613-dup | ci-colocated-tests | `make test` now discovers co-located `*_test.lua` under `cli/` and `config/` (8 → 14 files); 6 previously-orphaned suites (pane/tab/title/scene/complete/format-tab-title) now run in CI | 2026-06-13 | 77b76bb |
 | 260623-gbk | macos-dev-launcher-lua-resolve | `tools/build.sh` dev launcher resolves a Lua 5.4 interpreter (PATH `lua5.4` → `$(brew --prefix lua@5.4)/bin/lua5.4` → a `lua` reporting 5.4) instead of hardcoding `exec lua5.4`; fixes keg-only-Homebrew `make install` abort (`dist/wez version` exit 127 → 0) on macOS | 2026-06-23 | 39aa3b6 |
+| 260623-gn7 | uninstall-idempotent-when-wez-absent | `tools/uninstall.sh` now warns + `exit 0` (was ERROR + `exit 1`) when the `wez` binary is already gone, so `make uninstall install` no longer aborts from a clean state; glue stays decision-free (D-01, no rm/path-branching), delegation untouched | 2026-06-23 | 9d117cd |
 
 ---
 
