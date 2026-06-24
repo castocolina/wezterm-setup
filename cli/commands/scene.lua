@@ -590,20 +590,24 @@ function M.run_new(args)
     local pid = pane_ids[i]
     local spec_parsed = parsed[i]
     if spec_parsed then
-      -- 1. Reused pane 1's styling via per-escape self-erasing printf (the only
-      --    pane without a spawn prelude). escapes_by_idx already has the CLEAR
-      --    appended last. Octal-encode each escape into its own short printf so no
-      --    single typed line overflows the interactive shell's line editor.
+      -- 1. Reused pane 1's styling. `wez scene launch` runs AS A FOREGROUND COMMAND
+      --    inside pane 1's shell, so `send-text`-ing a `printf` back into that SAME
+      --    pane interleaves with the still-running `wez` process — the typed bytes
+      --    land on the busy command line and the shell hangs at an unterminated
+      --    quote (observed: the first pane shows `printf '\033...'wez scene launch
+      --    ai` mashed together, then freezes). Instead, emit the raw OSC bytes to
+      --    wez's OWN STDOUT: wez's stdout IS pane 1's terminal, so the terminal
+      --    parses the sequences directly (the exact mechanism `wez pane color` /
+      --    `wez tab color` already use). No send-text, no line-editor race, no leak,
+      --    no hang. escapes_by_idx[1] already has the CLEAR appended last to wipe
+      --    any residue. Only the reused pane needs this; spawned panes carry their
+      --    styling in the spawn prelude (Phase A).
       if reuse_pane1 and i == 1 then
         local pane1_escapes = escapes_by_idx[1] or {}
         for _, esc in ipairs(pane1_escapes) do
-          local octal = (esc:gsub(".", function(c)
-            return string.format("\\%03o", string.byte(c))
-          end))
-          os.execute(string.format(
-            "wezterm cli send-text --pane-id %d --no-paste %s",
-            pid, shquote("printf '" .. octal .. "'\n")))
+          io.stdout:write(esc)
         end
+        io.stdout:flush()
       end
 
       -- 2. Startup command (D-04): a DISTINCT short line, NEVER folded into an
