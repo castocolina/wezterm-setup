@@ -3,7 +3,7 @@
 # See docs/agent-iteration.md (R3 — config layer is composable).
 
 .DEFAULT_GOAL := help
-.PHONY: help install build publish clean doctor test uninstall
+.PHONY: help install build publish clean doctor test e2e e2e-setup uninstall
 
 help:
 	@echo "wezterm-setup targets:"
@@ -13,6 +13,8 @@ help:
 	@echo "  clean                    wipe .tmp/ scratch; keep install intact"
 	@echo "  doctor                   diagnose install state and config health"
 	@echo "  test                     run test suite (set WEZTERM_INTEGRATION=1 for live tests)"
+	@echo "  e2e                      run the E2E battery (tests/e2e; WEZ_BIN override for CI)"
+	@echo "  e2e-setup                install test-only tools + print macOS permission steps"
 	@echo "  uninstall                remove config block, wez CLI, and backups"
 	@echo "  uninstall KEEP_CONFIG=1  preserve ~/.config/wezterm/wezterm-setup/; remove CLI only"
 	@echo "  uninstall KEEP_CLI=1     preserve wez binary; remove config block"
@@ -35,6 +37,12 @@ doctor:
 
 test:
 	@./tools/run-tests.sh
+
+e2e:
+	@./tools/run-e2e.sh
+
+e2e-setup:
+	@./tools/run-e2e.sh --setup
 
 uninstall:
 	@KEEP_CONFIG="$(KEEP_CONFIG)" KEEP_CLI="$(KEEP_CLI)" KEEP_BACKUP="$(KEEP_BACKUP)" ./tools/uninstall.sh

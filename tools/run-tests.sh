@@ -47,11 +47,28 @@ INTEGRATION="${WEZTERM_INTEGRATION:-0}"
 
 # Collect unit test files: *_test.lua, EXCLUDING *_integration_test.lua unless
 # integration mode is on. (Integration files live only under tests/integration/.)
-mapfile -t ALL_TESTS < <(find "${TEST_ROOTS[@]}" -type f -name '*_test.lua' | sort)
+# The E2E battery (*_e2e_test.lua under tests/e2e/) is OWNED by `make e2e`
+# (tools/run-e2e.sh) and is EXCLUDED here so `make test` never double-runs it —
+# crucially never against the stale PATH `wez` instead of WEZ_BIN=./dist/wez, the
+# exact stale-binary footgun the battery exists to catch. The `! -name
+# '*_e2e_test.lua'` predicate keeps the e2e files out of collection, and the
+# tests/e2e/* case arm below drops them belt-and-braces even in integration mode.
+# bash-3.2-safe: macOS ships bash 3.2, which has no `mapfile`/`readarray`.
+# Use the same `while IFS= read -r ... done < <(find | sort)` process-substitution
+# idiom as tools/run-e2e.sh. (A `mapfile` here fails at runtime on macOS — `bash -n`
+# can't catch a missing builtin — leaving ALL_TESTS empty so `make test` discovers
+# ZERO tests and exits 0: a silent false-green hiding the whole unit suite on Mac.)
+ALL_TESTS=()
+while IFS= read -r f; do
+  ALL_TESTS+=("$f")
+done < <(find "${TEST_ROOTS[@]}" -type f -name '*_test.lua' ! -name '*_e2e_test.lua' | sort)
 
 FILES=()
 for f in "${ALL_TESTS[@]}"; do
   case "$f" in
+    *_e2e_test.lua | tests/e2e/*)
+      # E2E battery — owned by `make e2e`, never run here (any mode).
+      : ;;
     *_integration_test.lua)
       if [ "$INTEGRATION" = "1" ]; then FILES+=("$f"); fi
       ;;
