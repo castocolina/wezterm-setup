@@ -241,5 +241,37 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- GLUE TEXT: tools/uninstall.sh binary search includes a repo-local dist/wez
+-- fallback (fix 07.1-install-cycle, bug 2). When NO `wez` is reachable on PATH
+-- or at ${BIN_DIR}/wez, the uninstaller used to warn + exit 0 WITHOUT removing
+-- the managed block, because removal is owned by the (now-absent) binary (D-01).
+-- The fix extends the search with a THIRD fallback: a repo-local dev build at
+-- <script_dir>/../dist/wez. So after `make build`, `make uninstall` can clean up
+-- using the freshly-built dev binary even when nothing is installed on PATH —
+-- while keeping the glue decision-free (removal still delegated to the binary).
+--
+-- Asserted on the SCRIPT TEXT (mirroring setup_dev_test.lua / install_sh_test.lua
+-- text idioms): uninstall.sh must reference a `dist/wez` fallback path AND resolve
+-- it relative to the script's own directory (so it works from any CWD). The
+-- decision-free invariant (no bare `rm`) is guarded by uninstall_idempotent_test.lua.
+-- ----------------------------------------------------------------------------
+do
+  local fh = assert(io.open(repo_root .. "/tools/uninstall.sh", "rb"),
+    "cannot read tools/uninstall.sh")
+  local src = fh:read("*a"); fh:close()
+  local function has(needle) return src:find(needle, 1, true) ~= nil end
+
+  check("uninstall.sh references a repo-local dist/wez fallback path",
+    has("dist/wez"))
+  check("uninstall.sh resolves its own script dir (BASH_SOURCE) for the dist fallback",
+    has("BASH_SOURCE"))
+  -- The dist fallback must be guarded by an executable test before use, so a
+  -- non-executable / absent dist/wez correctly falls through to the warn+exit 0.
+  check("uninstall.sh guards the dist fallback with an executable -x test",
+    src:find("%-x%s+\"?%$%{?[%w_]*DIST", 1) ~= nil or has("-x \"${DIST_WEZ}\"")
+      or has("-x \"${REPO_DIST_WEZ}\""))
+end
+
+-- ----------------------------------------------------------------------------
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

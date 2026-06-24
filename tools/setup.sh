@@ -40,6 +40,44 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 log() { printf '[setup] %s\n' "$*"; }
 err() { printf '[setup] ERROR: %s\n' "$*" >&2; }
 
+# resolve_install_state_args <had_explicit_flags> <tty_state> [user-flags...]
+#
+# Decide which args to hand `wez install-state` (STEP 6). This is decision-free
+# GLUE (D-01): it makes NO sentinel/parse/inject decision — it ONLY chooses a SAFE
+# NON-INTERACTIVE DEFAULT FLAG so a re-install over an existing managed block does
+# not abort on a non-TTY pipe (D-03). All real install-state logic still lives in
+# the Lua binary.
+#
+#   <had_explicit_flags> : "1" when the user passed any flag in "$@", else "0".
+#   <tty_state>          : "tty" when stdin is an interactive terminal, else any
+#                          other value (e.g. "nontty").
+#   [user-flags...]      : the verbatim "$@" the user supplied.
+#
+# Precedence:
+#   1. explicit user flags ("$@")        -> echo them verbatim (user always wins).
+#   2. interactive TTY, no flags         -> echo NOTHING (let install-state prompt).
+#   3. non-TTY, no flags                 -> echo the default mode. Default is
+#                                           --force (install-state writes a
+#                                           timestamped backup before overwriting,
+#                                           so it is safe and yields a correct
+#                                           current managed block). Overridable via
+#                                           WEZ_INSTALL_STATE_MODE for power users.
+#
+# On a FRESH install (no block yet) install-state's own `absent -> install`
+# decision needs no flag, so the default is harmless there too.
+resolve_install_state_args() {
+  local had_explicit="$1" tty_state="$2"
+  shift 2
+  if [ "${had_explicit}" = "1" ]; then
+    printf '%s\n' "$*"
+    return 0
+  fi
+  if [ "${tty_state}" = "tty" ]; then
+    return 0   # interactive: emit nothing so install-state prompts (unchanged)
+  fi
+  printf '%s\n' "${WEZ_INSTALL_STATE_MODE:---force}"
+}
+
 # User-path destinations (sudo-free — T-04-04). Overridable for dogfood/testing.
 BIN_DIR="${WEZ_BIN_DIR:-${HOME}/.local/bin}"
 CONFIG_DIR="${WEZTERM_CONFIG_DIR:-${HOME}/.config/wezterm}"
@@ -59,6 +97,11 @@ COMPLETIONS_MARKER="# wezterm-setup:completions"
 ZSH_COMPLETION_DIR="${WEZ_ZSH_COMPLETION_DIR:-${HOME}/.local/share/zsh/site-functions}"
 BASH_COMPLETION_DIR="${WEZ_BASH_COMPLETION_DIR:-${HOME}/.local/share/bash-completion/completions}"
 
+# main() — run the full install sequence. Wrapped in a function so the script can
+# be SOURCED (by tests) to load resolve_install_state_args without executing the
+# installer; the BASH_SOURCE/$0 guard at the bottom only calls main when the script
+# is run directly.
+main() {
 # --- STEP 1: detection already sourced above ---------------------------------
 OS="$(platform_os)"
 log "platform: os=${OS} arch=$(platform_arch)"
@@ -184,8 +227,31 @@ register_completions_rc "${HOME}/.bashrc" \
 # --- STEP 6: delegate the install-state DECISION to the Lua binary (D-01) ------
 # Pass through any --force/--restore/--skip the user supplied. ALL sentinel
 # parsing, backup, injection, and the override/restore/skip decision live in
-# `wez install-state`; this script adds NO branching of its own. Surface its
-# exit code as ours so a no-TTY re-install aborts non-zero (D-03).
-log "delegating install-state decision to wez install-state…"
-"${BIN_DIR}/wez" install-state "$@"
-exit $?
+# `wez install-state`; this script adds NO branching of its own.
+#
+# One decision-free exception (fix 07.1-install-cycle, bug 1): when the user gave
+# NO explicit flag AND stdin is NOT a TTY, hand install-state a SAFE NON-INTERACTIVE
+# DEFAULT (--force, overridable via WEZ_INSTALL_STATE_MODE) so a re-install over an
+# existing managed block does not abort on a non-TTY pipe (D-03). On a fresh install
+# the default is harmless (install-state's `absent -> install` ignores it). The
+# interactive path is unchanged: with a TTY and no flag, we pass nothing and
+# install-state prompts. Surface install-state's exit code as ours.
+  local had_explicit=0
+  [ "$#" -gt 0 ] && had_explicit=1
+  local tty_state="nontty"
+  [ -t 0 ] && tty_state="tty"   # literal string, not the tty(1) command (SC2209 false-positive)
+
+  local extra_args
+  extra_args="$(resolve_install_state_args "${had_explicit}" "${tty_state}" "$@")"
+
+  log "delegating install-state decision to wez install-state ${extra_args}"
+  # shellcheck disable=SC2086
+  "${BIN_DIR}/wez" install-state ${extra_args}
+  exit $?
+}
+
+# Run the installer only when executed directly; sourcing (tests) just loads the
+# helpers above. Same guard idiom as tools/setup-dev.sh.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
+fi

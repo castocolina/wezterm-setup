@@ -471,6 +471,21 @@ install_linux() {
 # zip containing WezTerm.app, placed under ~/Applications (sudo-free, user-path).
 # Verified in the deferred Mac pass — see D-06/D-18. Kept as a branch so the
 # control flow is complete and the Mac pass fills in the fetch/unzip specifics.
+#
+# KEYS-SIBLINGS REQUIREMENT (Phase 7 / D-18, D-06 — archived fix 4c765e1, NOT yet
+# forward on this Linux mainline): when the Mac pass implements the real install,
+# it MUST symlink ALL WezTerm.app bundle siblings into ${BIN_DIR}, not just
+# `wezterm`. `wez keys` runs `wezterm show-keys --lua` (cli/commands/keys.lua),
+# and `wezterm` re-execs the SIBLING `wezterm-gui` RELATIVE TO its own resolved
+# path (${BIN_DIR}/wezterm-gui). With only `wezterm` linked that sibling is absent
+# and the re-exec fails NotFound (Os code 2), breaking `wez keys` / `wez keys
+# --json`. The installer must `ln -sfn` every bundle sibling that exists —
+# `wezterm`, `wezterm-gui`, `wezterm-mux-server`, `strip-ansi-escapes` — from
+# WezTerm.app/Contents/MacOS into ${BIN_DIR} (sudo-free, idempotent `ln -sfn`,
+# Bash-3.2-safe). This sibling list is the single source of truth in
+# tests/e2e/platform.lua's `bundle_siblings` parity row; the macOS-specific
+# regression lives (skip-gated on non-macOS) in
+# tests/e2e/tier1/keys_siblings_e2e_test.lua and FIRES once this installer lands.
 install_macos() {
   local tag="$1"
   local app_dir="${HOME}/Applications"
