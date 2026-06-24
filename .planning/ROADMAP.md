@@ -20,7 +20,7 @@
 - [x] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full) (completed 2026-06-18)
 - [x] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua` (completed 2026-06-19)
 - [x] **Phase 6.5: Keybinding Clarity & `wez keys` Output Curation** *(INSERTED)* - Fix the `wez keys` ordering/conflict matching bug, curate output into three groups (Managed < Additions < Defaults), separate from stale binary + live-session staleness (completed 2026-06-19)
-- [ ] **Phase 6.6: E2E Battery Scaffolding + Tier 1 (Subcommands)** *(INSERTED)* - Linux-first E2E battery: `tests/e2e/` scaffold + `tools/run-e2e.sh` + `make e2e`/`e2e-setup` + platform module + self-skip gates; Tier 1 deterministic subcommand contract + emitted-OSC-byte assertions; cherry-pick the 4 verified fixes from `archive/phase-7-macos` (PRD Phase 1)
+- [x] **Phase 6.6: E2E Battery Scaffolding + Tier 1 (Subcommands)** *(INSERTED)* - Linux-first E2E battery: `tests/e2e/` scaffold + `tools/run-e2e.sh` + `make e2e`/`e2e-setup` + platform module + self-skip gates; Tier 1 deterministic subcommand contract + emitted-OSC-byte assertions; cherry-pick the 4 verified fixes from `archive/phase-7-macos` (PRD Phase 1) — ✅ COMPLETE 2026-06-24 (keys-siblings macOS fix re-shaped as a skip-gated test + deferred to Phase 7, D-06.6-01)
 - [ ] **Phase 6.7: E2E Tier 2 (Scenes) + Tier 3 Registration** *(INSERTED)* - Recipes × reuse/new-tab launch modes (pane-count/cwd/user-var/no-leak/responsiveness + cleanup) and `show-keys` Cmd+Ctrl coverage per curated action; catch a reintroduced regression (PRD Phase 2)
 - [ ] **Phase 6.8: E2E Linux CI Gate** *(INSERTED)* - Wire the deterministic tiers (T1+T2+T3-registration) into GitHub Actions on Linux with a headless `wezterm-mux-server`; gate every PR/push (PRD Phase 3)
 - [ ] **Phase 6.9: E2E Tier 3 (Firing) + Tier 4 (Visuals)** *(INSERTED)* - Local, permission-bound: OS input injection → mux-effect assertions + hybrid AI-vision/snapshot visual checks with per-platform baselines (PRD Phase 4, best-effort/local)
@@ -234,19 +234,19 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 06.7 to break down)
 
-### Phase 06.6: E2E Battery Scaffolding + Tier 1 (Subcommands) (INSERTED)
+### Phase 06.6: E2E Battery Scaffolding + Tier 1 (Subcommands) (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-24)
 
 **Goal:** A runnable, Linux-first E2E battery with the full deterministic subcommand layer (PRD Phase 1). Scaffold `tests/e2e/` + `tools/run-e2e.sh` (bash-3.2-safe) + `make e2e` / `make e2e-setup`; a platform-expectations module + self-skip gates; Tier 1 = exit-code/output-shape contract + emitted-OSC-byte well-formedness assertions for every `wez` subcommand (the same stdout mechanism reuse-pane scene styling depends on). Also execute the migration reuse: cherry-pick the 4 independently-verified fixes from `archive/phase-7-macos` (dev-launcher Lua 5.4, install-cycle, idempotent uninstall, keys-siblings symlink) once green under the battery.
 **Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 1; Appendix A.1; Migration & Reset Strategy)
 **Depends on:** Phase 6 (v1.0.0 build/CI/bootstrap baseline that `main` was reset to)
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 
-- [ ] 06.6-01-PLAN.md — scaffold: harness.lua + skip.lua + platform.lua + run-e2e.sh + make e2e/e2e-setup + README [wave 1]
-- [ ] 06.6-02-PLAN.md — Tier 1 exit-code/output-shape contracts (version/doctor/keys/completions/seed-scenes/install-state/uninstall/update + edge cases) [wave 2]
-- [ ] 06.6-03-PLAN.md — Tier 1 emitted-OSC-byte well-formedness (pane/tab color|title|icon + reset/clear) grounded in cli/lib/color.lua [wave 2]
-- [ ] 06.6-04-PLAN.md — Migration reuse: cherry-pick the 4 verified archive/phase-7-macos fixes test-first + Linux-verify [wave 3]
+- [x] 06.6-01-PLAN.md — scaffold: harness.lua + skip.lua + platform.lua + run-e2e.sh + make e2e/e2e-setup + README [wave 1]
+- [x] 06.6-02-PLAN.md — Tier 1 exit-code/output-shape contracts (version/doctor/keys/completions/seed-scenes/install-state/uninstall/update + edge cases) [wave 2]
+- [x] 06.6-03-PLAN.md — Tier 1 emitted-OSC-byte well-formedness (pane/tab color|title|icon + reset/clear) grounded in cli/lib/color.lua [wave 2]
+- [x] 06.6-04-PLAN.md — Migration reuse: 3 install/uninstall fixes cherry-picked test-first + Linux-verified; keys-siblings re-shaped as an OS-detect + skip-gated test (4c765e1 + bootstrap_macos_test.lua deferred to Phase 7, D-06.6-01) [wave 3]
 
 ### Phase 06.1: Tab and Scene Identity Redesign (INSERTED) — ✅ COMPLETE (UAT-verified 2026-06-15)
 
@@ -426,7 +426,7 @@ Plans:
 
 1. `bash tools/verify-macos.sh` passes its auto gate on a real Mac (build, suite, all `__complete` contexts, completion `-n`, scene-launch exit codes, copy-if-absent seeding)
 2. The full `docs/macos-verification.md` runbook is driven top-to-bottom and every capability section passes — visual/UX steps reviewed with `agent-ui-ux-designer`
-3. Deferred macOS gaps closed: Gatekeeper/quarantine, Apple Silicon ad-hoc codesign of the built binary, `install_macos` real `.app` placement (INST-06), `sha256sum`→`shasum`, `mapfile`/bash-3.2 in the test harness
+3. Deferred macOS gaps closed: Gatekeeper/quarantine, Apple Silicon ad-hoc codesign of the built binary, `install_macos` real `.app` placement (INST-06), `sha256sum`→`shasum`, `mapfile`/bash-3.2 in the test harness. **Includes D-06.6-01 (from Phase 06.6-04):** the real `install_macos` MUST symlink all WezTerm.app bundle siblings (`wezterm` / `wezterm-gui` / `wezterm-mux-server` / `strip-ansi-escapes`) into `${BIN_DIR}` per `tests/e2e/platform.lua`'s `bundle_siblings` row (so `wez keys` re-exec resolves); bring forward the archived fix `4c765e1` + the full `tests/cli/bootstrap_macos_test.lua`, at which point `tests/e2e/tier1/keys_siblings_e2e_test.lua`'s skip-gated macOS layer FIRES on Mac hardware (see `06.6-.../deferred-items.md`)
 4. Every "macOS deferred D-18" status in REQUIREMENTS.md / coverage is flipped to Done with recorded evidence (incl. the A-1 `scene new --layout/--color` completion confirmed in zsh on macOS)
 
 **Plans**: TBD
@@ -450,6 +450,7 @@ Plans:
 | 6.3 Distribution Channels (nightly/latest + uninstall) | 3/3 | Complete   | 2026-06-18 |
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 5/5 | Complete    | 2026-06-19 |
 | 6.4 User Documentation Audit and Refactor | 4/4 | Complete   | 2026-06-19 |
+| 6.6 E2E Battery Scaffolding + Tier 1 (Subcommands) | 4/4 | Complete    | 2026-06-24 |
 | 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
 
 ---
