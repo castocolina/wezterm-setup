@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-06-19T23:10:00.000Z"
+last_updated: "2026-06-24T17:10:05.944Z"
 progress:
-  total_phases: 13
-  completed_phases: 10
+  total_phases: 17
+  completed_phases: 11
   total_plans: 57
   completed_plans: 56
-  percent: 79
+  percent: 65
 ---
 
 # Project State: wezterm-setup
@@ -26,7 +26,10 @@ progress:
 
 ## Current Position
 
-Phase: 06.4 (user-documentation-audit-and-refactor) — EXECUTING
+Phase: 06.6 (e2e-battery-scaffolding-tier-1) — PLANNED (4 plans, 3 waves; plan-checker revision applied) — next: `/gsd-execute-phase 06.6`
+
+**Roadmap Evolution (2026-06-24): E2E testing battery inserted (Phases 06.6–06.9, URGENT).** After Phase 07.1 (macOS post-v1 follow-ups) produced a cascade of GUI-layer regressions that all passed unit tests, `main` was reset to the shipped `v1.0.0` baseline (the macOS delta is parked, fully recoverable, on `archive/phase-7-macos`). The [E2E testing battery PRD](../docs/prds/e2e-testing-battery-v1.0-prd.md) (`docs/prds/e2e-testing-battery-v1.0-prd.md`, scored 100/100) is the requirements source; it rebuilds the runtime behavior **test-first, Linux-first** so the next N commits cannot silently regress paid-for behavior. Inserted after Phase 6, before the pending Phase 7 (macOS parity), as four sequential phases mapping 1:1 to the PRD's execution phases: **06.6** scaffold + Tier 1 (subcommands, deterministic; cherry-picks the 4 verified `archive/phase-7-macos` fixes) → **06.7** Tier 2 (scenes) + Tier 3 registration → **06.8** Linux CI gate (deterministic tiers) → **06.9** Tier 3 firing + Tier 4 visuals (local, best-effort). Done-bar: T1+T2+T3-registration MUST-PASS and gate CI; firing + visuals are local/non-blocking. *(The structured `state.add-roadmap-evolution` handler is SDK-only and unavailable via this CLI shim, so this entry is recorded inline.)*
+
 **Reopen fix (round 1 — tar):** `tools/bootstrap-wezterm.sh install_linux` used `tar --no-absolute-names` (BSD-tar idiom GNU tar rejects) → live `curl|bash` aborted on every Linux box. Removed the flag; regression guard in `tests/cli/bootstrap_update_test.lua`. Re-verified by a real sandboxed `install_linux nightly`.
 
 **Reopen fix (round 2 — INST-08 supply side, first live run via `v0.1.0`):** cutting the first tag exposed that the WHOLE supply side was grep-verified, never run — it failed on all 3 legs + then shipped a broken Linux binary. Bugs fixed: release.yml had no release-create step (added race-safe `Ensure release exists` + `workflow_dispatch`); build.sh used `pkg-config --variable=includedir` not `--cflags` (header not found) AND passed absolute source paths to luastatic (wrong bundled module names) AND silently fell back to a dev-launcher pointing at install.sh's deleted /tmp checkout; cli/wez.lua `is_main()` was false inside the luastatic binary (arg[0]=exe, not `wez.lua`) so the shipped binary was INERT. Fixes: build.sh `--cflags` + explicit static-archive link + REPO_ROOT-relative luastatic invocation + loud-fail (no dev-launcher) on remote + non-empty smoke-test; wez.lua `is_main()` now uses the require-key vararg. macOS legs removed from release.yml (deferred to Phase 7 on real hardware).
