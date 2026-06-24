@@ -19,9 +19,14 @@
 - [x] **Phase 6.2: Identity Orthogonality** *(INSERTED)* - Finish 6.1's decoupling: icon becomes its own attribute (CLI + recipe), not the title's first word (G-1); split tab color from pane color into two user vars so an explicit tab color always wins (G-2a); add an opt-in `adopt_active_pane_color` toggle/flag so "tab follows the focused pane" is explicit, not magic (G-2b); `{cwd}`-in-title auto-fallback (completed 2026-06-16)
 - [x] **Phase 6.3: Distribution Channels** *(INSERTED)* - Scheduled nightly/latest rolling release + bootstrapper channel selector (tag vs latest/nightly); `wez uninstall` (binary-only and full) (completed 2026-06-18)
 - [x] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua` (completed 2026-06-19)
+- [x] **Phase 6.5: Keybinding Clarity & `wez keys` Output Curation** *(INSERTED)* - Fix the `wez keys` ordering/conflict matching bug, curate output into three groups (Managed < Additions < Defaults), separate from stale binary + live-session staleness (completed 2026-06-19)
+- [ ] **Phase 6.6: E2E Battery Scaffolding + Tier 1 (Subcommands)** *(INSERTED)* - Linux-first E2E battery: `tests/e2e/` scaffold + `tools/run-e2e.sh` + `make e2e`/`e2e-setup` + platform module + self-skip gates; Tier 1 deterministic subcommand contract + emitted-OSC-byte assertions; cherry-pick the 4 verified fixes from `archive/phase-7-macos` (PRD Phase 1)
+- [ ] **Phase 6.7: E2E Tier 2 (Scenes) + Tier 3 Registration** *(INSERTED)* - Recipes × reuse/new-tab launch modes (pane-count/cwd/user-var/no-leak/responsiveness + cleanup) and `show-keys` Cmd+Ctrl coverage per curated action; catch a reintroduced regression (PRD Phase 2)
+- [ ] **Phase 6.8: E2E Linux CI Gate** *(INSERTED)* - Wire the deterministic tiers (T1+T2+T3-registration) into GitHub Actions on Linux with a headless `wezterm-mux-server`; gate every PR/push (PRD Phase 3)
+- [ ] **Phase 6.9: E2E Tier 3 (Firing) + Tier 4 (Visuals)** *(INSERTED)* - Local, permission-bound: OS input injection → mux-effect assertions + hybrid AI-vision/snapshot visual checks with per-platform baselines (PRD Phase 4, best-effort/local)
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
 
-> **Execution = numeric order:** 6.1 ✓ → **6.2 (identity orthogonality, next)** → **6.3 (distribution channels)** → **6.4 (doc audit — runs LAST so it documents the final icon/color/install reality)** → 7 (macOS close gate). 6.2 and 6.3 are independent and could run in either order; 6.4 depends on both. *(The old 6.2 "doc audit" is renumbered to 6.4 — it had not started, so no execution artifacts move.)*
+> **Execution = numeric order:** 6.1 ✓ → 6.2 ✓ → 6.3 ✓ → 6.4 ✓ → 6.5 ✓ → **6.6 → 6.7 → 6.8 → 6.9 (E2E testing battery, next)** → 7 (macOS close gate). The 6.6–6.9 block is the [E2E testing battery PRD](../docs/prds/e2e-testing-battery-v1.0-prd.md): `main` was reset to the shipped v1.0.0 baseline after Phase 07.1 (macOS post-v1) produced a cascade of GUI-layer regressions that all passed unit tests; the battery rebuilds that behavior **test-first, Linux-first**, before macOS parity (Phase 7) resumes. The macOS delta is parked, fully recoverable, on `archive/phase-7-macos` (only 4 independently-verified fixes are cherry-picked forward, in 6.6). 6.6→6.7 are sequential (each tier builds on the scaffold); 6.8 gates the deterministic tiers in CI; 6.9 is local/best-effort.
 
 > **macOS parity is now Phase 7 (D-18).** All features are Linux-verified; the batched macOS pass
 > is scheduled as a real phase. Pending work (macOS gaps + UX backlog) is tracked in
@@ -195,6 +200,53 @@ Plans:
 **Default target = `nightly`**, with update-in-place scoped to the project-managed user-path install only (a system install is never modified).
 
 ---
+
+### Phase 06.9: E2E Tier 3 (Firing) + Tier 4 (Visuals) — local, permission-bound (INSERTED)
+
+**Goal:** Close the GUI/visual gap locally (PRD Phase 4). `make e2e-setup` installs OS input tools (cliclick / xdotool / ydotool) + screenshot tools and documents the macOS Accessibility + Screen-Recording permissions; Tier 3 *firing* injects real chords at the OS layer and asserts the mux effect (opt-in via `WEZ_E2E_INPUT=1`, clean self-skip when absent); Tier 4 is a hybrid AI-vision (semantic rubric, Haiku-class) + snapshot-diff (stable chrome) check against committed per-platform baselines with a manual-approve flow. Best-effort/local, non-blocking.
+**Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 3 firing + Tier 4; Appendix A.3 fire(B)/A.4)
+**Depends on:** Phase 06.6 (battery scaffold) + 06.7 (scenes/registration)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.9 to break down)
+
+### Phase 06.8: E2E Linux CI Gate (phased CI) (INSERTED)
+
+**Goal:** Make the deterministic tiers gate every change (PRD Phase 3). Wire Tier 1 + Tier 2 + Tier 3-registration into GitHub Actions on Linux using a headless `wezterm-mux-server`; verify self-skip works in CI and the gate blocks only on real failures, so the deterministic battery runs on every PR/push.
+**Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Phase 3; deterministic done-bar = MUST-PASS gate)
+**Depends on:** Phase 06.6 + 06.7 (the deterministic tiers must exist and be green locally first)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.8 to break down)
+
+### Phase 06.7: E2E Tier 2 (Scenes) + Tier 3 Registration (INSERTED)
+
+**Goal:** Cover the running-application layer that produced the worst regressions (PRD Phase 2). Tier 2: each recipe (ai/dev/docker) × both launch modes (reuse single-pane-tab AND new-tab) asserting pane-count parity, per-pane cwd (D-08), user-vars set, **no escape-char leak**, and a **responsiveness/no-hang probe**, with deterministic cleanup. Tier 3 registration: parse `wezterm show-keys` and assert ≥1 Cmd-family AND ≥1 Ctrl-family chord per curated action (the check that catches the dead new-tab binding). Demonstrate the battery catching a deliberately reintroduced regression.
+**Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 2 + Tier 3-registration; Appendix A.2 / A.3 reg(M))
+**Depends on:** Phase 06.6 (battery scaffold + platform module + self-skip gate)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 06.7 to break down)
+
+### Phase 06.6: E2E Battery Scaffolding + Tier 1 (Subcommands) (INSERTED)
+
+**Goal:** A runnable, Linux-first E2E battery with the full deterministic subcommand layer (PRD Phase 1). Scaffold `tests/e2e/` + `tools/run-e2e.sh` (bash-3.2-safe) + `make e2e` / `make e2e-setup`; a platform-expectations module + self-skip gates; Tier 1 = exit-code/output-shape contract + emitted-OSC-byte well-formedness assertions for every `wez` subcommand (the same stdout mechanism reuse-pane scene styling depends on). Also execute the migration reuse: cherry-pick the 4 independently-verified fixes from `archive/phase-7-macos` (dev-launcher Lua 5.4, install-cycle, idempotent uninstall, keys-siblings symlink) once green under the battery.
+**Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 1; Appendix A.1; Migration & Reset Strategy)
+**Depends on:** Phase 6 (v1.0.0 build/CI/bootstrap baseline that `main` was reset to)
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 06.6-01-PLAN.md — scaffold: harness.lua + skip.lua + platform.lua + run-e2e.sh + make e2e/e2e-setup + README [wave 1]
+- [ ] 06.6-02-PLAN.md — Tier 1 exit-code/output-shape contracts (version/doctor/keys/completions/seed-scenes/install-state/uninstall/update + edge cases) [wave 2]
+- [ ] 06.6-03-PLAN.md — Tier 1 emitted-OSC-byte well-formedness (pane/tab color|title|icon + reset/clear) grounded in cli/lib/color.lua [wave 2]
+- [ ] 06.6-04-PLAN.md — Migration reuse: cherry-pick the 4 verified archive/phase-7-macos fixes test-first + Linux-verify [wave 3]
 
 ### Phase 06.1: Tab and Scene Identity Redesign (INSERTED) — ✅ COMPLETE (UAT-verified 2026-06-15)
 
