@@ -36,9 +36,9 @@ unit/battery boundary (and Plan 04's `make test exits 0` acceptance).
 
 | Tier | Name | Needs | Class | Phase |
 |------|------|-------|-------|-------|
-| 1 | Subcommands | nothing (deterministic, headless) | M (must-pass) | **06.6 (this phase)** |
-| 2 | Scenes | live mux | M | 06.7 |
-| 3 | Registration | live mux | M | 06.7 |
+| 1 | Subcommands | nothing (deterministic, headless) | M (must-pass) | 06.6 |
+| 2 | Scenes | live mux | M | **06.7 (landed)** |
+| 3 | Registration | live mux | M | **06.7 (landed)** |
 | 3 | Firing | OS input injection (`WEZ_E2E_INPUT=1`) | B (best-effort, self-skip) | 06.9 |
 | 4 | Visuals | screenshot + vision (`WEZ_E2E_VISUAL=1`) | B (best-effort, self-skip) | 06.9 |
 
@@ -47,14 +47,31 @@ unit/battery boundary (and Plan 04's `make test exits 0` acceptance).
 absent — never a silent pass, never a hang. On a host that DOES have the
 dependency, a skip is a **failure** (the gate prints a `LIVE-ASSERTED` marker).
 
+### Tier 2 mux gate
+
+Tier 2 (and Tier 3) need a **live headless multiplexer**. Each case spins a
+**FRESH, isolated** `wezterm-mux-server` under a scratch `HOME` /
+`XDG_RUNTIME_DIR` / `XDG_CONFIG_HOME` / `WEZTERM_CONFIG_FILE` (so the mux socket
+lives in a throwaway dir and the user's **real running WezTerm GUI session is
+never touched**), drives the launcher against it, then tears it down (kill +
+`rm -rf`) even on assertion failure. The whole tier **self-skips loudly** via
+`skip.require_tool` when no `wezterm-mux-server` is resolvable — it is looked up
+on `PATH` first, then as a **sibling next to the resolved `wezterm` binary** (the
+nightly bundle ships `wezterm-mux-server` beside `wezterm` but off `PATH`). On a
+host that DOES resolve a mux, the gate prints `LIVE-ASSERTED` and a skip becomes a
+failure.
+
 ## Layout
 
 | Path | Role |
 |------|------|
 | `tests/e2e/lib/harness.lua` | shared TAP-ish helpers (`check` / `run_capture` / `run_capture_all` / `shquote` / `scratch_dir` / `footer` / `WEZ`; optional `M.new()` instance) |
 | `tests/e2e/lib/skip.lua` | self-skip gate (`require_env` / `require_tool` / `soft_skip`) |
+| `tests/e2e/lib/mux.lua` | headless `wezterm-mux-server` lifecycle helper (`probe` / `spin` / `poll_until` / `cli_list` / `get_text` / `send_marker` / `spawn_pane` / `split_pane` / `teardown`) — the shared Tier 2 foundation |
 | `tests/e2e/platform.lua` | platform-expectations table (single source of legitimate Mac↔Linux deltas) |
 | `tests/e2e/tier1/*_e2e_test.lua` | Tier 1 subcommand contracts (Plan 02/03) |
+| `tests/e2e/tier2/*_e2e_test.lua` | Tier 2 live-mux scene drivers — reuse + new-tab mode (06.7) |
+| `tests/e2e/tier3/*_e2e_test.lua` | Tier 3 live-mux registration contracts (06.7) |
 
 ## Per-platform tools / permissions (placeholder — wired in 06.9)
 
