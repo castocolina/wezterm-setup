@@ -109,6 +109,76 @@ M.expectations = {
       .. "under X11 and ydotool under Wayland. Tier 3 firing self-skips when the "
       .. "platform-appropriate tool is absent.",
   },
+
+  -- ---------------------------------------------------------------------------
+  -- Chord-family registration expectations (Tier 3 registration, Plan 03 / D-06).
+  -- For each curated action (PRD Appendix A.3, keyed by its WezTerm action TYPE
+  -- name) this maps the chord FAMILIES that MUST be present in the live registered
+  -- key map (`wezterm show-keys --lua`) on each OS. Family vocabulary:
+  --   "SUPER" (Cmd-family), "CTRL" (Ctrl-family), "ALT" (Alt-family).
+  -- A record's `mods` string belongs to a family when it CONTAINS that token, so
+  -- `SHIFT|SUPER` is Cmd-family and `ALT|CTRL` is BOTH Ctrl- and Alt-family.
+  --
+  -- These sets are the families that LEGITIMATELY register on each OS — derived by
+  -- cross-checking config/wezterm-setup/keybindings.lua against the live effective
+  -- table (defaults folded with our managed bindings), NOT the PRD's blanket
+  -- "Cmd AND Ctrl per action" intent. A divergence from that blanket intent is a
+  -- DOCUMENTED finding (D-06/D-07), not a forced false-fail: the Tier 3 test
+  -- asserts `chord_families[os]` so a legitimate Mac<->Linux delta never spuriously
+  -- fails while a SILENTLY-DROPPED binding still does.
+  chord_families = {
+    -- macOS: SUPER = Cmd, and the managed SUPER chords (clear / new-tab / close-tab
+    -- / font zoom) DO reach WezTerm, so the Cmd-family registers for them in
+    -- addition to the WezTerm defaults.
+    mac = {
+      ClearScreenAndScrollback = { "SUPER", "CTRL" },
+      SpawnTab                 = { "SUPER", "CTRL" },
+      CloseCurrentTab          = { "SUPER", "CTRL" },
+      ActivateTabRelative      = { "SUPER", "CTRL" },
+      MoveTabRelative          = { "CTRL" },
+      SplitHorizontal          = { "ALT", "CTRL" },
+      SplitVertical            = { "ALT", "CTRL" },
+      CloseCurrentPane         = { "ALT" },
+      TogglePaneZoomState      = { "ALT", "CTRL" },
+      RotatePanes              = { "ALT" },
+      ActivatePaneDirection    = { "ALT", "CTRL" },
+      IncreaseFontSize         = { "SUPER", "CTRL" },
+      DecreaseFontSize         = { "SUPER", "CTRL" },
+      ResetFontSize            = { "SUPER", "CTRL" },
+      SendString               = { "CTRL" },
+    },
+    -- Linux: SUPER = the Win/Super key, which the desktop/WM frequently GRABS
+    -- (Pop!_OS/GNOME), so several managed SUPER chords never reach WezTerm and do
+    -- NOT appear in the effective table. The families below are exactly what the
+    -- live `wezterm show-keys --lua` registers on this platform (verified against
+    -- keybindings.lua + the WezTerm defaults).
+    linux = {
+      ClearScreenAndScrollback = { "CTRL" }, -- Ctrl+Shift+K (the SUPER+K is WM-shadowed)
+      SpawnTab                 = { "CTRL" }, -- Ctrl+Shift+T default fold; the managed SUPER+T does NOT register on Linux
+      CloseCurrentTab          = { "CTRL" }, -- Ctrl+Shift+W fallback
+      ActivateTabRelative      = { "SUPER", "CTRL" }, -- SUPER {/} default + CTRL PageUp/PageDown
+      MoveTabRelative          = { "CTRL" }, -- Ctrl+Shift+PageUp/PageDown
+      SplitHorizontal          = { "ALT", "CTRL" }, -- ours: Alt+Shift+H; default: Ctrl+Alt families
+      SplitVertical            = { "ALT", "CTRL" },
+      CloseCurrentPane         = { "ALT" }, -- ours: Alt+Shift+X (no masking default)
+      TogglePaneZoomState      = { "ALT", "CTRL" },
+      RotatePanes              = { "ALT" }, -- config-only family; WezTerm ships no RotatePanes default
+      ActivatePaneDirection    = { "ALT", "CTRL" },
+      IncreaseFontSize         = { "CTRL" },
+      DecreaseFontSize         = { "CTRL" },
+      ResetFontSize            = { "CTRL" },
+      SendString               = { "CTRL" }, -- word-nav: config-only Ctrl+Arrow (no Cmd/Ctrl masking default)
+    },
+    note = "SUPER is Cmd on macOS and the Super/Win key on Linux (WM-grabbed on "
+      .. "Pop!_OS/GNOME). The Tier 3 registration test asserts chord_families[os] "
+      .. "(NOT a blanket cross-platform set) so a legitimate Mac<->Linux delta — "
+      .. "e.g. the managed SUPER+T new-tab not reaching WezTerm on Linux — never "
+      .. "spuriously fails, while a dropped binding still does. LINUX CATCH-SCOPE: "
+      .. "Tier 3 can only catch a dead binding in a family that registers on Linux, "
+      .. "so the SpawnTab catch is on its CTRL-family chord (the Ctrl+Shift+T "
+      .. "default fold), NOT the absent SUPER one — this is exactly the registration "
+      .. "the Plan 04 break harness drops to prove the dead-new-tab catch.",
+  },
 }
 
 return M
