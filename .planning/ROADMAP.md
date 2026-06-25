@@ -228,11 +228,21 @@ Plans:
 **Goal:** Cover the running-application layer that produced the worst regressions (PRD Phase 2). Tier 2: each recipe (ai/dev/docker) × both launch modes (reuse single-pane-tab AND new-tab) asserting pane-count parity, per-pane cwd (D-08), user-vars set, **no escape-char leak**, and a **responsiveness/no-hang probe**, with deterministic cleanup. Tier 3 registration: parse `wezterm show-keys` and assert ≥1 Cmd-family AND ≥1 Ctrl-family chord per curated action (the check that catches the dead new-tab binding). Demonstrate the battery catching a deliberately reintroduced regression.
 **Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 2 + Tier 3-registration; Appendix A.2 / A.3 reg(M))
 **Depends on:** Phase 06.6 (battery scaffold + platform module + self-skip gate)
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
+**Wave 1** *(Tier 2 reuse + Tier 3 registration are independent)*
 
-- [ ] TBD (run /gsd-plan-phase 06.7 to break down)
+- [ ] 06.7-01-PLAN.md — Tier 2 live-mux helper (tests/e2e/lib/mux.lua) + reuse-mode scene driver (ai/dev/docker): pane-count/cwd/user-vars/no-leak/responsiveness/cleanup (D-01..D-05/D-08) [wave 1]
+- [ ] 06.7-03-PLAN.md — Tier 3 registration: platform.lua chord_families row + show-keys parse via showkeys.lua, per-action platform-expected families (D-06/D-07/D-08) [wave 1]
+
+**Wave 2** *(blocked on 06.7-01's mux.lua)*
+
+- [ ] 06.7-02-PLAN.md — Tier 2 new-tab-mode scene driver (ai/dev/docker) consuming mux.lua + README tier-matrix update [wave 2]
+
+**Wave 3** *(blocked on Tier 2 + Tier 3 existing)*
+
+- [ ] 06.7-04-PLAN.md — Permanent break harness: tools/run-e2e-prove.sh + make e2e-prove; inject scene-leak + dead-new-tab one at a time, assert FAIL, revert clean (D-09) [wave 3]
 
 ### Phase 06.6: E2E Battery Scaffolding + Tier 1 (Subcommands) (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-24)
 
