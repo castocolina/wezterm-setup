@@ -21,7 +21,7 @@
 - [x] **Phase 6.4: User Documentation Audit and Refactor** *(RENUMBERED from 6.2)* - Audit all user-facing docs (README first, then `docs/`) against shipped + 6.1/6.2/6.3 behavior; refactor README via `/agent-md-refactor`; drift-check every documented command/flag against `cli/spec.lua` (completed 2026-06-19)
 - [x] **Phase 6.5: Keybinding Clarity & `wez keys` Output Curation** *(INSERTED)* - Fix the `wez keys` ordering/conflict matching bug, curate output into three groups (Managed < Additions < Defaults), separate from stale binary + live-session staleness (completed 2026-06-19)
 - [x] **Phase 6.6: E2E Battery Scaffolding + Tier 1 (Subcommands)** *(INSERTED)* - Linux-first E2E battery: `tests/e2e/` scaffold + `tools/run-e2e.sh` + `make e2e`/`e2e-setup` + platform module + self-skip gates; Tier 1 deterministic subcommand contract + emitted-OSC-byte assertions; cherry-pick the 4 verified fixes from `archive/phase-7-macos` (PRD Phase 1) — ✅ COMPLETE 2026-06-24 (keys-siblings macOS fix re-shaped as a skip-gated test + deferred to Phase 7, D-06.6-01)
-- [ ] **Phase 6.7: E2E Tier 2 (Scenes) + Tier 3 Registration** *(INSERTED)* - Recipes × reuse/new-tab launch modes (pane-count/cwd/user-var/no-leak/responsiveness + cleanup) and `show-keys` Cmd+Ctrl coverage per curated action; catch a reintroduced regression (PRD Phase 2)
+- [x] **Phase 6.7: E2E Tier 2 (Scenes) + Tier 3 Registration** *(INSERTED)* - Recipes × reuse/new-tab launch modes (pane-count/cwd/user-var/no-leak/responsiveness + cleanup) and `show-keys` Cmd+Ctrl coverage per curated action; catch a reintroduced regression (PRD Phase 2)
 - [ ] **Phase 6.8: E2E Linux CI Gate** *(INSERTED)* - Wire the deterministic tiers (T1+T2+T3-registration) into GitHub Actions on Linux with a headless `wezterm-mux-server`; gate every PR/push (PRD Phase 3)
 - [ ] **Phase 6.9: E2E Tier 3 (Firing) + Tier 4 (Visuals)** *(INSERTED)* - Local, permission-bound: OS input injection → mux-effect assertions + hybrid AI-vision/snapshot visual checks with per-platform baselines (PRD Phase 4, best-effort/local)
 - [ ] **Phase 7: macOS Parity Pass (D-18)** - Verify every shipped feature on macOS and close the deferred platform gaps; final gate before v1 close
@@ -223,26 +223,26 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 06.8 to break down)
 
-### Phase 06.7: E2E Tier 2 (Scenes) + Tier 3 Registration (INSERTED)
+### Phase 06.7: E2E Tier 2 (Scenes) + Tier 3 Registration (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-25)
 
 **Goal:** Cover the running-application layer that produced the worst regressions (PRD Phase 2). Tier 2: each recipe (ai/dev/docker) × both launch modes (reuse single-pane-tab AND new-tab) asserting pane-count parity, per-pane cwd (D-08), user-vars set, **no escape-char leak**, and a **responsiveness/no-hang probe**, with deterministic cleanup. Tier 3 registration: parse `wezterm show-keys` and assert ≥1 Cmd-family AND ≥1 Ctrl-family chord per curated action (the check that catches the dead new-tab binding). Demonstrate the battery catching a deliberately reintroduced regression.
 **Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 2 + Tier 3-registration; Appendix A.2 / A.3 reg(M))
 **Depends on:** Phase 06.6 (battery scaffold + platform module + self-skip gate)
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1** *(Tier 2 reuse + Tier 3 registration are independent)*
 
-- [ ] 06.7-01-PLAN.md — Tier 2 live-mux helper (tests/e2e/lib/mux.lua) + reuse-mode scene driver (ai/dev/docker): pane-count/cwd/user-vars/no-leak/responsiveness/cleanup (D-01..D-05/D-08) [wave 1]
-- [ ] 06.7-03-PLAN.md — Tier 3 registration: platform.lua chord_families row + show-keys parse via showkeys.lua, per-action platform-expected families (D-06/D-07/D-08) [wave 1]
+- [x] 06.7-01-PLAN.md — Tier 2 live-mux helper (tests/e2e/lib/mux.lua) + reuse-mode scene driver (ai/dev/docker): pane-count/cwd/user-vars/no-leak/responsiveness/cleanup (D-01..D-05/D-08) [wave 1]
+- [x] 06.7-03-PLAN.md — Tier 3 registration: platform.lua chord_families row + show-keys parse via showkeys.lua, per-action platform-expected families (D-06/D-07/D-08) [wave 1]
 
 **Wave 2** *(blocked on 06.7-01's mux.lua)*
 
-- [ ] 06.7-02-PLAN.md — Tier 2 new-tab-mode scene driver (ai/dev/docker) consuming mux.lua + README tier-matrix update [wave 2]
+- [x] 06.7-02-PLAN.md — Tier 2 new-tab-mode scene driver (ai/dev/docker) consuming mux.lua + README tier-matrix update [wave 2]
 
 **Wave 3** *(blocked on Tier 2 + Tier 3 existing)*
 
-- [ ] 06.7-04-PLAN.md — Permanent break harness: tools/run-e2e-prove.sh + make e2e-prove; inject scene-leak + dead-new-tab one at a time, assert FAIL, revert clean (D-09) [wave 3]
+- [x] 06.7-04-PLAN.md — Permanent break harness: tools/run-e2e-prove.sh + make e2e-prove; inject scene-leak + dead-new-tab one at a time, assert FAIL, revert clean (D-09) [wave 3]
 
 ### Phase 06.6: E2E Battery Scaffolding + Tier 1 (Subcommands) (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-24)
 
