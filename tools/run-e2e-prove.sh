@@ -71,6 +71,9 @@ INSTALLED_BACKUP=""
 # shellcheck disable=SC2317  # revert_all is invoked indirectly via the EXIT trap
 revert_all() {
   git checkout HEAD -- "${SCENE_FILE}" "${KEYS_FILE}" >/dev/null 2>&1 || true
+  # Remove any stray awk-injector temp left by a failed inject (untracked, so
+  # `git checkout` + the tree-clean assertion below both miss it).
+  rm -f "${SCENE_FILE}.prove.tmp" "${KEYS_FILE}.prove.tmp" >/dev/null 2>&1 || true
   if [ -n "${INSTALLED_BACKUP}" ] && [ -f "${INSTALLED_BACKUP}" ]; then
     cp "${INSTALLED_BACKUP}" "${INSTALLED_KEYS}" >/dev/null 2>&1 || true
   fi
@@ -104,6 +107,13 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 PROVE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/wez-e2e-prove.XXXXXX")"
+# WR-02: a failed scratch dir means the byte-for-byte installed-config backup
+# below has nowhere to live — bail before anything is injected. The EXIT trap is
+# already armed and safely no-ops (targets still clean).
+if [ -z "${PROVE_TMP}" ] || [ ! -d "${PROVE_TMP}" ]; then
+  echo "run-e2e-prove: FATAL — could not create scratch dir via mktemp" >&2
+  exit 1
+fi
 
 # Default WEZ_BIN to the in-repo dev launcher so the battery exercises the live
 # cli/ sources (incl. the injected scene.lua). CI may override before calling.
@@ -185,28 +195,53 @@ elif [ ! -f "${INSTALLED_KEYS}" ]; then
   echo "PROVE SKIP - Regression B (dead new-tab): NOT proven — installed config absent (${INSTALLED_KEYS}); show-keys cannot see the repo injection"
 else
   # Back up the installed copy so we restore it byte-for-byte regardless of git.
+  # WR-02: the backup MUST succeed BEFORE we overwrite the live config. If it
+  # fails we refuse to inject — an unbacked overwrite would leave the user's
+  # installed keybindings broken with NO restore path (both the inline restore and
+  # the EXIT trap guard on this backup file existing).
   INSTALLED_BACKUP="${PROVE_TMP}/installed-keybindings.bak"
-  cp "${INSTALLED_KEYS}" "${INSTALLED_BACKUP}"
+  if ! cp "${INSTALLED_KEYS}" "${INSTALLED_BACKUP}"; then
+    echo "PROVE SKIP - Regression B (dead new-tab): NOT proven — could not back up the installed config (${INSTALLED_KEYS}); refusing to inject" >&2
+    INSTALLED_BACKUP=""
   # Inject the canonical repo source, then sync it to the installed copy so the
-  # live `wezterm show-keys --lua` (default config) sees the regression.
-  inject_keys
-  cp "${KEYS_FILE}" "${INSTALLED_KEYS}"
-  if spawntab_ctrl_present; then
-    echo "PROVE FAIL - Regression B: injection ineffective — SpawnTab STILL registers a CTRL chord post-inject" >&2
-    OVERALL=1
+  # live `wezterm show-keys --lua` (default config) sees the regression. Guard the
+  # sync too: a failed overwrite must not run the battery against a half-written config.
+  elif inject_keys && cp "${KEYS_FILE}" "${INSTALLED_KEYS}"; then
+    if spawntab_ctrl_present; then
+      echo "PROVE FAIL - Regression B: injection ineffective — SpawnTab STILL registers a CTRL chord post-inject" >&2
+      OVERALL=1
+    else
+      echo "  verified: post-injection \`wezterm show-keys --lua\` shows NO SpawnTab chord under any CTRL-family mods"
+      run_battery "${PROVE_TMP}/battery-B.log"
+      classify_regression "Regression B (dead new-tab)" "${PROVE_TMP}/battery-B.log" \
+        "tier3/registration_e2e_test\.lua" "tier3 show-keys registration"
+      rc=$?
+      [ "${rc}" -eq 1 ] && OVERALL=1
+    fi
+    # Revert: restore both the repo source and the installed copy. Only DROP the
+    # backup once the restore actually succeeds — otherwise keep INSTALLED_BACKUP
+    # set so the EXIT trap retries the restore (WR-02: never strand the user's
+    # installed config broken with the backup already deleted).
+    git checkout HEAD -- "${KEYS_FILE}" >/dev/null 2>&1 || true
+    if cp "${INSTALLED_BACKUP}" "${INSTALLED_KEYS}"; then
+      rm -f "${INSTALLED_BACKUP}"
+      INSTALLED_BACKUP=""
+    else
+      echo "PROVE WARN - Regression B: inline restore of the installed config failed; EXIT trap will retry from backup" >&2
+    fi
   else
-    echo "  verified: post-injection \`wezterm show-keys --lua\` shows NO SpawnTab chord under any CTRL-family mods"
-    run_battery "${PROVE_TMP}/battery-B.log"
-    classify_regression "Regression B (dead new-tab)" "${PROVE_TMP}/battery-B.log" \
-      "tier3/registration_e2e_test\.lua" "tier3 show-keys registration"
-    rc=$?
-    [ "${rc}" -eq 1 ] && OVERALL=1
+    # inject or sync failed: restore the repo source and the (still-intact) installed
+    # copy from the good backup. Same WR-02 rule — keep the backup if restore fails.
+    echo "PROVE FAIL - Regression B: could not inject/sync the keybindings regression" >&2
+    OVERALL=1
+    git checkout HEAD -- "${KEYS_FILE}" >/dev/null 2>&1 || true
+    if cp "${INSTALLED_BACKUP}" "${INSTALLED_KEYS}" >/dev/null 2>&1; then
+      rm -f "${INSTALLED_BACKUP}"
+      INSTALLED_BACKUP=""
+    else
+      echo "PROVE WARN - Regression B: inline restore of the installed config failed; EXIT trap will retry from backup" >&2
+    fi
   fi
-  # Revert: restore both the repo source and the installed copy.
-  git checkout HEAD -- "${KEYS_FILE}" >/dev/null 2>&1 || true
-  cp "${INSTALLED_BACKUP}" "${INSTALLED_KEYS}"
-  rm -f "${INSTALLED_BACKUP}"
-  INSTALLED_BACKUP=""
 fi
 echo
 

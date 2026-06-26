@@ -113,6 +113,29 @@ function M.footer(counts)
   return f == 0 and 0 or 1
 end
 
+-- Reset the module-level tally to zero. A file that emits more than one footer
+-- (e.g. an always-run layer THEN a live-gated layer) calls this between layers so
+-- each footer reports only its OWN layer's checks instead of a cumulative,
+-- double-counted tally.
+function M.reset()
+  passed, failed = 0, 0
+end
+
+-- finish_layer(): close an always-run "layer 1" before a SKIP-GATED "layer 2".
+-- The two-layer tier files (keys_siblings, registration, and the upcoming
+-- 06.8/06.9 tiers) run a cross-platform / always-run block, THEN a
+-- skip.require_tool-gated live block. require_tool does `os.exit(0)` on the skip
+-- path, so a layer-1 FAIL would never reach a footer placed after the gate — a
+-- false green in exactly the headless/CI case (the CR-01 class). Call this
+-- BETWEEN the layers: it emits layer 1's tally, EXITS now with 1 if any layer-1
+-- check failed, and otherwise resets the tally so layer 2's footer reports only
+-- its own checks. Pair with a final `os.exit(M.footer())` after layer 2.
+function M.finish_layer()
+  local rc = M.footer()
+  if rc ~= 0 then os.exit(rc) end
+  M.reset()
+end
+
 -- ---------------------------------------------------------------------------
 -- M.new() — OPTIONAL fresh instance owning its OWN counters, for files that want
 -- counter isolation across multiple require sites. check/run_capture/

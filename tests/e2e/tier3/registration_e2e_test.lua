@@ -132,9 +132,11 @@ for _, action in ipairs(CURATED) do
     expected_os ~= nil and type(expected_os[action]) == "table" and #expected_os[action] > 0)
 end
 
--- Emit the cross-platform tally NOW so it reports BEFORE the gate's exit. Capture
--- it so a cross-platform FAIL still fails the file even if the live layer skips.
-local xplat_rc = h.footer()
+-- CR-01/WR-01: close the always-run cross-platform layer before the live gate.
+-- finish_layer emits the tally, EXITS now if any cross-platform check failed (so
+-- the skip.require_tool os.exit(0) below cannot mask a D-07 divergence — the
+-- false-green class), and resets so the live layer's footer counts only itself.
+h.finish_layer()
 
 -- ===========================================================================
 -- (2) LIVE-GATED — parse `wezterm show-keys --lua` and assert per-action families.
@@ -211,5 +213,7 @@ do
   end
 end
 
--- A cross-platform FAIL must fail the file even when the live layer is green.
-os.exit(h.footer() == 0 and xplat_rc or 1)
+-- The cross-platform layer already passed (a FAIL would have exited above via the
+-- CR-01 guard), and the tally was reset, so this footer is the live layer's own
+-- result and is the file's exit code.
+os.exit(h.footer())

@@ -84,10 +84,12 @@ check("bundle_siblings row documents WHY the macOS delta is legitimate",
 -- gate. probe_fn returns true ONLY on macOS.
 -- ===========================================================================
 
--- Emit the cross-platform tally NOW so it is visible whether or not the gate skips.
--- footer() returns 0 iff no cross-platform check failed; capture it to drive the
--- exit code on the skip path (a cross-platform FAIL must still fail the file).
-local xplat_rc = h.footer()
+-- CR-01/WR-01: close the always-run cross-platform layer before the macOS gate.
+-- finish_layer emits the tally, EXITS now if any cross-platform check failed (so
+-- the skip.require_tool os.exit(0) on non-macOS below cannot mask a parity-row
+-- regression — the false-green class), and resets so the macOS layer's footer
+-- counts only itself.
+h.finish_layer()
 
 skip.require_tool(
   function() return OS == "macos" end,
@@ -114,4 +116,7 @@ for _, sib in ipairs({ "wezterm", "wezterm-gui", "wezterm-mux-server", "strip-an
     on_path(sib))
 end
 
-os.exit(h.footer() == 0 and xplat_rc or 1)
+-- The cross-platform layer already passed (a FAIL would have exited above via
+-- finish_layer), and the tally was reset, so this footer is the macOS layer's own
+-- result and is the file's exit code.
+os.exit(h.footer())
