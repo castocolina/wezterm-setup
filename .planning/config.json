@@ -45,7 +45,8 @@
     "_auto_chain_active": false,
     "cross_ai_execution": true,
     "cross_ai_command": "/home/bazzite/.opencode/bin/opencode run --model xai/grok-4.6",
-    "cross_ai_timeout": 3600
+    "cross_ai_timeout": 3600,
+    "plan_review_convergence": true
   },
   "ship": {
     "pr_body_sections": []
@@ -63,5 +64,13 @@
   },
   "resolve_model_ids": "omit",
   "mode": "yolo",
-  "granularity": "coarse"
+  "granularity": "coarse",
+  "review": {
+    "models": {
+      "opencode": "router-env/my-plan-review"
+    },
+    "default_reviewers": [
+      "opencode"
+    ]
+  }
 }
