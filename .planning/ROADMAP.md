@@ -221,7 +221,7 @@ Plans:
 
 Plans:
 
-- [ ] 06.8-01-PLAN.md — New `.github/workflows/ci.yml`: pinned+cached WezTerm provisioning, `make test` before `make e2e`, `WEZ_BIN=./dist/wez` freshly-built binary, hard failure on any tier self-skip (D-01..D-05); doc drift fix + live GitHub Actions run verification [wave 1]
+- [ ] 06.8-01-PLAN.md — New `.github/workflows/ci.yml`: nightly-target + resolved-datestamp cached WezTerm provisioning (D-01, corrected — see `06.8-CONTEXT.md`: the originally-locked pinned release has never existed upstream), `make test` before `make e2e`, `WEZ_BIN=./dist/wez` freshly-built binary, hard failure on any tier self-skip (D-01..D-05); doc drift fix + live GitHub Actions run verification [wave 1]
 
 ### Phase 06.7: E2E Tier 2 (Scenes) + Tier 3 Registration (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-25)
 
