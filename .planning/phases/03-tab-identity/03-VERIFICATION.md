@@ -1,3 +1,8 @@
+---
+phase: 03-tab-identity
+status: passed
+---
+
 # Phase 3 (Tab Identity) — Verification
 
 **Date:** 2026-06-12

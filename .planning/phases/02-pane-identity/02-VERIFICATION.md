@@ -1,3 +1,8 @@
+---
+phase: 02-pane-identity
+status: passed
+---
+
 # Phase 2 (Pane Identity) — Verification
 
 **Date:** 2026-06-11

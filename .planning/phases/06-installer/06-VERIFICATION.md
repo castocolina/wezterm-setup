@@ -1,7 +1,7 @@
 ---
 phase: 06-installer
 verified: 2026-06-15T11:50:18Z
-status: passed-with-concerns
+status: passed
 score: 8/8 success criteria verified (2 deferred-by-design concerns noted)
 overrides_applied: 0
 reopened:

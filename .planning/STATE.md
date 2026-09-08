@@ -5,11 +5,11 @@ milestone_name: milestone
 status: Ready to execute
 last_updated: "2026-06-25T23:30:46.431Z"
 progress:
-  total_phases: 17
+  total_phases: 16
   completed_phases: 13
-  total_plans: 65
-  completed_plans: 64
-  percent: 76
+  total_plans: 61
+  completed_plans: 61
+  percent: 100
 ---
 
 # Project State: wezterm-setup
@@ -36,7 +36,7 @@ Phase: 06.7 (e2e-tier-2-scenes-tier-3-registration) — ✅ COMPLETE (4/4 plans,
 
 **06.6-04 DONE (2026-06-24) — Phase 06.6 CLOSED (all 4 plans):** the Migration & Reset reuse landed the 4 verified `archive/phase-7-macos` fixes forward on main, each test-first + Linux-re-verified. Three install/uninstall fixes cherry-picked clean (dev-launcher Lua 5.4 resolution `39aa3b6`; idempotent uninstall `9d117cd`; non-interactive reinstall + dist/wez uninstall fallback `7e72bf5`), plus the Plan-04-owned `install_resolver_e2e_test.lua` (post-resolver no-flag-default reinstall exit 0 + dist/wez uninstall fallback exit 0) and the flip of Plan 02's two staged `install_cycle` assertions to their post-7e72bf5 end-state. **Cherry-pick order deviation (Rule 3):** applied in archive-chronological order (idempotent BEFORE install-cycle), NOT the plan's listed order — `7e72bf5`'s diff base already contains `9d117cd`'s exit-0 form, so the plan order would conflict; chronological order applied conflict-free. **Task 2 keys-siblings was a Rule-4 escalation:** `4c765e1` patches a fully-implemented macOS `install_macos` that does NOT exist on this Linux mainline (it is a D-06/D-18 design-only stub; `wezterm-release.sh` has no macOS helper; `bootstrap_macos_test.lua` asserts ~15 absent installer symbols). Per the user decision, instead of importing the deferred installer: added an OS-detect + skip-gated `tests/e2e/tier1/keys_siblings_e2e_test.lua` (cross-platform `bundle_siblings` parity assertion green on Linux + a loud-`SKIPPED` macOS layer that FIRES in Phase 7) + a `bootstrap-wezterm.sh` stub comment, and DEFERRED `4c765e1` + the full `bootstrap_macos_test.lua` to Phase 7 (tracked: `06.6-.../deferred-items.md`, **D-06.6-01**). Final gate: `make test` 34 files PASS, `make e2e` 6 files PASS, `./dist/wez version` exits 0. Commits `982008d 9fbe68f 25f05e3 d019fcc dcfc484 b51f957 2fd6e2b`. Next: Phase 06.7 (Tier 2 scenes + Tier 3 registration).
 
-**Roadmap Evolution (2026-06-24): E2E testing battery inserted (Phases 06.6–06.9, URGENT).** After Phase 07.1 (macOS post-v1 follow-ups) produced a cascade of GUI-layer regressions that all passed unit tests, `main` was reset to the shipped `v1.0.0` baseline (the macOS delta is parked, fully recoverable, on `archive/phase-7-macos`). The [E2E testing battery PRD](../docs/prds/e2e-testing-battery-v1.0-prd.md) (`docs/prds/e2e-testing-battery-v1.0-prd.md`, scored 100/100) is the requirements source; it rebuilds the runtime behavior **test-first, Linux-first** so the next N commits cannot silently regress paid-for behavior. Inserted after Phase 6, before the pending Phase 7 (macOS parity), as four sequential phases mapping 1:1 to the PRD's execution phases: **06.6** scaffold + Tier 1 (subcommands, deterministic; cherry-picks the 4 verified `archive/phase-7-macos` fixes) → **06.7** Tier 2 (scenes) + Tier 3 registration → **06.8** Linux CI gate (deterministic tiers) → **06.9** Tier 3 firing + Tier 4 visuals (local, best-effort). Done-bar: T1+T2+T3-registration MUST-PASS and gate CI; firing + visuals are local/non-blocking. *(The structured `state.add-roadmap-evolution` handler is SDK-only and unavailable via this CLI shim, so this entry is recorded inline.)*
+**Roadmap Evolution (2026-06-24): E2E testing battery inserted (Phases 06.6–06.9, URGENT).** After the since-archived post-v1.0 macOS work — formerly tracked as an unnumbered follow-up phase informally called "07.1", never declared in ROADMAP.md — produced a cascade of GUI-layer regressions that all passed unit tests, `main` was reset to the shipped `v1.0.0` baseline (that macOS delta is parked, fully recoverable, on `archive/phase-7-macos`). The [E2E testing battery PRD](../docs/prds/e2e-testing-battery-v1.0-prd.md) (`docs/prds/e2e-testing-battery-v1.0-prd.md`, scored 100/100) is the requirements source; it rebuilds the runtime behavior **test-first, Linux-first** so the next N commits cannot silently regress paid-for behavior. Inserted after Phase 6, before the pending Phase 7 (macOS parity), as four sequential phases mapping 1:1 to the PRD's execution phases: **06.6** scaffold + Tier 1 (subcommands, deterministic; cherry-picks the 4 verified `archive/phase-7-macos` fixes) → **06.7** Tier 2 (scenes) + Tier 3 registration → **06.8** Linux CI gate (deterministic tiers) → **06.9** Tier 3 firing + Tier 4 visuals (local, best-effort). Done-bar: T1+T2+T3-registration MUST-PASS and gate CI; firing + visuals are local/non-blocking. *(The structured `state.add-roadmap-evolution` handler is SDK-only and unavailable via this CLI shim, so this entry is recorded inline.)*
 
 **Reopen fix (round 1 — tar):** `tools/bootstrap-wezterm.sh install_linux` used `tar --no-absolute-names` (BSD-tar idiom GNU tar rejects) → live `curl|bash` aborted on every Linux box. Removed the flag; regression guard in `tests/cli/bootstrap_update_test.lua`. Re-verified by a real sandboxed `install_linux nightly`.
 
@@ -202,6 +202,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 260618-dpp | Install WezTerm .desktop launcher + icon into user-space XDG dirs (install_linux) | 2026-06-18 | 93efe54 | [260618-dpp-install-wezterm-desktop-launcher-icon-in](./quick/260618-dpp-install-wezterm-desktop-launcher-icon-in/) |
 | 260618-evx | Show stable release date in the wez-CLI channel picker (resolve_stable_date — date parity with nightly) | 2026-06-18 | c9cf82c | [260618-evx-show-stable-release-date-in-wez-channel-](./quick/260618-evx-show-stable-release-date-in-wez-channel-/) |
 | 260618-fsg | Simplify wez stable-channel resolution: one /releases/latest fetch + shared `_json_str` extractor (entropy −7 lines; resolve_stable_date folded into resolve_stable_latest) | 2026-06-18 | 0c78694 | [260618-fsg-simplify-wez-stable-channel-resolution-s](./quick/260618-fsg-simplify-wez-stable-channel-resolution-s/) |
+| 260908-fav | Reconcile .planning/ tracking artifacts with reality per gsd-progress/gsd-health audit (frontmatter on 02/03 VERIFICATION.md, 04 rename, 06 status normalization, 06.1-07 retroactive SUMMARY.md, STATE.md progress refresh) | 2026-09-08 | e606d09 | [260908-fav-reconcile-planning-tracking-artifacts-wi](./quick/260908-fav-reconcile-planning-tracking-artifacts-wi/) |
 
 ### Discoveries
 
