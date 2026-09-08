@@ -14,3 +14,12 @@ only auto-fix issues directly caused by the current plan's own files).
 - **Still present after Plan 06.5-02** (curated-first `wez keys` renderer): the only
   `make test` failure remains `recipe_test 2.9d`; all six of Plan 02's files are green.
   Unchanged by this plan (touches none of the recipe code). Still out of scope.
+- **Disposition:** RESOLVED in Phase 06.4 (see
+  `.planning/phases/06.4-user-documentation-audit-and-refactor/deferred-items.md`,
+  marked RESOLVED 2026-06-19). Root cause was a stale test expectation, not a
+  behavior bug: `recipe_test.lua` block 2.9d still asserted the pre-refresh
+  `color = "pink"` / `follow_pane_color = false` values against the
+  already-updated `scenes/ai.toml` seed (`color = "yellow"`,
+  `follow_pane_color = true`); the fixture was corrected to match the shipped
+  seed. Re-verified live (2026-09-08): `lua5.4 cli/lib/recipe_test.lua` ->
+  `recipe_test: 65 passed, 0 failed`, exit 0.
