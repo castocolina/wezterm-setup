@@ -3,8 +3,8 @@
 A WezTerm config distribution and companion CLI (`wez`) that ships daily-friction fixes,
 rich visual identity at the pane and tab level, and a named workspace launcher — installed
 non-destructively via a single injected line. Built for a solo developer daily-driving
-WezTerm as a full multiplexer on Linux (Wayland + X11) and macOS, with parity on both and
-no `sudo`, ever.
+WezTerm as a full multiplexer, sudo-free. Linux (Wayland + X11) is verified end-to-end today;
+macOS parity is designed and in progress but not yet verified on real hardware.
 
 ## Quickstart
 
@@ -75,3 +75,7 @@ options.
 WezTerm has no traditional plugin system. This is a config *distribution* — a Lua file tree
 you opt into via one `dofile()` line. You keep full control of your `wezterm.lua`; we only
 add to it between sentinel comments, never replace it.
+
+## License
+
+[MIT](LICENSE)
