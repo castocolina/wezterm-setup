@@ -1,16 +1,16 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: "06.7"
-current_phase_name: ✅ COMPLETE
+current_phase: "06.8"
+current_phase_name: e2e-linux-ci-gate-phased-ci-wire-the-deterministic-tiers-tie
 status: Ready to execute
 stopped_at: Phase 06.9 context gathered
-last_updated: "2026-09-08T19:52:44.421Z"
-state_head: d046b78f6f644bc48b6f379cfdd91715861e1568
+last_updated: "2026-09-08T21:13:59.229Z"
+state_head: ed532d99bc40ffcc804a0c04e31b522e1c6a4ef0
 progress:
   total_phases: 16
   completed_phases: 13
-  total_plans: 61
+  total_plans: 62
   completed_plans: 61
 milestone_name: milestone
 ---
@@ -29,7 +29,7 @@ milestone_name: milestone
 
 ## Current Position
 
-Phase: 06.7 (e2e-tier-2-scenes-tier-3-registration) — ✅ COMPLETE (4/4 plans, 2026-06-25)
+Phase: 06.8 (e2e-linux-ci-gate-phased-ci-wire-the-deterministic-tiers-tie) — READY TO EXECUTE
 
 **06.7-04 DONE (2026-06-25) — Phase 06.7 CLOSED (all 4 plans):** the permanent per-bug BREAK HARNESS landed (D-09). `tools/run-e2e-prove.sh` (`d4c3e0b`) + `make e2e-prove` (`eccc00a`) inject each known regression ONE AT A TIME, run the full battery, assert it FAILS in the catching tier, then revert. **Regression B (dead new-tab):** adds a `{ key="t", mods="CTRL|SHIFT" }` DisableDefaultAssignment to `keybindings.lua` disabled_defaults so the EFFECTIVE key map drops the SpawnTab CTRL family (the live Ctrl+Shift+T fold Tier 3 asserts on Linux — NOT the WM-shadowed SUPER+T). **Regression A (scene escape-leak):** neutralizes the self-erasing `\27[2J\27[3J\27[H` wipe in `scene.lua` so the typed `printf '...'` echo survives in the pane viewport and Tier 2's no-leak check (D-05) flips RED. Both PROVE ok on this box. **Key live-config finding:** `wezterm show-keys --lua` reads the INSTALLED config copy (`~/.config/wezterm/wezterm-setup/keybindings.lua`), NOT the repo file — empirically confirmed (injecting the repo file alone left bare show-keys unchanged). So Regression B backs up the installed copy, cp-syncs the injected source over it, runs, then restores it byte-for-byte; Regression A rides `WEZ_BIN=./dist/wez` (dev launcher execs in-repo cli/) so the repo edit is seen directly. **Safety (T-06.7-20):** refuses to start on a dirty target; a `trap revert_all EXIT` restores both repo files (git checkout HEAD) + the installed copy (backup) on abort/error/Ctrl-C; final `git diff --quiet` assertion; loud PROVE SKIP (never a false pass) when a catching tier self-skips. bash-3.2-safe, clean under `bash -n` + `shellcheck -x`. **Verified:** `make e2e-prove` exits 0 (both regressions PROVE ok), repo tree clean + installed copy restored to its original sha; pre-flight refusal exits 1 with NO injection when a target is dirty; `make e2e` still exits 0 with all 9 Tier 1/2/3 files green. Deviation: the harness's Regression-B mechanism (cp-sync to the installed copy) differs from the plan's WEZTERM_CONFIG_FILE wording — chosen so `wez doctor` (Tier 1) does not spuriously fail under a redirected config; the installed copy is backed up + restored byte-for-byte and never left mutated. Next: 06.8 (Linux CI gate) or 06.9 (firing + visuals).
 
