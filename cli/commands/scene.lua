@@ -25,10 +25,19 @@
 --                              pane id read back from mux output is int-validated
 --                              via scenelib.validate_pane_id BEFORE it is ever
 --                              interpolated into a later command line (T-04-01).
---   3. Phase B (styling/cmd) : per-pane OSC-11 background + OSC-1337 title (reusing
---                              pane.lua's builders + MUTED_BG, never re-derived),
---                              a ScrollbackAndViewport clear (the Ctrl+Shift+K
---                              wipe) folded into the SAME printf so the setup line
+--   3. Phase B (styling/cmd) : a bounded readiness poll (wait_for_pane_ready) ACTIVELY
+--                              confirms the pane's shell is reading stdin -- by
+--                              sending a throwaway probe command and waiting for
+--                              ITS OWN OUTPUT to round-trip, not by watching for
+--                              silence -- BEFORE writing anything into the pane.
+--                              A slow/verbose shell startup (e.g. an MOTD banner)
+--                              otherwise races send-text and leaves the setup
+--                              line as literal unexecuted text
+--                              (scene-launch-motd-race). Then: per-pane OSC-11
+--                              background + OSC-1337 title (reusing pane.lua's
+--                              builders + MUTED_BG, never re-derived), a
+--                              ScrollbackAndViewport clear (the Ctrl+Shift+K wipe)
+--                              folded into the SAME printf so the setup line
 --                              self-erases, then the startup command as a DISTINCT
 --                              trailing line (never concatenated into an escape
 --                              sequence — T-04-02). Tab-level color rides
@@ -130,6 +139,107 @@ end
 local DIR_FLAG = {
   left = "--left", right = "--right", top = "--top", bottom = "--bottom",
 }
+
+-- ---------------------------------------------------------------------------
+-- Phase A -> Phase B readiness gate (scene-launch-motd-race fix).
+--
+-- send-text writes straight to the pane's PTY (the shell's stdin). Immediately
+-- after Phase A's spawn/split-pane call returns, the pane's shell process may
+-- still be busy printing its own startup output (rc files, a slow/verbose MOTD
+-- banner) -- readline is not yet consuming input. Firing the Phase B setup
+-- printf into that window lands it as literal, unexecuted text ABOVE the
+-- banner instead of being read and executed (confirmed via live repro against
+-- a real bash+MOTD pane on Bazzite; a `bash --norc` pane with no banner never
+-- raced).
+--
+-- ATTEMPT 1 (retired): polled `wezterm cli get-text` and treated TWO
+-- consecutive IDENTICAL, non-blank samples as "the shell has gone idle at its
+-- prompt" -- nothing new was printed between polls, so it looked safe to
+-- write. UNSOUND: this infers an internal shell state (readline is live and
+-- reading stdin) from an external signal we don't control (screen silence),
+-- and a real startup prints in multiple BURSTS with quiet gaps between them
+-- (e.g. an early stderr warning, then a pause while rc files/MOTD run, then
+-- the banner, then the prompt). The poll can land in one of those gaps, see
+-- two identical samples, and false-positive as "ready" while the shell is
+-- still mid-startup, nowhere near its prompt. Reproduced directly by
+-- tests/e2e/tier2/scene_motd_race_e2e_test.lua's multi-burst rcfile (the
+-- `bash: /lib64/libtinfo.so.6: no version information available` stderr
+-- warning bash itself prints, followed by the rcfile's own sleep, is exactly
+-- such a burst-then-gap shape).
+--
+-- ATTEMPT 2 (current): stop inferring readiness from silence in output this
+-- code doesn't control. Instead ACTIVELY confirm it: send a harmless
+-- `echo <unique marker>` line into the pane and poll for the marker to appear
+-- as ITS OWN OUTPUT line. Typed-input echo (the pty printing back what was
+-- sent) happens immediately regardless of shell readiness -- that immediate
+-- echo IS the literal-text leak this bug is about, so raw text appearing on
+-- screen can never be used as a readiness signal. Only a screen line that is
+-- EXACTLY the marker (not `echo <marker>`, which is just the echoed input)
+-- proves the shell actually executed something, i.e. its read/execute loop
+-- is live. This is immune to the shape, count, or timing of whatever the
+-- shell's own startup chatter looks like -- it never inspects the shell's
+-- own output, only its own probe's round trip. The probe is resent
+-- periodically (idempotent: worst case a few extra marker lines, erased by
+-- the real payload's own scrollback-and-viewport clear moments later) in
+-- case an earlier send lands in a window where it gets queued but never
+-- delivered (e.g. a startup-time input flush some shells perform when they
+-- take control of the tty for job control/readline, before sourcing rc
+-- files) -- the same class of window that can swallow the real payload.
+-- Bounded: READY_POLL_ATTEMPTS caps the wait so a pane whose shell never
+-- responds falls back to firing immediately after the cap -- the pre-fix
+-- (racy) behavior -- rather than hanging the scene build forever.
+-- ---------------------------------------------------------------------------
+local READY_POLL_ATTEMPTS = 30
+local READY_POLL_INTERVAL_S = "0.1"
+local READY_PROBE_RESEND_EVERY = 5 -- attempts between probe (re)sends
+
+-- The pane's current visible screen text, or nil if the mux call failed.
+local function pane_screen_text(pid)
+  local fh = io.popen(string.format(
+    "wezterm cli get-text --pane-id %d 2>/dev/null", pid))
+  if not fh then return nil end
+  local out = fh:read("*a")
+  fh:close()
+  return out
+end
+
+-- True if `text` contains a line that, once trimmed of surrounding blanks, is
+-- EXACTLY `marker` -- i.e. the marker appeared as the `echo` builtin's OWN
+-- stdout, not merely as a substring of the echoed-back `echo <marker>`
+-- command line the pty always shows immediately for whatever was typed
+-- (executed or not).
+local function has_marker_output_line(text, marker)
+  if text == nil then return false end
+  for line in (text .. "\n"):gmatch("(.-)\n") do
+    if line:match("^%s*(.-)%s*$") == marker then
+      return true
+    end
+  end
+  return false
+end
+
+-- Block (via a bounded poll, never indefinitely) until pane `pid`'s shell has
+-- PROVEN -- by actually executing a throwaway probe command and producing its
+-- output -- that it is live and reading stdin, or the attempt cap is reached
+-- (fires the real payload immediately after the cap, same fail-open behavior
+-- as before the fix: never hangs the scene build forever on a shell that
+-- never settles).
+local function wait_for_pane_ready(pid)
+  local marker = string.format(
+    "__WEZ_READY_%d_%d__", os.time(), math.random(100000, 999999))
+  local probe = "echo " .. marker .. "\n"
+  for attempt = 1, READY_POLL_ATTEMPTS do
+    if (attempt - 1) % READY_PROBE_RESEND_EVERY == 0 then
+      os.execute(string.format(
+        "wezterm cli send-text --pane-id %d --no-paste %s",
+        pid, shquote(probe)))
+    end
+    if has_marker_output_line(pane_screen_text(pid), marker) then
+      return
+    end
+    os.execute("sleep " .. READY_POLL_INTERVAL_S)
+  end
+end
 
 -- ---------------------------------------------------------------------------
 -- M.build_pane_escapes(spec_parsed, opts) -> array of escape strings.
@@ -488,6 +598,10 @@ function M.run_new(args)
           payload[#payload + 1] = tostring(spec_parsed.cmd) .. "\n"
         end
         local text = table.concat(payload)
+        -- Readiness gate (scene-launch-motd-race fix): wait for the freshly
+        -- created pane's shell to settle at its prompt before writing the
+        -- setup line into its PTY -- see wait_for_pane_ready above.
+        wait_for_pane_ready(pid)
         os.execute(string.format(
           "wezterm cli send-text --pane-id %d --no-paste %s",
           pid, shquote(text)))

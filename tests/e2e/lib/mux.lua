@@ -117,18 +117,26 @@ local function env_prefix(dir)
 end
 
 -- ---------------------------------------------------------------------------
--- M.spin(tag) -> a session handle table:
+-- M.spin(tag, opts) -> a session handle table:
 --   { dir, launch_dir, env, pid, first_pane_id, live }
 --
 -- Allocates a per-case scratch dir (harness.scratch_dir), writes a MINIMAL scratch
 -- WezTerm config that (a) disables the user config by living at a scratch
--- WEZTERM_CONFIG_FILE, (b) sets a plain `/bin/sh` default_prog, and (c) sets
--- default_cwd to the scratch LAUNCH dir so the mux's FIRST pane (the reuse
--- precondition's single pane) opens in the launch dir (D-08(cwd)). It then starts
--- `wezterm-mux-server` in the BACKGROUND (not --daemonize, so we capture the PID
--- for a deterministic kill at teardown — D-03 / T-06.7-02), polls `wezterm cli
--- list` until at least one pane exists (liveness, bounded), and records the first
--- pane id (the WEZTERM_PANE the reuse case drives).
+-- WEZTERM_CONFIG_FILE, (b) sets default_prog (a plain `/bin/sh` unless
+-- opts.default_prog_argv overrides it), and (c) sets default_cwd to the scratch
+-- LAUNCH dir so the mux's FIRST pane (the reuse precondition's single pane) opens
+-- in the launch dir (D-08(cwd)). It then starts `wezterm-mux-server` in the
+-- BACKGROUND (not --daemonize, so we capture the PID for a deterministic kill at
+-- teardown — D-03 / T-06.7-02), polls `wezterm cli list` until at least one pane
+-- exists (liveness, bounded), and records the first pane id (the WEZTERM_PANE the
+-- reuse case drives).
+--
+-- opts.default_prog_argv (optional): an array of argv strings overriding the
+-- pane's default program (e.g. a wrapper script that sleeps + prints a banner
+-- before exec'ing an interactive shell, simulating a slow/MOTD-delayed shell
+-- startup — see tests/e2e/tier2/scene_motd_race_e2e_test.lua). Each entry is
+-- rendered as a single-quoted Lua string literal with embedded quotes escaped, so
+-- an arbitrary caller-supplied path still produces syntactically-valid Lua.
 --
 -- INCANTATION NOTE (Claude's discretion, D-03): background launch + PID-file kill
 -- is used instead of --daemonize + a server-side shutdown because this wezterm
@@ -136,7 +144,8 @@ end
 -- scratch dir (whose XDG_RUNTIME_DIR holds the only socket) is the deterministic,
 -- residue-free teardown.
 -- ---------------------------------------------------------------------------
-function M.spin(tag)
+function M.spin(tag, opts)
+  opts = opts or {}
   local mux = M.resolve_mux_server()
   local dir = harness.scratch_dir(tag)
   local launch = dir .. "/launch"
@@ -145,6 +154,18 @@ function M.spin(tag)
   -- XDG_RUNTIME_DIR must be 0700 or wezterm refuses to use it for the socket.
   os.execute("chmod 700 " .. shquote(dir .. "/runtime"))
 
+  -- default_prog argv -> a Lua table literal, each entry single-quoted with `'`
+  -- and `\` escaped (Lua string literals support `\'` regardless of the outer
+  -- quote character), so a caller-supplied wrapper-script path can never break
+  -- out of the generated config.
+  local prog_argv = opts.default_prog_argv or { "/bin/sh" }
+  local prog_items = {}
+  for _, p in ipairs(prog_argv) do
+    prog_items[#prog_items + 1] = "'"
+      .. tostring(p):gsub("\\", "\\\\"):gsub("'", "\\'")
+      .. "'"
+  end
+
   -- Minimal scratch config. default_cwd is the launch dir so the FIRST (reused)
   -- pane already satisfies the D-08 cwd contract. front_end='Software' + no
   -- wayland keeps it headless-safe. The launch path is interpolated as a quoted
@@ -152,7 +173,7 @@ function M.spin(tag)
   -- single-quote wrap is safe.
   local cfg = table.concat({
     "return {",
-    "  default_prog = { '/bin/sh' },",
+    "  default_prog = { " .. table.concat(prog_items, ", ") .. " },",
     "  default_cwd = '" .. launch .. "',",
     "  check_for_updates = false,",
     "  enable_wayland = false,",

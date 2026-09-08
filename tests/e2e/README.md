@@ -70,7 +70,7 @@ failure.
 | `tests/e2e/lib/mux.lua` | headless `wezterm-mux-server` lifecycle helper (`probe` / `spin` / `poll_until` / `cli_list` / `get_text` / `send_marker` / `spawn_pane` / `split_pane` / `teardown`) — the shared Tier 2 foundation |
 | `tests/e2e/platform.lua` | platform-expectations table (single source of legitimate Mac↔Linux deltas) |
 | `tests/e2e/tier1/*_e2e_test.lua` | Tier 1 subcommand contracts (Plan 02/03) |
-| `tests/e2e/tier2/*_e2e_test.lua` | Tier 2 live-mux scene drivers — reuse + new-tab mode (06.7) |
+| `tests/e2e/tier2/*_e2e_test.lua` | Tier 2 live-mux scene drivers — reuse + new-tab mode (06.7); `scene_motd_race_e2e_test.lua` is the scene-launch-motd-race regression (a slow-starting `bash --rcfile` pane, driving the readiness-gate fix) |
 | `tests/e2e/tier3/*_e2e_test.lua` | Tier 3 live-mux registration contracts (06.7) |
 
 ## Per-platform tools / permissions (placeholder — wired in 06.9)
