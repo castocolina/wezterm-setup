@@ -217,11 +217,11 @@ Plans:
 **Goal:** Make the deterministic tiers gate every change (PRD Phase 3). Wire Tier 1 + Tier 2 + Tier 3-registration into GitHub Actions on Linux using a headless `wezterm-mux-server`; verify self-skip works in CI and the gate blocks only on real failures, so the deterministic battery runs on every PR/push.
 **Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Phase 3; deterministic done-bar = MUST-PASS gate)
 **Depends on:** Phase 06.6 + 06.7 (the deterministic tiers must exist and be green locally first)
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 06.8 to break down)
+- [ ] 06.8-01-PLAN.md — New `.github/workflows/ci.yml`: pinned+cached WezTerm provisioning, `make test` before `make e2e`, `WEZ_BIN=./dist/wez` freshly-built binary, hard failure on any tier self-skip (D-01..D-05); doc drift fix + live GitHub Actions run verification [wave 1]
 
 ### Phase 06.7: E2E Tier 2 (Scenes) + Tier 3 Registration (INSERTED) — ✅ COMPLETE (Linux-verified 2026-06-25)
 
