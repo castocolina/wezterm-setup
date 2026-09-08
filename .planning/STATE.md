@@ -203,6 +203,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 260618-evx | Show stable release date in the wez-CLI channel picker (resolve_stable_date — date parity with nightly) | 2026-06-18 | c9cf82c | [260618-evx-show-stable-release-date-in-wez-channel-](./quick/260618-evx-show-stable-release-date-in-wez-channel-/) |
 | 260618-fsg | Simplify wez stable-channel resolution: one /releases/latest fetch + shared `_json_str` extractor (entropy −7 lines; resolve_stable_date folded into resolve_stable_latest) | 2026-06-18 | 0c78694 | [260618-fsg-simplify-wez-stable-channel-resolution-s](./quick/260618-fsg-simplify-wez-stable-channel-resolution-s/) |
 | 260908-fav | Reconcile .planning/ tracking artifacts with reality per gsd-progress/gsd-health audit (frontmatter on 02/03 VERIFICATION.md, 04 rename, 06 status normalization, 06.1-07 retroactive SUMMARY.md, STATE.md progress refresh) | 2026-09-08 | e606d09 | [260908-fav-reconcile-planning-tracking-artifacts-wi](./quick/260908-fav-reconcile-planning-tracking-artifacts-wi/) |
+| 260908-g6b | Write missing 06.1-VERIFICATION.md (retroactive close-out from 06.1-UAT.md) — closes the last gap keeping cross-tool current_phase state out of sync with STATE.md | 2026-09-08 | b80a03e | [260908-g6b-write-missing-06-1-verification-md-retro](./quick/260908-g6b-write-missing-06-1-verification-md-retro/) |
 
 ### Discoveries
 
