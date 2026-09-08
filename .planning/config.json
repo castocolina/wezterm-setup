@@ -42,7 +42,10 @@
     "security_enforcement": true,
     "security_asvs_level": 1,
     "security_block_on": "high",
-    "_auto_chain_active": false
+    "_auto_chain_active": false,
+    "cross_ai_execution": true,
+    "cross_ai_command": "/home/bazzite/.opencode/bin/opencode run --model xai/grok-4.6",
+    "cross_ai_timeout": 3600
   },
   "ship": {
     "pr_body_sections": []
