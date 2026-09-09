@@ -62,6 +62,17 @@ jobs:
       - name: Install Lua toolchain (lua5.4 + luastatic)
         run: ./tools/ci-setup-toolchain.sh
 
+      # Execution-time finding (06.8-01 Task 3, second live CI failure): the
+      # prebuilt wezterm-gui binary (fetched below by bootstrap-wezterm.sh)
+      # dynamically links against XCB/xkbcommon runtime libs `ubuntu-latest`
+      # does not ship by default. `wezterm show-keys` re-execs into
+      # wezterm-gui, so without this the tier3 registration probe self-skips
+      # with a misleadingly generic "no runnable wezterm" reason (confirmed
+      # live: the real failure was
+      # `libxcb-image.so.0: cannot open shared object file`).
+      - name: Install wezterm-gui runtime deps (Linux)
+        run: ./tools/ci-install-wezterm-runtime-deps.sh
+
       # D-04: strictly before any WezTerm-related step below — a unit
       # regression (including a regression in tests/ci_classify_test.lua)
       # fails fast without spending any mux-provisioning time.
