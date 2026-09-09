@@ -62,6 +62,14 @@ jobs:
       - name: Install Lua toolchain (lua5.4 + luastatic)
         run: ./tools/ci-setup-toolchain.sh
 
+      # D-04: strictly before any step that fetches/provisions the WezTerm
+      # binary itself (or its runtime deps) — a unit regression (including a
+      # regression in tests/ci_classify_test.lua) fails fast without spending
+      # any mux-provisioning time. The Lua toolchain step above is exempt: it
+      # is a prerequisite for running `make test` at all, not WezTerm-related.
+      - name: Unit tests (make test)
+        run: make test
+
       # Execution-time finding (06.8-01 Task 3, second live CI failure): the
       # prebuilt wezterm-gui binary (fetched below by bootstrap-wezterm.sh)
       # dynamically links against XCB/xkbcommon runtime libs `ubuntu-latest`
@@ -69,15 +77,11 @@ jobs:
       # wezterm-gui, so without this the tier3 registration probe self-skips
       # with a misleadingly generic "no runnable wezterm" reason (confirmed
       # live: the real failure was
-      # `libxcb-image.so.0: cannot open shared object file`).
+      # `libxcb-image.so.0: cannot open shared object file`). Runs AFTER
+      # `make test` (cycle-4 review WR-04): it is itself WezTerm-related
+      # (apt-installs libs the WezTerm binary needs), so D-04 places it here.
       - name: Install wezterm-gui runtime deps (Linux)
         run: ./tools/ci-install-wezterm-runtime-deps.sh
-
-      # D-04: strictly before any WezTerm-related step below — a unit
-      # regression (including a regression in tests/ci_classify_test.lua)
-      # fails fast without spending any mux-provisioning time.
-      - name: Unit tests (make test)
-        run: make test
 
       - name: Add ~/.local/bin to PATH
         run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"

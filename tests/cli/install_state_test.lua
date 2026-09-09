@@ -422,15 +422,25 @@ do
   -- covered separately above) — this test now specifically covers a REAL
   -- I/O failure: a source that EXISTS but is permission-denied, which must
   -- still propagate an error, never silently succeed.
-  local dir = scratch_dir()
-  local unreadable = dir .. "/wezterm.lua"
-  write_file(unreadable, "-- unreadable\n")
-  assert(os.execute("chmod 000 '" .. unreadable .. "'"))
-  local ok, err = IS.backup(unreadable)
-  check("backup of a permission-denied EXISTING source returns nil+err (not false success)",
-    not ok and type(err) == "string", tostring(err))
-  os.execute("chmod 700 '" .. unreadable .. "'")
-  os.execute("rm -rf '" .. dir .. "'")
+  -- `chmod 000` only blocks reads for a non-root process — under root (a
+  -- common shape for local repro in a root Docker/toolbox container) the read
+  -- still succeeds, so the precondition this test depends on silently does not
+  -- hold (cycle-4 review WR-06). Skip loudly rather than asserting a property
+  -- the environment cannot actually exercise.
+  local is_root = os.execute("[ \"$(id -u)\" = 0 ]") == true
+  if is_root then
+    print("  skip - CR-03 permission-denied backup test  (running as root; chmod 000 is not enforced)")
+  else
+    local dir = scratch_dir()
+    local unreadable = dir .. "/wezterm.lua"
+    write_file(unreadable, "-- unreadable\n")
+    assert(os.execute("chmod 000 '" .. unreadable .. "'"))
+    local ok, err = IS.backup(unreadable)
+    check("backup of a permission-denied EXISTING source returns nil+err (not false success)",
+      not ok and type(err) == "string", tostring(err))
+    os.execute("chmod 700 '" .. unreadable .. "'")
+    os.execute("rm -rf '" .. dir .. "'")
+  end
 
   local wok, werr = IS.atomic_write("/proc/cr03-should-not-be-writable", "data")
   check("atomic_write into an unwritable location returns nil+err (CR-03)",

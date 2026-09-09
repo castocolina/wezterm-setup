@@ -150,27 +150,24 @@ do
 end
 
 -- ----------------------------------------------------------------------------
--- gate_backup_exists FRESH-INSTALL EXEMPTION (06.8-01 Task 3 regression): a
--- config seeded from scratch by install_state (nothing pre-existed to back up)
--- must PASS this gate even with no backup file — confirmed live on a bare CI
--- runner, which otherwise permanently fails `wez doctor` despite having lost no
--- user data. A config that pre-existed with real content still correctly FAILS
--- with no backup (the property this gate exists to guard never regresses).
+-- gate_backup_exists FRESH-INSTALL EXEMPTION (06.8-01 Task 3 regression, marker
+-- mechanism per cycle-4 review WR-02): a config seeded from scratch by
+-- install_state (nothing pre-existed to back up) must PASS this gate even with
+-- no backup file — confirmed live on a bare CI runner, which otherwise
+-- permanently fails `wez doctor` despite having lost no user data. Detected via
+-- an explicit provenance flag (opts.fresh_seed), not a byte-content comparison
+-- — a config that pre-existed with real content still correctly FAILS with no
+-- backup even when that content happens to be skeleton-shaped (the property
+-- this gate exists to guard never regresses to a content-coincidence bypass).
 -- ----------------------------------------------------------------------------
 do
-  local install_state = require("cli.commands.install_state")
-
-  local fresh_text = install_state.inject_into_text(install_state.DEFAULT_CONFIG_SKELETON)
   local g_fresh = D.gate_backup_exists("/does/not/matter/wezterm.lua",
-    { backup = false, text = fresh_text })
+    { backup = false, fresh_seed = true })
   check("backup gate PASSES on a fresh-seeded install with no backup",
     g_fresh.ok == true, g_fresh.detail)
 
-  local preexisting_text = install_state.inject_into_text(
-    "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\n"
-      .. "config.font_size = 42.0\n\nreturn config\n")
   local g_real = D.gate_backup_exists("/does/not/matter/wezterm.lua",
-    { backup = false, text = preexisting_text })
+    { backup = false, fresh_seed = false })
   check("backup gate still FAILS when real pre-existing content had no backup",
     g_real.ok == false, tostring(g_real.ok))
 end

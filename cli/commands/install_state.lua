@@ -71,11 +71,21 @@ end
 M.utc_timestamp = utc_timestamp
 
 local function read_all(path)
-  local fh, err = io.open(path, "rb")
-  if not fh then return nil, err end
+  local fh, err, errnum = io.open(path, "rb")
+  if not fh then return nil, err, errnum end
   local data = fh:read("*a")
   fh:close()
   return data
+end
+
+-- ENOENT is portable/POSIX-fixed (2), unlike io.open's human-readable message,
+-- which is libc strerror() text and therefore LC_MESSAGES-locale-dependent
+-- (verified: a non-C locale localizes "No such file or directory" to e.g.
+-- "Aucun fichier ou dossier de ce nom"). Checking the errno instead of the
+-- message text keeps the ENOENT-as-seed / ENOENT-as-no-op paths below correct
+-- even if something in this process ever calls os.setlocale.
+local function is_enoent(errnum)
+  return errnum == 2
 end
 
 -- A minimal, valid Shape-A skeleton (`local config = ...; return config`) —
@@ -104,9 +114,9 @@ M.DEFAULT_CONFIG_SKELETON = DEFAULT_CONFIG_SKELETON
 -- on, so a bare "" is not enough — the skeleton supplies one, using the same
 -- Shape-A pattern (`return config`) inject_into_text already handles.
 local function read_target_or_seed(path)
-  local data, err = read_all(path)
+  local data, err, errnum = read_all(path)
   if data then return data end
-  if err and err:find("No such file or directory", 1, true) then
+  if is_enoent(errnum) then
     return DEFAULT_CONFIG_SKELETON
   end
   return nil, err
@@ -130,12 +140,12 @@ end
 -- Copy `target` to `target..".bak."..<timestamp>` (INST-02). Taken BEFORE any
 -- modification so the original is always recoverable.
 function M.backup(target)
-  local data, err = read_all(target)
+  local data, err, errnum = read_all(target)
   if not data then
     -- Nothing exists yet at `target` — there is nothing to preserve, so a
     -- missing file is a no-op success (`true`), never an error. A real read
     -- error (permissions, etc.) still propagates.
-    if err and err:find("No such file or directory", 1, true) then
+    if is_enoent(errnum) then
       return true
     end
     return nil, err
@@ -152,6 +162,18 @@ end
 -- a command (CR-02). Exposed on M so sibling modules reuse the same quoter.
 function M.shquote(s)
   return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+-- fresh_seed_marker_path(target) -> path
+-- A sentinel FILE (not content-inference) recording that `target` was seeded
+-- from DEFAULT_CONFIG_SKELETON because nothing pre-existed — written by M.run
+-- right after a successful fresh install, read by doctor.lua's backup-exists
+-- gate. A marker is explicit PROVENANCE: unlike comparing the file's current
+-- bytes to the skeleton (which a user's own hand-written config could
+-- coincidentally match, wrongly exempting a REAL lost-backup situation), this
+-- can only be true if install_state itself actually took the seed path.
+function M.fresh_seed_marker_path(target)
+  return target .. ".fresh-seed"
 end
 
 -- newest_backup(target) -> path | nil
@@ -534,6 +556,11 @@ function M.run(args)
   if had_existing_target then
     io.write("wez install-state: managed block installed (timestamped backup written)\n")
   else
+    -- Provenance marker (WR-02): explicit, not inferred from content bytes —
+    -- see fresh_seed_marker_path's own comment. Best-effort: a failure to write
+    -- it never fails the real install (the marker only affects `wez doctor`'s
+    -- advisory-adjacent backup gate, not install correctness).
+    write_all(M.fresh_seed_marker_path(target), "")
     io.write("wez install-state: managed block installed (fresh config seeded, no prior file to back up)\n")
   end
   return 0

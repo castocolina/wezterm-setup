@@ -33,6 +33,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # bootstrap-wezterm.sh means `main` does not run here.
 . "${SCRIPT_DIR}/bootstrap-wezterm.sh"
 
+# bootstrap-wezterm.sh declares `set -euo pipefail` at its own top. Sourcing
+# (unlike executing a subprocess) runs in THIS shell, so its `set -e` leaks
+# into ours — silently contradicting the `set -uo pipefail` (no `-e`) posture
+# declared above (cycle-4 review WR-05, empirically reproduced: a sourced
+# script's `set -e` measurably persists in the calling shell after the source
+# line returns). Re-assert this script's own intended posture explicitly
+# rather than leaving it to a coincidence of what the sourced file declares.
+set +e
+
 datestamp="$(latest_nightly_datestamp || true)"
 
 if [ -n "${datestamp}" ]; then

@@ -181,18 +181,22 @@ end
 -- GATE 4 — a timestamped backup exists beside wezterm.lua, UNLESS the config is
 -- a legitimately-fresh install that never had anything to back up in the first
 -- place. Reuses the install_state newest_backup selector. Injectable via
--- opts.backup / opts.text for testing.
+-- opts.backup / opts.fresh_seed for testing.
 --
 -- FRESH-INSTALL EXEMPTION: install_state.M.run seeds a target that does not
 -- exist at all from DEFAULT_CONFIG_SKELETON and (correctly) writes no backup,
 -- since nothing pre-existed to preserve (see install_state.lua's
 -- read_target_or_seed / M.backup ENOENT-no-op). Without this exemption, EVERY
 -- fresh install (e.g. a bare CI runner, confirmed live in 06.8-01 Task 3) would
--- permanently fail this core gate despite having lost nothing. Detected by
--- stripping the managed block back out (install_state.restore_original_text)
--- and comparing the remainder to the EXACT skeleton install_state itself seeds
--- — proving the only content ever in this file is scaffold install_state wrote,
--- never real pre-existing user data.
+-- permanently fail this core gate despite having lost nothing.
+--
+-- Detected via an explicit PROVENANCE MARKER (install_state.fresh_seed_marker_path),
+-- written by M.run only on the actual seed-from-nothing path — NOT by comparing
+-- the file's current bytes to the skeleton. A byte comparison cannot distinguish
+-- "install_state seeded this" from "the user happened to hand-write the exact
+-- same five lines and their real backup was later lost" (cycle-4 review WR-02);
+-- the marker's mere existence is what install_state actually did, not an
+-- inference from content shape.
 function M.gate_backup_exists(target, opts)
   opts = opts or {}
   local backup = opts.backup
@@ -203,13 +207,15 @@ function M.gate_backup_exists(target, opts)
     return gate(true, "timestamped backup exists")
   end
 
-  local text = opts.text
-  if text ~= nil then
-    local original = install_state.restore_original_text(text)
-    if original == install_state.DEFAULT_CONFIG_SKELETON then
-      return gate(true, "timestamped backup exists",
-        "fresh install seeded from scratch — nothing pre-existed to back up")
-    end
+  local fresh_seed = opts.fresh_seed
+  if fresh_seed == nil then
+    local fh = io.open(install_state.fresh_seed_marker_path(target), "r")
+    fresh_seed = fh ~= nil
+    if fh then fh:close() end
+  end
+  if fresh_seed then
+    return gate(true, "timestamped backup exists",
+      "fresh install seeded from scratch — nothing pre-existed to back up")
   end
 
   return gate(false, "timestamped backup exists",
@@ -359,7 +365,7 @@ function M.run(_args)
     M.gate_binary_on_path(),
     M.gate_sentinel_well_formed(cfg_text),
     M.gate_config_dofiles(init_path),
-    M.gate_backup_exists(target, { text = cfg_text }),
+    M.gate_backup_exists(target),
     M.gate_no_shadowing(cfg_text),
   }
 

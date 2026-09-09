@@ -544,7 +544,12 @@ function M.run(args)
     -- in luastatic bundle" on the freshly-built CI binary (06.8-01 Task 3).
     local ok, json = pcall(require, "cli.vendor.dkjson")
     if not ok then
-      json = require("dkjson")
+      local ok2, json2 = pcall(require, "dkjson")
+      if not ok2 then
+        io.stderr:write("wez keys: could not load the vendored JSON encoder (dkjson)\n")
+        return 1
+      end
+      json = json2
     end
     io.write(json.encode(M.build_json(entries, conflicts), { indent = true }))
     io.write("\n")
