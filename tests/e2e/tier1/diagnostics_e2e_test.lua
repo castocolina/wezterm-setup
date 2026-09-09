@@ -89,7 +89,8 @@ end
 -- ---------------------------------------------------------------------------
 do
   local out, exit = run_capture_all(shquote(WEZ) .. " doctor")
-  check("`wez doctor` ran (exit 0)", exit == 0, "exit=" .. tostring(exit))
+  check("`wez doctor` ran (exit 0)", exit == 0,
+    "exit=" .. tostring(exit) .. " out=" .. tostring(out))
   -- doctor prints each gate as `[PASS]`/`[FAIL]` (cli/commands/doctor.lua print_section).
   check("`wez doctor` prints gate lines ([PASS]/[FAIL])",
     out:find("[PASS]", 1, true) ~= nil or out:find("[FAIL]", 1, true) ~= nil, out)
@@ -110,7 +111,13 @@ end
 -- ---------------------------------------------------------------------------
 do
   local json_out, exit = run_capture(shquote(WEZ) .. " keys --json")
-  check("`wez keys --json` ran (exit 0)", exit == 0, "exit=" .. tostring(exit))
+  if exit ~= 0 then
+    local combined = run_capture_all(shquote(WEZ) .. " keys --json")
+    check("`wez keys --json` ran (exit 0)", false,
+      "exit=" .. tostring(exit) .. " out=" .. tostring(combined))
+  else
+    check("`wez keys --json` ran (exit 0)", true)
+  end
 
   local ok_dk, dkjson = pcall(require, "dkjson")
   if ok_dk then
