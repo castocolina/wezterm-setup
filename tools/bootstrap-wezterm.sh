@@ -117,7 +117,7 @@ latest_nightly_datestamp() {
   # payload can carry C0 control chars in bodies; see wezterm-release.sh).
   updated="$(printf '%s' "${json}" \
     | tr ',' '\n' \
-    | grep -A40 -F "\"${asset_name}\"" 2>/dev/null \
+    | grep -A120 -F "\"${asset_name}\"" 2>/dev/null \
     | grep -oE '"updated_at"[[:space:]]*:[[:space:]]*"[0-9]{4}-[0-9]{2}-[0-9]{2}' \
     | head -n1 \
     | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \

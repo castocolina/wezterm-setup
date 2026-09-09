@@ -1,0 +1,157 @@
+# .github/workflows/ci.yml
+#
+# Phase 06.8: wires the deterministic E2E tiers (Tier 1 subcommands, Tier 2
+# scenes, Tier 3 registration) into a NEW GitHub Actions workflow — separate
+# from the tag-triggered .github/workflows/release.yml (build+publish only,
+# never touched here) — so they gate every push to main and every pull_request
+# going forward (D-03).
+#
+# D-01 boundary (same rule release.yml's own header states): this workflow is
+# PURE glue. It computes NO install/version/update/cache-key/mux-discovery
+# decision in YAML — that logic lives in tools/ci-resolve-wezterm-cache-key.sh
+# and tools/ci-verify-wezterm-mux.sh, which this workflow only invokes.
+#
+# D-01 (corrected, 06.8-CONTEXT.md this cycle): the WezTerm provisioning
+# target below is the rolling nightly-target install (this project's own
+# already-established default), not a literal dated pin — live verification,
+# independently reconfirmed across two review cycles, showed the previously
+# assumed dated release has never existed upstream and no dated release has
+# ever shipped the Ubuntu24.04 asset this runner needs; only the rolling
+# nightly tag does. The cache key is the RESOLVED nightly-asset datestamp
+# (delegated to tools/ci-resolve-wezterm-cache-key.sh, which falls back to
+# today's UTC date on a degraded resolution). The resulting guarantee is
+# stated precisely: reproducible-within-a-UTC-day (a same-day cache hit reuses
+# byte-identical bits) — NOT a cryptographic pin to an immutable artifact,
+# because no such artifact is fetchable for this asset upstream.
+#
+# D-04: unit tests (make test) run strictly BEFORE any WezTerm-related step —
+# a unit regression fails fast without spending any mux-provisioning time.
+#
+# D-02: the e2e step's pass/fail decision is delegated to
+# tools/ci-classify-e2e-output.sh, which treats any UNEXPECTED Tier 2/3
+# self-skip as a hard failure (even one appearing alongside an
+# already-LIVE-ASSERTED label for the same case) while REQUIRING the one
+# intentional macOS-only Tier 1 self-skip to appear exactly once.
+#
+# D-05: this workflow is report-only, no repo-settings changes — it is NOT
+# wired into any merge-gating configuration in this phase.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-e2e:
+    name: unit tests + e2e battery (Tier 1+2+3-registration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Pinned to an immutable release tag (matches release.yml's own pin).
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Install Lua toolchain (lua5.4 + luastatic)
+        run: ./tools/ci-setup-toolchain.sh
+
+      # D-04: strictly before any WezTerm-related step below — a unit
+      # regression (including a regression in tests/ci_classify_test.lua)
+      # fails fast without spending any mux-provisioning time.
+      - name: Unit tests (make test)
+        run: make test
+
+      - name: Add ~/.local/bin to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      # Cache-key resolution is entirely delegated to
+      # tools/ci-resolve-wezterm-cache-key.sh (cycle-2 MEDIUM-5) — ALL
+      # resolution policy, including the UTC-date fallback, lives there. Only
+      # the exit-check and shape-validation below are inline, because they
+      # gate a value flowing into $GITHUB_OUTPUT, not resolution policy itself
+      # (cycle-3 MEDIUM-2).
+      - name: Resolve WezTerm cache key (D-01)
+        id: wezterm_pin
+        run: |
+          KEY="$(./tools/ci-resolve-wezterm-cache-key.sh)" || { echo "cache-key resolution failed" >&2; exit 1; }
+          [[ "${KEY}" =~ ^[0-9]{8}$ ]] || { echo "::error::resolved cache key '${KEY}' is not an 8-digit date" >&2; exit 1; }
+          echo "cache_key=${KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache WezTerm nightly install (D-01)
+        uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.local/opt/wezterm
+            ~/.local/bin/wezterm
+          key: wezterm-nightly-${{ steps.wezterm_pin.outputs.cache_key }}
+
+      # The nightly-target provisioning step. `nightly` is the ONLY genuinely
+      # fetchable target on the real repo AND is already this project's own
+      # default, so this is not a new install path — install_linux reuses the
+      # identical fetch/verify/extract/symlink logic either way.
+      - name: Provision WezTerm (bootstrap-wezterm.sh, nightly target — D-01, corrected)
+        run: WEZTERM_TARGET=nightly ./tools/bootstrap-wezterm.sh </dev/null
+
+      # ALL discovery-order logic lives in tools/ci-verify-wezterm-mux.sh
+      # (cycle-2 MEDIUM-5) — never inline here.
+      - name: Verify wezterm + wezterm-mux-server are resolvable (D-02 precondition)
+        run: ./tools/ci-verify-wezterm-mux.sh
+
+      - name: Build dist/wez
+        run: make build
+
+      # Execution-time finding (06.8-01, not in the original plan text — a Rule
+      # 2 auto-add of missing critical functionality): tier3
+      # registration_e2e_test.lua parses the LIVE, DEFAULT `wezterm show-keys
+      # --lua` output with no config override, so it reflects whichever config
+      # THIS runner's wezterm loads by default. Without the managed config
+      # installed, a fresh runner's wezterm falls back to WezTerm's own stock
+      # keymap and every curated-chord assertion fails deterministically
+      # (confirmed live: a real local repro on a box with no wezterm-setup
+      # install reproduces this exact failure). tools/setup.sh is the ONLY
+      # place install decision logic lives (D-01) — no TTY on a CI runner
+      # resolves its own non-interactive --force default (D-03), so this
+      # installs the managed config + wez CLI onto THIS ephemeral runner
+      # (never a real user machine — ONESHOT-RULES Rule 5 governs that
+      # distinction) so the live show-keys output actually reflects the
+      # curated keymap the battery asserts against.
+      - name: Install wezterm-setup (config + wez CLI) for live show-keys parity
+        run: ./tools/setup.sh </dev/null
+
+      # This step manages its own exit explicitly rather than relying on the
+      # job-default -e. A genuine e2e assertion failure OR an
+      # unexpected-skip/missing-live-assert/missing-exactly-once verdict from
+      # the classify script both fail the job for real; an all-green run
+      # exits 0. This step's own e2e-output.log is exactly the e2e battery's
+      # output, nothing else.
+      - name: E2E battery — Tier 1 + Tier 2 + Tier 3-registration (D-02 gate)
+        run: |
+          set +e
+          WEZ_BIN=./dist/wez make e2e 2>&1 | tee e2e-output.log
+          e2e_exit="${PIPESTATUS[0]}"
+          ./tools/ci-classify-e2e-output.sh e2e-output.log
+          classify_exit=$?
+          if [ "${e2e_exit}" -ne 0 ]; then
+            echo "::error::e2e battery exited non-zero (${e2e_exit})" >&2
+            exit "${e2e_exit}"
+          fi
+          exit "${classify_exit}"
+
+      # Uploaded so Task 3's remote verification classifies ONLY this exact
+      # file — never the whole job log (which also contains make test's own
+      # classifier-fixture diagnostics, cycle-3 HIGH-1). if: always() so the
+      # log uploads even if the step above failed, aiding debugging.
+      - name: Upload e2e log artifact
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: e2e-output-log
+          path: e2e-output.log
+          retention-days: 5

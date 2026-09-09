@@ -18,8 +18,10 @@ make e2e-setup    # install test-only tools + print the macOS permission steps
 
 - **`WEZ_BIN` override** — `make e2e` defaults `WEZ_BIN=./dist/wez` (the in-repo
   dev launcher that execs the live `cli/` sources). CI **overrides** `WEZ_BIN` to
-  point at the freshly built luastatic binary:
-  `WEZ_BIN=./dist/wez-linux-x86_64 make e2e`.
+  point at the freshly built luastatic binary (the SAME path `tools/build.sh`
+  writes locally, `dist/wez` — there is no per-platform-named build output):
+  `WEZ_BIN=./dist/wez make e2e` (see `.github/workflows/ci.yml`, the live
+  consumer of this convention).
 - **Tier 1 targets `dist/wez` locally** so a change to `cli/` is exercised
   immediately without a rebuild.
 
@@ -42,7 +44,7 @@ unit/battery boundary (and Plan 04's `make test exits 0` acceptance).
 | 3 | Firing | OS input injection (`WEZ_E2E_INPUT=1`) | B (best-effort, self-skip) | 06.9 |
 | 4 | Visuals | screenshot + vision (`WEZ_E2E_VISUAL=1`) | B (best-effort, self-skip) | 06.9 |
 
-`M` = must-pass (gates CI once 06.8 lands). `B` = best-effort: self-skips
+`M` = must-pass (gates CI — wired in `.github/workflows/ci.yml`, 06.8). `B` = best-effort: self-skips
 **loudly and logged** when its dependency (mux / input tool / permission) is
 absent — never a silent pass, never a hang. On a host that DOES have the
 dependency, a skip is a **failure** (the gate prints a `LIVE-ASSERTED` marker).
