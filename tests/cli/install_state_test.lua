@@ -129,6 +129,31 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- BACKUP/INJECT on a target that does not exist AT ALL (e.g. a bare CI runner
+-- with no prior wezterm.lua of any kind) must succeed, not error — 06.8-01
+-- CI regression: `wez install-state` previously hard-failed with "cannot
+-- read ...: No such file or directory" before ever reaching parse()'s
+-- absent-state handling.
+-- ----------------------------------------------------------------------------
+do
+  local dir = scratch_dir()
+  local target = dir .. "/wezterm.lua"  -- deliberately never created
+
+  local bak = IS.backup(target)
+  check("backup on a missing target is a no-op success, not an error",
+    bak == true, tostring(bak))
+
+  local res = IS.inject(target)
+  check("inject on a missing target succeeds (treated as absent state)",
+    type(res) == "table" and res.ok == true, res and tostring(res.err))
+  check("inject creates the target file from nothing",
+    read_file(target):find(IS.OPEN_MARKER, 1, true) ~= nil)
+  check("inject on a fresh target creates NO backup (nothing existed to preserve)",
+    not io.popen("ls '" .. dir .. "'"):read("*a"):find("wezterm%.lua%.bak%."))
+  os.execute("rm -rf '" .. dir .. "'")
+end
+
+-- ----------------------------------------------------------------------------
 -- INJECT: writes a timestamped backup, then inserts EXACTLY ONE managed block
 -- wiring apply(config), positioned before the user's `return config`, leaving
 -- all other lines intact — via write-temp-then-atomic-rename.
@@ -392,9 +417,20 @@ end
 -- falsely reporting success — the backup-before-write safety property (INST-02).
 -- ----------------------------------------------------------------------------
 do
-  local ok, err = IS.backup("/nonexistent-dir-cr03/wezterm.lua")
-  check("backup of an unreadable source returns nil+err (not false success)",
+  -- A target whose directory doesn't exist at all is now the DELIBERATE
+  -- "nothing to preserve" no-op success case (06.8-01 CI regression fix,
+  -- covered separately above) — this test now specifically covers a REAL
+  -- I/O failure: a source that EXISTS but is permission-denied, which must
+  -- still propagate an error, never silently succeed.
+  local dir = scratch_dir()
+  local unreadable = dir .. "/wezterm.lua"
+  write_file(unreadable, "-- unreadable\n")
+  assert(os.execute("chmod 000 '" .. unreadable .. "'"))
+  local ok, err = IS.backup(unreadable)
+  check("backup of a permission-denied EXISTING source returns nil+err (not false success)",
     not ok and type(err) == "string", tostring(err))
+  os.execute("chmod 700 '" .. unreadable .. "'")
+  os.execute("rm -rf '" .. dir .. "'")
 
   local wok, werr = IS.atomic_write("/proc/cr03-should-not-be-writable", "data")
   check("atomic_write into an unwritable location returns nil+err (CR-03)",

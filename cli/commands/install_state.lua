@@ -78,6 +78,34 @@ local function read_all(path)
   return data
 end
 
+-- A minimal, valid Shape-A skeleton (`local config = ...; return config`) —
+-- the same shape ABSENT_FIXTURE-style configs already use throughout this
+-- module's tests. Used ONLY as the seed when a target doesn't exist at all.
+local DEFAULT_CONFIG_SKELETON = [[
+local wezterm = require 'wezterm'
+local config = wezterm.config_builder()
+
+return config
+]]
+
+-- Like read_all, but a target that does not exist AT ALL is seeded with a
+-- minimal default config skeleton rather than erroring. Needed because
+-- M.run/M.inject must also work on a truly fresh machine with no wezterm.lua
+-- yet at all (e.g. a bare CI runner with no prior install) — the gap was that
+-- read_all's hard error never let a missing target reach parse()/inject() at
+-- all. An empty string alone would still make parse() report "absent"
+-- correctly, but inject_into_text() requires a top-level `return` to anchor
+-- on, so a bare "" is not enough — the skeleton supplies one, using the same
+-- Shape-A pattern (`return config`) inject_into_text already handles.
+local function read_target_or_seed(path)
+  local data, err = read_all(path)
+  if data then return data end
+  if err and err:find("No such file or directory", 1, true) then
+    return DEFAULT_CONFIG_SKELETON
+  end
+  return nil, err
+end
+
 local function write_all(path, data)
   local fh, err = io.open(path, "wb")
   if not fh then return nil, err end
@@ -97,7 +125,15 @@ end
 -- modification so the original is always recoverable.
 function M.backup(target)
   local data, err = read_all(target)
-  if not data then return nil, err end
+  if not data then
+    -- Nothing exists yet at `target` — there is nothing to preserve, so a
+    -- missing file is a no-op success (`true`), never an error. A real read
+    -- error (permissions, etc.) still propagates.
+    if err and err:find("No such file or directory", 1, true) then
+      return true
+    end
+    return nil, err
+  end
   local bak = target .. ".bak." .. utc_timestamp()
   local ok, werr = write_all(bak, data)
   if not ok then return nil, werr end
@@ -301,7 +337,7 @@ end
 -- the result. opts.skip_backup is for callers that already backed up.
 function M.inject(target, opts)
   opts = opts or {}
-  local text, err = read_all(target)
+  local text, err = read_target_or_seed(target)
   if not text then return { ok = false, err = err } end
 
   -- Build the final content FIRST so a failed inject never triggers a backup or
@@ -400,7 +436,7 @@ function M.run(args)
   args = args or {}
   local target = config_path()
 
-  local text, rerr = read_all(target)
+  local text, rerr = read_target_or_seed(target)
   if not text then
     io.stderr:write("wez install-state: cannot read " .. target .. ": " .. tostring(rerr) .. "\n")
     return 1
@@ -480,12 +516,20 @@ function M.run(args)
     return 0
   end
 
+  -- Recorded BEFORE inject (which creates the file) so the message below
+  -- accurately says whether a real backup of pre-existing content was made,
+  -- vs. a fresh install seeded from nothing (06.8-01 CI regression fix).
+  local had_existing_target = read_all(target) ~= nil
   local res = M.inject(target)
   if not res.ok then
     io.stderr:write("wez install-state: inject failed: " .. tostring(res.err) .. "\n")
     return 1
   end
-  io.write("wez install-state: managed block installed (timestamped backup written)\n")
+  if had_existing_target then
+    io.write("wez install-state: managed block installed (timestamped backup written)\n")
+  else
+    io.write("wez install-state: managed block installed (fresh config seeded, no prior file to back up)\n")
+  end
   return 0
 end
 
