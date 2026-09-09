@@ -534,7 +534,18 @@ function M.run(args)
 
   if args.json then
     -- D-06: the JSON document is NEVER colorized — no ansi.* call on this path.
-    local json = require("dkjson")
+    -- Require the vendored dkjson by its in-tree module path so it resolves
+    -- both from source (`./?.lua` -> cli/vendor/dkjson.lua) and inside the
+    -- luastatic bundle (module name cli.vendor.dkjson) — same pattern as
+    -- cli/spec.lua's argparse require. A bare require("dkjson") resolves in
+    -- the dev launcher (package.path fallback in cli/wez.lua) but NOT inside
+    -- the luastatic binary, which preloads modules under their derived dotted
+    -- path — confirmed live: `wez keys --json` failed with "no module 'dkjson'
+    -- in luastatic bundle" on the freshly-built CI binary (06.8-01 Task 3).
+    local ok, json = pcall(require, "cli.vendor.dkjson")
+    if not ok then
+      json = require("dkjson")
+    end
     io.write(json.encode(M.build_json(entries, conflicts), { indent = true }))
     io.write("\n")
     return 0

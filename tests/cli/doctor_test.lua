@@ -150,6 +150,32 @@ do
 end
 
 -- ----------------------------------------------------------------------------
+-- gate_backup_exists FRESH-INSTALL EXEMPTION (06.8-01 Task 3 regression): a
+-- config seeded from scratch by install_state (nothing pre-existed to back up)
+-- must PASS this gate even with no backup file — confirmed live on a bare CI
+-- runner, which otherwise permanently fails `wez doctor` despite having lost no
+-- user data. A config that pre-existed with real content still correctly FAILS
+-- with no backup (the property this gate exists to guard never regresses).
+-- ----------------------------------------------------------------------------
+do
+  local install_state = require("cli.commands.install_state")
+
+  local fresh_text = install_state.inject_into_text(install_state.DEFAULT_CONFIG_SKELETON)
+  local g_fresh = D.gate_backup_exists("/does/not/matter/wezterm.lua",
+    { backup = false, text = fresh_text })
+  check("backup gate PASSES on a fresh-seeded install with no backup",
+    g_fresh.ok == true, g_fresh.detail)
+
+  local preexisting_text = install_state.inject_into_text(
+    "local wezterm = require 'wezterm'\nlocal config = wezterm.config_builder()\n"
+      .. "config.font_size = 42.0\n\nreturn config\n")
+  local g_real = D.gate_backup_exists("/does/not/matter/wezterm.lua",
+    { backup = false, text = preexisting_text })
+  check("backup gate still FAILS when real pre-existing content had no backup",
+    g_real.ok == false, tostring(g_real.ok))
+end
+
+-- ----------------------------------------------------------------------------
 -- gate_config_dofiles must replicate WezTerm's <config-dir>/?.lua module
 -- resolution: the managed init.lua uses dotted requires
 -- (require("wezterm-setup.<sibling>")) that resolve only when the config dir is

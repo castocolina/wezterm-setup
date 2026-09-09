@@ -178,8 +178,21 @@ function M.gate_config_dofiles(init_path, opts)
     "loading " .. tostring(init_path) .. " failed: " .. tostring(err))
 end
 
--- GATE 4 — a timestamped backup exists beside wezterm.lua. Reuses the
--- install_state newest_backup selector. Injectable via opts.backup for testing.
+-- GATE 4 — a timestamped backup exists beside wezterm.lua, UNLESS the config is
+-- a legitimately-fresh install that never had anything to back up in the first
+-- place. Reuses the install_state newest_backup selector. Injectable via
+-- opts.backup / opts.text for testing.
+--
+-- FRESH-INSTALL EXEMPTION: install_state.M.run seeds a target that does not
+-- exist at all from DEFAULT_CONFIG_SKELETON and (correctly) writes no backup,
+-- since nothing pre-existed to preserve (see install_state.lua's
+-- read_target_or_seed / M.backup ENOENT-no-op). Without this exemption, EVERY
+-- fresh install (e.g. a bare CI runner, confirmed live in 06.8-01 Task 3) would
+-- permanently fail this core gate despite having lost nothing. Detected by
+-- stripping the managed block back out (install_state.restore_original_text)
+-- and comparing the remainder to the EXACT skeleton install_state itself seeds
+-- — proving the only content ever in this file is scaffold install_state wrote,
+-- never real pre-existing user data.
 function M.gate_backup_exists(target, opts)
   opts = opts or {}
   local backup = opts.backup
@@ -189,6 +202,16 @@ function M.gate_backup_exists(target, opts)
   if backup then
     return gate(true, "timestamped backup exists")
   end
+
+  local text = opts.text
+  if text ~= nil then
+    local original = install_state.restore_original_text(text)
+    if original == install_state.DEFAULT_CONFIG_SKELETON then
+      return gate(true, "timestamped backup exists",
+        "fresh install seeded from scratch — nothing pre-existed to back up")
+    end
+  end
+
   return gate(false, "timestamped backup exists",
     "no wezterm.lua.bak.<timestamp> backup found")
 end
@@ -336,7 +359,7 @@ function M.run(_args)
     M.gate_binary_on_path(),
     M.gate_sentinel_well_formed(cfg_text),
     M.gate_config_dofiles(init_path),
-    M.gate_backup_exists(target),
+    M.gate_backup_exists(target, { text = cfg_text }),
     M.gate_no_shadowing(cfg_text),
   }
 

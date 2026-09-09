@@ -81,12 +81,18 @@ end
 -- A minimal, valid Shape-A skeleton (`local config = ...; return config`) —
 -- the same shape ABSENT_FIXTURE-style configs already use throughout this
 -- module's tests. Used ONLY as the seed when a target doesn't exist at all.
+--
+-- Exported (M.DEFAULT_CONFIG_SKELETON) so `wez doctor`'s backup-exists gate can
+-- recognize a legitimately-fresh install (nothing pre-existed, so no backup was
+-- ever needed) instead of flagging it as an unsafe overwrite — see doctor.lua
+-- GATE 4.
 local DEFAULT_CONFIG_SKELETON = [[
 local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
 return config
 ]]
+M.DEFAULT_CONFIG_SKELETON = DEFAULT_CONFIG_SKELETON
 
 -- Like read_all, but a target that does not exist AT ALL is seeded with a
 -- minimal default config skeleton rather than erroring. Needed because
