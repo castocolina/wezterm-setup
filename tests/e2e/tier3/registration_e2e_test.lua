@@ -147,9 +147,20 @@ h.finish_layer()
 
 local showkeys_text = nil
 local function wezterm_runnable()
-  if h.run_capture("command -v wezterm") == "" then return false end
+  local wez_path = h.run_capture("command -v wezterm")
+  if wez_path == "" then
+    io.stderr:write("tier3 show-keys registration: diagnostic — `command -v wezterm` found nothing on PATH\n")
+    return false
+  end
   showkeys_text = h.run_capture("wezterm show-keys --lua")
-  return type(showkeys_text) == "string" and showkeys_text:match("keys%s*=%s*{") ~= nil
+  local matched = type(showkeys_text) == "string" and showkeys_text:match("keys%s*=%s*{") ~= nil
+  if not matched then
+    local combined, exit_code = h.run_capture_all("wezterm show-keys --lua")
+    io.stderr:write(string.format(
+      "tier3 show-keys registration: diagnostic — wezterm=%s exit=%s combined-output=%q\n",
+      wez_path, tostring(exit_code), combined))
+  end
+  return matched
 end
 
 -- The reason string is printed on BOTH the LIVE-ASSERTED and the SKIPPED line, so
