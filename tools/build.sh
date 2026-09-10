@@ -196,7 +196,33 @@ build_with_luastatic() {
     mv "${REPO_ROOT}/wez" "${OUT}"
   fi
   chmod +x "${OUT}"
+  codesign_macos_binary "${OUT}"
   log "built static binary: ${OUT}"
+}
+
+# ---------------------------------------------------------------------------
+# codesign_macos_binary(path) — ad-hoc-sign a built Mach-O on macOS (D-06).
+#
+# On Apple Silicon an unsigned Mach-O is inert (SIGKILL on first run), so a
+# codesign failure here is FATAL when `codesign` itself is present — deferring
+# to main()'s own smoke-test step would only turn a clear "codesign failed"
+# error into a confusing "no output" one, AND would let an x86_64 build ship
+# silently unsigned if codesign failed for some other real reason. Codesign is
+# skipped, non-fatally, ONLY when the `codesign` binary itself is absent (a
+# defensive case platform_os's own macos gate should already prevent).
+# ---------------------------------------------------------------------------
+codesign_macos_binary() {
+  local bin="$1"
+  [ "$(platform_os)" = "macos" ] || return 0
+  if ! command -v codesign >/dev/null 2>&1; then
+    log "codesign not found on this macOS host — skipping ad-hoc signing (non-fatal)"
+    return 0
+  fi
+  if ! codesign -s - "${bin}" 2>&1; then
+    log "ERROR: codesign -s - '${bin}' failed — a macOS build must be ad-hoc-signed to run on Apple Silicon (D-06)" >&2
+    exit 1
+  fi
+  log "ad-hoc-codesigned: ${bin}"
 }
 
 # ---------------------------------------------------------------------------
