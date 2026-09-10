@@ -199,6 +199,8 @@ do
     body:find("wezterm-gui", 1, true) ~= nil)
   check("install_macos symlinks the sibling `wezterm-mux-server`",
     body:find("wezterm-mux-server", 1, true) ~= nil)
+  check("install_macos symlinks the sibling `strip-ansi-escapes`",
+    body:find("strip-ansi-escapes", 1, true) ~= nil)
 end
 
 -- ----------------------------------------------------------------------------
