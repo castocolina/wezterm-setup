@@ -45,9 +45,24 @@ else
   note "non-macOS ($OS) — running in self-test mode; macOS-only probes will SKIP"
 fi
 
-# Toolchain
-command -v lua5.4 >/dev/null 2>&1 && pass "lua5.4 present" \
-  || { command -v lua >/dev/null 2>&1 && { note "lua5.4 not found; using 'lua' (set LUA_BIN=lua)"; export LUA_BIN="${LUA_BIN:-lua}"; } || fail "no lua5.4 / lua on PATH"; }
+# Toolchain — Lua 5.4 resolver (same 3-step order as tools/run-tests.sh /
+# tools/build.sh resolve_dev_lua). Never export LUA_BIN=lua on faith.
+_keg=""
+if command -v brew >/dev/null 2>&1; then
+  _keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+fi
+if command -v lua5.4 >/dev/null 2>&1; then
+  pass "lua5.4 present"
+elif [ -n "${_keg}" ] && [ -x "${_keg}/bin/lua5.4" ]; then
+  pass "lua5.4 present (Homebrew lua@5.4 keg)"
+  export LUA_BIN="${_keg}/bin/lua5.4"
+  export PATH="${_keg}/bin:${PATH}"
+elif command -v lua >/dev/null 2>&1 && lua -v 2>&1 | grep -q 'Lua 5\.4'; then
+  note "lua5.4 not found; using 'lua' (self-reports Lua 5.4)"
+  export LUA_BIN=lua
+else
+  fail "no Lua 5.4 interpreter found — brew install lua@5.4"
+fi
 command -v luastatic >/dev/null 2>&1 && pass "luastatic present (ships a real binary)" \
   || skip "luastatic" "absent — build falls back to dev launcher (not the shipping artifact)"
 if $IS_MAC; then
@@ -60,6 +75,27 @@ if $IS_MAC; then
 fi
 command -v wezterm >/dev/null 2>&1 && pass "wezterm on PATH ($(wezterm --version 2>/dev/null))" \
   || skip "wezterm" "not on PATH — install before the live-session runbook steps"
+
+# D-08 harness portability (hard PASS/FAIL, comment-line-filtered).
+# Pattern assembled so this file's own source does not contain the banned
+# bash-4 array-read builtin names as contiguous non-comment tokens (those
+# names appear in comments explaining why they are avoided).
+_arr_pat='map''file|read''array'
+_arr_n=$(grep -v '^[[:space:]]*#' tools/*.sh 2>/dev/null | grep -cE "${_arr_pat}")
+if [ "${_arr_n}" -eq 0 ]; then
+  pass "tools/*.sh: no non-comment bash-4 array-read builtins (D-08)"
+else
+  fail "tools/*.sh: ${_arr_n} non-comment bash-4 array-read builtin reference(s) (D-08)"
+fi
+for f in tools/*.sh; do
+  if grep -v '^[[:space:]]*#' "$f" | grep -q 'sha256sum'; then
+    if grep -q 'shasum' "$f"; then
+      pass "$(basename "$f"): sha256sum has shasum fallback"
+    else
+      fail "$(basename "$f"): sha256sum without a shasum fallback"
+    fi
+  fi
+done
 
 # ---------------------------------------------------------------------------
 hdr "1. Build & test"

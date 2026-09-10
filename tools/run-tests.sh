@@ -25,9 +25,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}" || exit 1
 
+# Resolve a genuine Lua 5.4. If the caller exported LUA_BIN, honor it.
+# Otherwise, same 3-step order as tools/build.sh resolve_dev_lua():
+#   1. lua5.4 on PATH
+#   2. Homebrew keg-only lua@5.4 ($(brew --prefix lua@5.4)/bin/lua5.4)
+#   3. a bare lua on PATH ONLY if `lua -v` reports Lua 5.4
+# Never accept an unversioned `lua` on faith (Homebrew's lua formula tracks a
+# newer major than 5.4).
+_lua_bin_explicit=0
+[ -n "${LUA_BIN:-}" ] && _lua_bin_explicit=1
 LUA_BIN="${LUA_BIN:-lua5.4}"
+if [ "${_lua_bin_explicit}" -eq 0 ] && ! command -v lua5.4 >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    _keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+    if [ -n "${_keg}" ] && [ -x "${_keg}/bin/lua5.4" ]; then
+      LUA_BIN="${_keg}/bin/lua5.4"
+    fi
+  fi
+  if [ "${LUA_BIN}" = "lua5.4" ] && command -v lua >/dev/null 2>&1; then
+    if lua -v 2>&1 | grep -q 'Lua 5\.4'; then
+      LUA_BIN=lua
+    fi
+  fi
+fi
 if ! command -v "${LUA_BIN}" >/dev/null 2>&1; then
-  echo "run-tests: '${LUA_BIN}' not found on PATH" >&2
+  echo "run-tests: no Lua 5.4 interpreter found ('${LUA_BIN}' not on PATH; need lua5.4 on PATH, a Homebrew lua@5.4 keg, or a lua that reports 5.4) — brew install lua@5.4" >&2
   exit 127
 fi
 

@@ -62,8 +62,12 @@ Assumptions and one-time setup. Tick each as you satisfy it.
       Homebrew/system `liblua5.4` — confirm it produces a runnable Mach-O binary, not just a
       Linux-tested path.
 - [ ] **Lua 5.4 toolchain (for building + tests):** `lua5.4 --version` works (e.g.
-      `brew install lua@5.4`; note Homebrew may install it as `lua` — set
-      `LUA_BIN=lua` for the test harness if `lua5.4` is not on PATH).
+      `brew install lua@5.4`). `tools/run-tests.sh` and the auto-gate auto-detect
+      the Homebrew `lua@5.4` keg, so `LUA_BIN` normally never needs to be set by
+      hand. Do not set `LUA_BIN=lua`: Homebrew's plain `lua` formula tracks a
+      newer major version than this project targets (5.4), and running under the
+      wrong major version previously surfaced a real Lua-5.4-implicit-const
+      compile bug (now fixed in `cli/lib/scene.lua`).
 - [ ] **luastatic present (for the shipping binary):** `command -v luastatic`. If absent, the
       build falls back to a **dev source-launcher** (a shim that execs `lua5.4` against the
       in-repo sources) — fine for running `wez`, but NOT the shipping artifact. Record which
@@ -105,13 +109,13 @@ Assumptions and one-time setup. Tick each as you satisfy it.
 
 Run these first; they have no install side effects and gate everything below.
 
-- [ ] **Run the unit suite.** `LUA_BIN=lua5.4 ./tools/run-tests.sh` (or `make test`). Expect
-      `run-tests: all <N> file(s) passed` and exit 0. If `lua5.4` is the Homebrew `lua`, use
-      `LUA_BIN=lua ./tools/run-tests.sh`.
-      **⚠ macOS risk to confirm:** the harness uses `mapfile`/`find … -name`/`case` (bash);
-      macOS `/bin/bash` is 3.2 and lacks `mapfile`. The script's shebang is `/usr/bin/env bash`
-      — confirm it resolves to a bash that supports `mapfile` (Homebrew bash 4+), or the test
-      discovery loop fails. Record which bash ran it.
+- [ ] **Run the unit suite.** `./tools/run-tests.sh` (or `make test`). Expect
+      `run-tests: all <N> file(s) passed` and exit 0. The harness auto-detects
+      `lua5.4` on PATH, then the Homebrew `lua@5.4` keg, then a bare `lua` only
+      if `lua -v` reports Lua 5.4 — `LUA_BIN` normally never needs to be set.
+      Do not set `LUA_BIN=lua`: Homebrew's plain `lua` formula tracks a newer
+      major version than this project targets (5.4). The harness does not use
+      `mapfile`/`readarray`; it is safe under stock macOS bash 3.2.
 - [ ] **Build the binary.** `./tools/build.sh`. With the luastatic toolchain present, expect
       `[build] built static binary: …/dist/wez` and `[build] verify: '…/dist/wez version' OK`.
       Without luastatic, expect `[build] built dev launcher: …` instead (record which).
@@ -460,8 +464,9 @@ cross-platform pass to act on it. One row per issue.
 - [ ] **WezTerm auto-install on macOS is design-only** — `install_macos` in
       `tools/bootstrap-wezterm.sh` does not actually download/place `WezTerm.app`; users must
       pre-install. Needs implementing for true INST-06 macOS parity.
-- [ ] **Test harness bash version** — `tools/run-tests.sh` uses `mapfile`; verify it runs under a
-      bash that supports it (not stock macOS bash 3.2).
+- [ ] **Test harness bash version** — CLEARED. `tools/run-tests.sh` no longer uses
+      `mapfile`/`readarray`; discovery uses a bash-3.2-safe process-substitution
+      loop. Stock macOS bash 3.2 is sufficient.
 - [ ] **`cp -R src/. dst/` trailing-dot semantics** on BSD `cp` (STEP 4 config copy).
 - [ ] **zsh `compinit` insecure-directory warnings** from Homebrew-owned `fpath` (completions).
 - [ ] **bash completion** requires `bash-completion@2` on macOS.
@@ -478,7 +483,7 @@ Grounded in the real scripts/CLI (no invented commands):
 
 ```sh
 # build + test
-LUA_BIN=lua5.4 ./tools/run-tests.sh        # or: make test  (LUA_BIN=lua on Homebrew)
+./tools/run-tests.sh                        # or: make test (auto-detects lua@5.4)
 ./tools/build.sh                            # luastatic -> dist/wez, else dev launcher
 ./dist/wez version
 
