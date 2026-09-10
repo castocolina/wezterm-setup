@@ -141,20 +141,32 @@ build_with_luastatic() {
   # Debian ships it as liblua5.4.a; other distros as liblua.a. Passing it
   # explicitly (per luastatic's documented form) avoids relying on a `-llua`
   # auto-guess that fails under Debian's versioned library naming.
+  #
+  # macOS-specific ordering bug (found live on a stock Homebrew Mac, 07-02):
+  # `/usr/local/lib/liblua.a` is Homebrew's GENERIC `lua` formula's symlink —
+  # on this box it resolves to Lua 5.5.1's archive, which is missing/renames
+  # symbols the 5.4 headers expect (confirmed via `nm`: no `luaL_openlibs`).
+  # The keg-specific lua@5.4 archive DOES have it. So the keg lookup must be
+  # tried BEFORE any generic /usr/local/lib candidate on macOS — mirroring the
+  # cflags probe's keg-before-generic ordering above — or the generic 5.5
+  # archive silently wins and luastatic links against the wrong Lua entirely.
   local lua_libdir liblua=""
-  lua_libdir="$(pkg-config --variable=libdir lua5.4 2>/dev/null \
-    || pkg-config --variable=libdir lua 2>/dev/null || true)"
-  local cand
-  for cand in \
-    "${lua_libdir}/liblua5.4.a" "${lua_libdir}/liblua.a" \
-    /usr/lib/*/liblua5.4.a /usr/lib/liblua5.4.a /usr/local/lib/liblua5.4.a \
-    /usr/lib/*/liblua.a /usr/local/lib/liblua.a; do
-    [ -f "${cand}" ] && { liblua="${cand}"; break; }
-  done
-  if [ -z "${liblua}" ] && command -v brew >/dev/null 2>&1; then
+  if [ "$(platform_os)" = "macos" ] && command -v brew >/dev/null 2>&1; then
     keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
-    cand="${keg}/lib/liblua.a"
-    [ -f "${cand}" ] && { liblua="${cand}"; }
+    if [ -n "${keg}" ] && [ -f "${keg}/lib/liblua.a" ]; then
+      liblua="${keg}/lib/liblua.a"
+    fi
+  fi
+  if [ -z "${liblua}" ]; then
+    lua_libdir="$(pkg-config --variable=libdir lua5.4 2>/dev/null \
+      || pkg-config --variable=libdir lua 2>/dev/null || true)"
+    local cand
+    for cand in \
+      "${lua_libdir}/liblua5.4.a" "${lua_libdir}/liblua.a" \
+      /usr/lib/*/liblua5.4.a /usr/lib/liblua5.4.a /usr/local/lib/liblua5.4.a \
+      /usr/lib/*/liblua.a /usr/local/lib/liblua.a; do
+      [ -f "${cand}" ] && { liblua="${cand}"; break; }
+    done
   fi
 
   # Collect every Lua source under cli/ (entry + spec + commands + vendored deps).
