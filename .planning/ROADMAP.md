@@ -453,7 +453,31 @@ Plans:
 3. Deferred macOS gaps closed: Gatekeeper/quarantine, Apple Silicon ad-hoc codesign of the built binary, `install_macos` real `.app` placement (INST-06), `sha256sum`→`shasum`, `mapfile`/bash-3.2 in the test harness. **Includes D-06.6-01 (from Phase 06.6-04):** the real `install_macos` MUST symlink all WezTerm.app bundle siblings (`wezterm` / `wezterm-gui` / `wezterm-mux-server` / `strip-ansi-escapes`) into `${BIN_DIR}` per `tests/e2e/platform.lua`'s `bundle_siblings` row (so `wez keys` re-exec resolves); bring forward the archived fix `4c765e1` + the full `tests/cli/bootstrap_macos_test.lua`, at which point `tests/e2e/tier1/keys_siblings_e2e_test.lua`'s skip-gated macOS layer FIRES on Mac hardware (see `06.6-.../deferred-items.md`)
 4. Every "macOS deferred D-18" status in REQUIREMENTS.md / coverage is flipped to Done with recorded evidence (incl. the A-1 `scene new --layout/--color` completion confirmed in zsh on macOS)
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+**Wave 1** *(independent: distinct files — the Lua bug/harness fix, the local luastatic build fix, and the install_macos port touch no common files)*
+
+- [ ] 07-01-PLAN.md — Tracer: fix cli/lib/scene.lua's Lua 5.4+ const-reassignment bug + harden verify-macos.sh's D-08 portability probes to real PASS/FAIL + fix misleading LUA_BIN=lua docs guidance [wave 1]
+- [ ] 07-02-PLAN.md — Real macOS luastatic static build: fix build_with_luastatic()'s Homebrew lua@5.4 keg header/lib resolution, install luastatic, produce a real Mach-O dist/wez [wave 1]
+- [ ] 07-03-PLAN.md — install_macos() real implementation (D-04/D-05) ported from archive/phase-7-macos + bundle-siblings TDD (D-06.6-01) + non-destructive scratch-dir proof that keys_siblings_e2e_test.lua fires [wave 1]
+
+**Wave 2** *(blocked on 07-02's build.sh)*
+
+- [ ] 07-04-PLAN.md — Build-time ad-hoc codesign (D-06) + ci-setup-toolchain.sh lua@5.4 fix + release.yml macOS matrix restoration + real GitHub Actions run verification [wave 2]
+
+**Wave 3** *(blocked on 07-02/07-03/07-04 — needs the real binary, real install_macos, and codesign in place)*
+
+- [ ] 07-05-PLAN.md — CHECKPOINT: real one-liner/setup.sh install + wez doctor + full uninstall/reinstall cycle on this Mac (INST-01/06/07, DIAG-01) [wave 3]
+
+**Wave 4** *(blocked on 07-05's healthy real install)*
+
+- [ ] 07-06-PLAN.md — CHECKPOINT: live WezTerm session pass — Foundation/Diagnostics (incl. A-1 zsh completion) + Identity/Scenes with visual review (FOUND-01, DIAG-05, PANE-01..04, SCEN-03..06) [wave 4]
+
+**Wave 5** *(blocked on 07-04/07-05/07-06's evidence)*
+
+- [ ] 07-07-PLAN.md — Closure: D-07 quarantine decision from recorded evidence + flip REQUIREMENTS.md/ROADMAP.md macOS-deferred statuses to Done with citations + honest Apple-Silicon-gap note [wave 5]
+
 **Reference**: `.planning/MACOS-PARITY-AND-FOLLOWUPS.md`, `docs/macos-verification.md`, `tools/verify-macos.sh`
 
 ---
@@ -475,7 +499,7 @@ Plans:
 | 6.5 Keybinding Clarity & `wez keys` Output Curation | 5/5 | Complete    | 2026-06-19 |
 | 6.4 User Documentation Audit and Refactor | 4/4 | Complete   | 2026-06-19 |
 | 6.6 E2E Battery Scaffolding + Tier 1 (Subcommands) | 4/4 | Complete    | 2026-06-24 |
-| 7. macOS Parity Pass (D-18) | 0/? | Not started (close gate) | - |
+| 7. macOS Parity Pass (D-18) | 0/7 | Planned (close gate) | - |
 
 ---
 
