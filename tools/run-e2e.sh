@@ -44,20 +44,16 @@ fi
 # macOS Accessibility/Screen-Recording grant flow lands in 06.9; this arm exists
 # so `make e2e-setup` resolves today and so the macOS permission steps have a home.
 if [ "${1:-}" = "--setup" ]; then
-  echo "run-e2e --setup: no test tools are installed in this phase (06.6)."
-  echo
-  echo "Tier 1 (subcommands) is deterministic + headless: it needs NO input tool,"
-  echo "NO screenshot tool, and NO OS permissions. Nothing to install yet."
-  echo
-  echo "macOS permission steps (placeholder — wired up in 06.9):"
-  echo "  1. System Settings > Privacy & Security > Accessibility:"
-  echo "     grant the terminal / input-injection tool (cliclick) control."
-  echo "  2. System Settings > Privacy & Security > Screen Recording:"
-  echo "     grant the screenshot tool for the Tier 4 visual baselines."
-  echo
-  echo "Input/screenshot tool install (cliclick on macOS; xdotool/ydotool on"
-  echo "Linux) is added by Phase 06.9 — this arm installs nothing today."
-  exit 0
+  SETUP_SH="${SCRIPT_DIR}/e2e-setup.sh"
+  if [ ! -e "${SETUP_SH}" ]; then
+    echo "run-e2e: '${SETUP_SH}' not found" >&2
+    exit 127
+  fi
+  if [ ! -x "${SETUP_SH}" ]; then
+    echo "run-e2e: '${SETUP_SH}' is not executable" >&2
+    exit 126
+  fi
+  exec "${SETUP_SH}"
 fi
 
 # --- Discover the e2e battery (bash-3.2-safe while-read + array-append) -------
