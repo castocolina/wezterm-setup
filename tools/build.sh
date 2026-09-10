@@ -90,9 +90,19 @@ log() { printf '[build] %s\n' "$*"; }
 
 # --- toolchain detection (the only decision this glue makes) -----------------
 have_luastatic() {
-  command -v luastatic >/dev/null 2>&1 \
-    && command -v lua5.4 >/dev/null 2>&1 \
-    && { command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1; }
+  command -v luastatic >/dev/null 2>&1 || return 1
+  { command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1; } || return 1
+
+  # Lua 5.4 toolchain: PATH lua5.4 → Homebrew lua@5.4 keg → bare lua reporting 5.4.
+  # Pure predicate — no PATH mutation. A keg-only Homebrew lua@5.4 never puts
+  # lua5.4 on PATH, so command -v lua5.4 alone is not sufficient on macOS.
+  command -v lua5.4 >/dev/null 2>&1 && return 0
+  if command -v brew >/dev/null 2>&1; then
+    local keg
+    keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+    [ -n "${keg}" ] && [ -x "${keg}/bin/lua5.4" ] && return 0
+  fi
+  command -v lua >/dev/null 2>&1 && lua -v 2>&1 | grep -q 'Lua 5\.4'
 }
 
 # ---------------------------------------------------------------------------
@@ -105,12 +115,27 @@ build_with_luastatic() {
   # NOT `--variable=includedir`: on Debian/Ubuntu the .pc includedir is /usr/include
   # while the actual headers (lauxlib.h, lua.h) live in /usr/include/lua5.4, so
   # `--cflags` is the only query that yields the correct `-I/usr/include/lua5.4`.
-  # Try the common .pc names across distros, then fall back to the Debian path.
-  local lua_cflags
-  lua_cflags="$(pkg-config --cflags lua5.4 2>/dev/null \
-    || pkg-config --cflags lua-5.4 2>/dev/null \
-    || pkg-config --cflags lua 2>/dev/null \
-    || echo '-I/usr/include/lua5.4')"
+  # Discrete ordered probes (each arm only runs when the prior produced nothing):
+  #   1. lua5.4.pc / lua-5.4.pc
+  #   2. macOS Homebrew lua@5.4 keg — BEFORE generic lua.pc, so a stock Homebrew
+  #      lua.pc (now 5.5.x) cannot win over the targeted 5.4 headers
+  #   3. generic lua.pc, then the Debian hardcoded path
+  local lua_cflags="" keg=""
+  lua_cflags="$(pkg-config --cflags lua5.4 2>/dev/null || true)"
+  if [ -z "${lua_cflags}" ]; then
+    lua_cflags="$(pkg-config --cflags lua-5.4 2>/dev/null || true)"
+  fi
+  if [ -z "${lua_cflags}" ] && [ "$(platform_os)" = "macos" ]; then
+    if command -v brew >/dev/null 2>&1; then
+      keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+      if [ -n "${keg}" ] && [ -d "${keg}/include/lua" ]; then
+        lua_cflags="-I${keg}/include/lua"
+      fi
+    fi
+  fi
+  if [ -z "${lua_cflags}" ]; then
+    lua_cflags="$(pkg-config --cflags lua 2>/dev/null || echo '-I/usr/include/lua5.4')"
+  fi
 
   # luastatic must also LINK the Lua interpreter — locate the static archive.
   # Debian ships it as liblua5.4.a; other distros as liblua.a. Passing it
@@ -126,6 +151,11 @@ build_with_luastatic() {
     /usr/lib/*/liblua.a /usr/local/lib/liblua.a; do
     [ -f "${cand}" ] && { liblua="${cand}"; break; }
   done
+  if [ -z "${liblua}" ] && command -v brew >/dev/null 2>&1; then
+    keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
+    cand="${keg}/lib/liblua.a"
+    [ -f "${cand}" ] && { liblua="${cand}"; }
+  fi
 
   # Collect every Lua source under cli/ (entry + spec + commands + vendored deps).
   # CRITICAL: luastatic derives each bundled module's name from the PATH STRING it
@@ -413,8 +443,9 @@ download_release() {
 # ---------------------------------------------------------------------------
 
 # Resolve a Lua 5.4 interpreter for the dev source-launcher, echoing its path on
-# stdout (all diagnostics to stderr). Mirrors the keg-only macOS idiom the
-# luastatic static path already uses (lines ~202-209): on macOS, Homebrew's
+# stdout (all diagnostics to stderr). Mirrors the keg-only macOS idiom
+# have_luastatic() / build_with_luastatic() already use (lines 100-103, 128-134,
+# 154-157): on macOS, Homebrew's
 # `lua@5.4` is keg-only so `lua5.4` is NOT on the default PATH — a bare
 # `exec lua5.4` in the generated launcher would die `exec: lua5.4: not found`
 # (exit 127). Resolution order, FAIL-LOUD when none is found:
@@ -434,7 +465,8 @@ resolve_dev_lua() {
     return 0
   fi
 
-  # 2. macOS keg-only lua@5.4 (same idiom as build_with_luastatic, ~lines 202-209).
+  # 2. macOS keg-only lua@5.4 (same idiom as have_luastatic / build_with_luastatic,
+  #    lines 100-103 and 128-134/154-157).
   if command -v brew >/dev/null 2>&1; then
     keg="$(brew --prefix lua@5.4 2>/dev/null || true)"
     if [ -n "${keg}" ] && [ -x "${keg}/bin/lua5.4" ]; then
