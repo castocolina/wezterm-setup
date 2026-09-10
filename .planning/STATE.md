@@ -1,11 +1,11 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v1.0
-current_phase: "06.8"
-status: Ready to execute
-stopped_at: Phase 06.9 context gathered
-last_updated: "2026-09-09T02:43:24.439Z"
-state_head: b4f6d5d20977343a5a653fc74f55297b88d2cd8a
+current_phase: 07
+status: Wave 1 of 5 complete
+stopped_at: Phase 07 Wave 1 complete (07-01/02/03) — Wave 2 (07-04) needs human checkpoint
+last_updated: "2026-09-10T03:45:40.290Z"
+state_head: f542eceb225491c718d98723d2f4b0b925f7b16a
 progress:
   total_phases: 16
   completed_phases: 14
@@ -220,7 +220,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 ## Session Continuity
 
 **Last session:** 2026-09-08T19:52:44.302Z
-**Stopped at:** Phase 06.9 context gathered
+**Stopped at:** Phase 07 Wave 1 complete (07-01/02/03) — Wave 2 (07-04) needs human checkpoint
 **Resume file:** .planning/phases/06.9-e2e-tier-3-firing-tier-4-visuals-local-permission-bound-clos/06.9-CONTEXT.md
 
 **Last session**: 2026-06-24 — Executed Plan 06.6-02 (Tier 1 deterministic subcommand contract tests; `type: execute`, 2 tasks, 3 files, on the main working tree — no worktree isolation). Built on the Plan 01 e2e scaffold (harness.lua / make e2e). Task 1 (`d8eab08`, `test`): `tests/e2e/tier1/diagnostics_e2e_test.lua` — version (exit 0 + `require('cli.spec').VERSION`, not a hardcoded literal) / doctor (exit 0 + `[PASS]`/`[FAIL]` gate token) / keys (exit 0 + non-empty) / keys --json (exit 0 + dkjson.decode→table + jq cross-check gated behind `command -v jq`) / completions bash (`complete -F _wez wez`) + zsh (`#compdef wez`); the NO-MUX `scene new` validate-before-emit contract via a child `lua5.4 -e` calling `run_new` directly (zero `--pane`→exit 2 + exact UI-SPEC copy; bad `--layout`→exit 2); + a SUBCOMMANDS enumeration guard against `cli/spec.lua`'s allow-list. SOURCE-GROUNDED CORRECTION: `scene new` has no pure spec-echo branch (run_new does live mux after Step-0 validate) — the headless contract is the validate/usage path, superseding CONTEXT.md:66 / PRD A.1. Task 2 (`b9461bc`, `test`): `install_cycle_e2e_test.lua` (seed-scenes copy-if-absent first-run-copies-3 + re-run-byte-identical; install-state fresh exit 0 / explicit `--force` exit 0 / no-flag-no-TTY exit 3 documented, isolated via `WEZTERM_CONFIG_FILE` under a scratch HOME; uninstall via `tools/uninstall.sh` binary-PRESENT exit 0 + block + `$HOME/.local/bin/wez` self-delete and binary-ABSENT exit 1 + `already gone` warn, scratch `WEZ_BIN_DIR`; update OFFLINE comparator `decide_wez_update`→current/system-skip via child lua + a bounded `curl --max-time 3`-gated live smoke with a loud soft_skip) + `scene_edge_e2e_test.lua` (unknown=1 / empty=2 / traversal=1 via child `lua5.4 -e` run_launch — real exit code, no mux). ONE Rule-1 deviation found+fixed: the harness exports `WEZ_BIN=./dist/wez` (RELATIVE), which the `wez uninstall` front door's `resolve_cli_path` picks up (`$WEZ_BIN` wins) and `os.remove`d — silently DELETING the real dev launcher artifact; fixed by `env -u WEZ_BIN` on the uninstall/update runs (falls back to `$HOME/.local/bin/wez`, the staged dummy) + an absolute `ABS_WEZ` for the env-prefixed live-update run, then rebuilt `dist/wez` via `tools/build.sh`. WAVE-2 STAGED CONTRACTS: uninstall binary-absent asserts TODAY's exit 1 (the dist/wez-fallback exit 0 + the no-flag-default reinstall exit 0 are Plan 04's, post-7e72bf5/setup.sh-resolver). Verified: all 3 files green individually (26/23/6, exit 0); `make e2e` → `all 3 file(s) passed` exit 0; `make test` still excludes the battery (exit 0, no tier1 collected); `dist/wez` intact after the full battery. Wrote `06.6-02-SUMMARY.md`. Phase 06.6 now 2/4 plans done; Plan 03 owns the OSC-byte assertions, Plan 04 the cherry-pick reuse + the two staged-contract flips. Next: `/gsd-execute-phase 06.6` Plan 03.
