@@ -246,11 +246,12 @@ end
 
 -- ---------------------------------------------------------------------------
 -- M.cli_list(session) -> array of { pane_id, tab_id, cwd, user_vars, window_id,
--- is_active, is_zoomed, size = { rows, cols } } decoded from
--- `wezterm cli list --format json` run against the session env. Reuses
--- cli.lib.shell.decode_json (T-06.7-04: never eval). Returns {} on no-session /
--- decode failure so callers (e.g. the liveness poll) can branch.
+-- is_active, is_zoomed, size = { rows, cols, pixel_width, pixel_height } }
+-- decoded from `wezterm cli list --format json` run against the session env.
+-- Reuses cli.lib.shell.decode_json (T-06.7-04: never eval). Returns {} on
+-- no-session / decode failure so callers (e.g. the liveness poll) can branch.
 -- size is nil-tolerant: if a future build omits `size`, callers see nil.
+-- pixel_width/pixel_height are additive (Plan 04) and nil-tolerant like rows/cols.
 -- user_vars stays nil-tolerant (absent on this build).
 -- ---------------------------------------------------------------------------
 function M.cli_list(session)
@@ -269,7 +270,12 @@ function M.cli_list(session)
         window_id = e.window_id,
         is_active = e.is_active,
         is_zoomed = e.is_zoomed,
-        size = e.size and { rows = e.size.rows, cols = e.size.cols } or nil,
+        size = e.size and {
+          rows = e.size.rows,
+          cols = e.size.cols,
+          pixel_width = e.size.pixel_width,
+          pixel_height = e.size.pixel_height,
+        } or nil,
       }
     end
   end

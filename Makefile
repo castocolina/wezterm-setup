@@ -3,7 +3,7 @@
 # See docs/agent-iteration.md (R3 — config layer is composable).
 
 .DEFAULT_GOAL := help
-.PHONY: help install build publish clean doctor test e2e e2e-prove e2e-setup uninstall
+.PHONY: help install build publish clean doctor test e2e e2e-prove e2e-visual e2e-setup uninstall
 
 help:
 	@echo "wezterm-setup targets:"
@@ -15,6 +15,7 @@ help:
 	@echo "  test                     run test suite (set WEZTERM_INTEGRATION=1 for live tests)"
 	@echo "  e2e                      run the E2E battery (tests/e2e; WEZ_BIN override for CI)"
 	@echo "  e2e-prove                prove the battery has teeth: inject each known regression, assert FAIL, revert"
+	@echo "  e2e-visual               capture/diff Tier 4 visuals (APPROVE=1 SCENARIOS=dev,ai)"
 	@echo "  e2e-setup                install test-only tools + print macOS permission steps"
 	@echo "  uninstall                remove config block, wez CLI, and backups"
 	@echo "  uninstall KEEP_CONFIG=1  preserve ~/.config/wezterm/wezterm-setup/; remove CLI only"
@@ -44,6 +45,9 @@ e2e:
 
 e2e-prove:
 	@./tools/run-e2e-prove.sh
+
+e2e-visual:
+	@WEZ_BIN=$${WEZ_BIN:-./dist/wez} WEZ_E2E_VISUAL=1 lua5.4 tests/e2e/tier4/visual_diff_e2e_test.lua $(if $(APPROVE),--approve,) $(if $(SCENARIOS),--scenarios=$(SCENARIOS),)
 
 e2e-setup:
 	@./tools/run-e2e.sh --setup

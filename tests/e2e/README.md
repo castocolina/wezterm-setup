@@ -81,19 +81,47 @@ failure.
 | `tests/e2e/tier2/*_e2e_test.lua` | Tier 2 live-mux scene drivers — reuse + new-tab mode (06.7); `scene_motd_race_e2e_test.lua` is the scene-launch-motd-race regression (a slow-starting `bash --rcfile` pane, driving the readiness-gate fix) |
 | `tests/e2e/tier3/*_e2e_test.lua` | Tier 3 live-mux registration contracts (06.7) |
 
-## Per-platform tools / permissions (Firing landed in 06.9 — Screenshot: see 06.9-04)
+## Per-platform tools / permissions (Firing + Screenshot landed in 06.9)
 
-Tier 1 needs none of these. Input-injection and OS-permission rows are filled
-for the landed Firing path; Screenshot stays Plan 04.
+Tier 1 needs none of these. Input-injection, screenshot, and OS-permission rows
+are filled for the landed Firing and Visuals paths.
 
 | Concern | macOS | Linux |
 |---------|-------|-------|
 | Input injection | `cliclick` | `xdotool` (firing, forced-XWayland windows only; `enable_wayland = false`) + `ydotool`/`ydotoold` (provisioned by `make e2e-setup` for completeness/future compositor coverage per D-08, but **not** the mechanism Tier 3 Firing fires through today — ydotool has no Wayland window-targeting, which is why xdotool+forced-XWayland is used instead) |
-| Screenshot | _TBD (06.9-04)_ | _TBD (06.9-04)_ |
+| Screenshot | `screencapture` (ships with macOS, no install) | compositor-detected by `make e2e-setup` (D-08): **`spectacle`** on KDE Plasma (this box — the actually-verified path); wlroots-family (`grim`+`slurp`) and GNOME (`gnome-screenshot`) are documented alternates, unverified on this box, mirroring how macOS mechanisms are flagged elsewhere in this phase. **Not** `spectacle -a` / `gnome-screenshot -w`: those follow native Wayland focus, which can diverge from the X11 window `xdotool` just verified, and none of these tools accept an X11 window id. Capture is compositor **fullscreen** then ImageMagick crop to `xdotool getwindowgeometry --shell` of the test window |
 | OS permission | Accessibility + Screen Recording grant, documented manual step (D-09) | `/dev/uinput` access via `make e2e-setup`: systemd-udev uaccess ACL check first, allowlisted group + udev-rule second (never an unsafe root-group grant, D-08); honest re-login-required report when a fresh grant is needed. No manual permission dialog on Linux. |
 
-## Manual visual-baseline approval flow (placeholder — 06.9)
+## Visual-baseline approval flow
 
-Tier 4 visual baselines require a one-time **manual approval** of each new/changed
-baseline before it gates. The approval flow (capture → human review → commit the
-approved baseline) is defined in **06.9**; this section is a placeholder until then.
+`make e2e-visual` (gated on `WEZ_E2E_VISUAL=1`) runs
+`tests/e2e/tier4/visual_diff_e2e_test.lua` — a genuine `*_e2e_test.lua` file
+auto-discovered by `make e2e` like every other tier. Without the opt-in flag the
+file loud-SKIPs. With it, the driver first runs a render-sync canary (throwaway
+`gui.spin`, `wezterm cli split-pane`, RMSE-diff before/after screenshots). On
+this Wayland/KWin host that canary fails: mux-level splits land, but the
+forced-XWayland GUI window never repaints, so the file **loud-SKIPs** rather
+than writing four byte-identical unsplit baselines and printing a false
+`LIVE-ASSERTED`. That is the same class of environmental finding as Tier 3
+Firing's OS-injection escalation — never weaken the probe to force a pass.
+
+On a host where the canary sees a real visual change, the driver captures four
+scenarios (`dev` / `ai` / `docker` / `tabbar`) into a stable manifest dir
+(`${TMPDIR:-/tmp}/wez-e2e-visual-latest`) and diffs each PNG against
+`tests/e2e/baselines/<os>/<scenario>.png` using an RMSE similarity threshold
+(D-05, default `0.05`, overridable via `WEZ_E2E_VISUAL_THRESHOLD`) — never
+byte-exact. `tools/e2e-visual-diff.sh` rejects dimension mismatches and
+undecodable files before computing RMSE.
+
+The semantic/AI-vision half (PRD A.4's legibility / leak / tint / emoji /
+active-distinction checklist) is judged by whichever coding agent runs the
+`e2e-visual-review` skill (06.9-05), **not** by this script (D-01 — no vision API
+is ever called from `make e2e`).
+
+`make e2e-visual APPROVE=1 SCENARIOS=<names>` promotes the **exact**,
+checksum-verified bytes from the capture manifest to the committed baseline —
+never a recapture. A missing or stale manifest (`WEZ_E2E_VISUAL_MAX_AGE`, default
+3600s) is refused loudly. This plan's baseline directory starts empty
+(`.gitkeep` only); the first real, agent-reviewed baselines are committed by
+Plan 05, once the `e2e-visual-review` skill exists to perform the D-04 confirming
+review.

@@ -6,15 +6,18 @@
 -- accidental assumption.
 --
 -- PURITY (mirrors cli/lib/color.lua 13-14): no wezterm dependency. The module
--- loads under plain lua5.4 so its data + the two detection helpers are
--- unit-testable in isolation. Detection that genuinely needs `uname` shells out
--- via io.popen (mirroring tools/lib/platform.sh platform_os/platform_arch), but
--- there is no wezterm dependency and no decision logic — this is a data table.
+-- loads under plain lua5.4 so its data + the three detection helpers are
+-- unit-testable in isolation. Detection that genuinely needs `uname` or a
+-- compositor probe shells out via io.popen (mirroring tools/lib/platform.sh
+-- platform_os/platform_arch). There is no wezterm dependency.
 --
--- Detection semantics MIRROR tools/lib/platform.sh 19-38 exactly:
+-- Detection helpers (they shell out and branch — not a passive lookup):
 --   platform_os()   -> "linux" | "macos" | "<lowercased uname>" (passthrough),
 --                      lowercased via Lua string.lower (NOT ${var^^}).
 --   platform_arch() -> "x86_64" | "aarch64" (arm64->aarch64, amd64->x86_64).
+--   detect_screenshot_tool() -> "spectacle" | "grim" | "gnome-screenshot" | nil
+-- The "data table" description applies to M.expectations specifically, not to
+-- every export of this module.
 
 local M = {}
 
@@ -53,6 +56,38 @@ function M.platform_arch()
     return "unknown"
   end
   return m
+end
+
+local function pgrep_x(name)
+  local p = io.popen("pgrep -x " .. name .. " 2>/dev/null", "r")
+  if not p then return false end
+  local out = p:read("*l") or ""
+  p:close()
+  return out:match("%S") ~= nil
+end
+
+-- M.detect_screenshot_tool() -> "spectacle" | "grim" | "gnome-screenshot" | nil
+--
+-- Mirrored from tools/e2e-setup.sh install_screenshot_tool (D-08). The two
+-- languages cannot share a source file, so this ~10-line compositor detection
+-- is duplicated across the bash/Lua boundary — grep for
+-- `install_screenshot_tool` / `detect_screenshot_tool` together when changing
+-- either copy. Check order matches the setup script: $XDG_CURRENT_DESKTOP /
+-- $XDG_SESSION_TYPE (session type is recorded there, not branched on) / a
+-- pgrep probe for kwin_wayland, sway, gnome-shell. Unrecognized -> nil
+-- (the setup script falls back to grim; this helper does not install).
+function M.detect_screenshot_tool()
+  local desktop = os.getenv("XDG_CURRENT_DESKTOP") or ""
+  if pgrep_x("kwin_wayland") or desktop == "KDE" then
+    return "spectacle"
+  end
+  if pgrep_x("sway") then
+    return "grim"
+  end
+  if pgrep_x("gnome-shell") then
+    return "gnome-screenshot"
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------------------
