@@ -59,10 +59,31 @@ install_linux() {
 }
 
 install_macos() {
-  # GitHub Actions macos-* runners ship Homebrew + Xcode clang.
-  log "macos runner -> brew install lua luarocks, then luastatic"
-  brew install lua luarocks
-  luarocks install luastatic
+  # GitHub Actions macos-* runners ship Homebrew + Xcode clang. `lua@5.4` (NOT
+  # the generic `lua` formula, which is now 5.5.x — the exact bug Plans
+  # 07-01/07-02 found and fixed on a local dev Mac) is keg-only, so Homebrew
+  # does not symlink its `lua5.4` binary onto PATH by default; export the keg's
+  # bin dir explicitly, mirroring install_linux()'s luarocks-bin PATH export
+  # below.
+  log "macos runner -> brew install lua@5.4 luarocks, then luastatic"
+  brew install lua@5.4 luarocks
+  local keg
+  keg="$(brew --prefix lua@5.4)"
+  PATH="${keg}/bin:${PATH}"
+  export PATH
+  if [ -n "${GITHUB_PATH:-}" ]; then
+    printf '%s\n' "${keg}/bin" >>"${GITHUB_PATH}"
+  fi
+  # --local installs into the runner user's tree (no extra sudo for the rock),
+  # mirroring install_linux() exactly.
+  luarocks install --local luastatic
+  if [ -d "${HOME}/.luarocks/bin" ]; then
+    PATH="${HOME}/.luarocks/bin:${PATH}"
+    export PATH
+    if [ -n "${GITHUB_PATH:-}" ]; then
+      printf '%s\n' "${HOME}/.luarocks/bin" >>"${GITHUB_PATH}"
+    fi
+  fi
 }
 
 # --- toolchain assertion + version capture (the legitimacy gate) -------------

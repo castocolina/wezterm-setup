@@ -42,15 +42,28 @@ permissions:
   contents: write
 
 jobs:
-  # LINUX-ONLY for v1: the macOS legs are DEFERRED TO PHASE 7 (macOS Parity Pass,
-  # D-18), where they get verified on real Intel + Apple-Silicon hardware — their
-  # toolchain needs on-Mac fixes that cannot be verified without a Mac (Homebrew's
-  # `lua` is now 5.5 not 5.4; the Intel runner hit a /usr/local brew permission
-  # error). Phase 7 re-introduces a `strategy.matrix` over ubuntu + the two macOS
-  # runners; until then this is a single hardcoded job (no matrix).
+  # Phase 7 (macOS Parity Pass, D-18): the macOS legs are now LIVE. The on-Mac
+  # toolchain fixes (Homebrew's generic `lua` formula drifted to 5.5.x — the
+  # bug Plans 07-01/07-02 found and fixed for the local build path, and
+  # tools/ci-setup-toolchain.sh's install_macos() for this CI path) are in
+  # place, so this is a real 3-leg strategy.matrix: ubuntu-latest (linux-x86_64),
+  # macos-15-intel (macos-x86_64), macos-14 (macos-aarch64, Apple Silicon).
+  # `codesign_macos_binary()` inside tools/build.sh is OS-gated internally, so
+  # every macOS leg ad-hoc-signs its own binary with no per-leg YAML logic
+  # needed beyond `runs-on` — the Apple-Silicon SIGKILL-avoidance step Just
+  # Works on whichever leg is macOS.
   build:
-    name: build linux-x86_64
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: build linux-x86_64
+            runs-on: ubuntu-latest
+          - name: build macos-x86_64
+            runs-on: macos-15-intel
+          - name: build macos-aarch64
+            runs-on: macos-14
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs-on }}
     steps:
       # Pinned to an immutable release tag (T-06-03-01: never @main). Hardening to
       # a full commit SHA is a recommended follow-up once registry access exists.
@@ -201,8 +214,14 @@ jobs:
       # prefix immediately before every `gh release delete`, so a stable v* release
       # can NEVER be reached by the delete (T-06.3-02-02). Distinct factored step
       # so a Phase 7 matrix can wrap build/publish without touching prune (D-12).
+      # Leg-scoped to ubuntu-latest ONLY (D-08 / D-12): this is a global action
+      # (deleting old releases, not per-asset), so running it on all 3 matrix
+      # legs would be wasteful — and its `mapfile` usage would break outright
+      # under a macOS runner's stock bash 3.2 (the same portability class this
+      # project guards against everywhere else). One leg's guard combines the
+      # existing channel/unchanged condition with this new leg-identity check.
       - name: Prune old nightly releases (D-06)
-        if: ${{ env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged != 'true' }}
+        if: ${{ matrix.runs-on == 'ubuntu-latest' && env.CHANNEL == 'nightly' && steps.nightly_guard.outputs.unchanged != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
