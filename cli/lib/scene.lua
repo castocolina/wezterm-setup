@@ -36,10 +36,10 @@ end
 local function split_kv_segments(spec)
   local function trim(s) return s and (s:match("^%s*(.-)%s*$")) or s end
   local segments = {}
-  for segment in tostring(spec):gmatch("[^,]+") do
+  for raw_segment in tostring(spec):gmatch("[^,]+") do
     -- Trim surrounding whitespace so the readable D-06 form with spaces after
     -- commas works verbatim: 'cmd=docker stats, color=teal, title=stats'.
-    segment = trim(segment)
+    local segment = trim(raw_segment)
     local key, value = segment:match("^([^=]+)=(.*)$")
     if key then
       segments[#segments + 1] = { trim(key), trim(value) }
