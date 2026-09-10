@@ -245,10 +245,13 @@ function M.poll_until(session, predicate_fn, opts)
 end
 
 -- ---------------------------------------------------------------------------
--- M.cli_list(session) -> array of { pane_id, tab_id, cwd, user_vars } decoded from
+-- M.cli_list(session) -> array of { pane_id, tab_id, cwd, user_vars, window_id,
+-- is_active, is_zoomed, size = { rows, cols } } decoded from
 -- `wezterm cli list --format json` run against the session env. Reuses
 -- cli.lib.shell.decode_json (T-06.7-04: never eval). Returns {} on no-session /
 -- decode failure so callers (e.g. the liveness poll) can branch.
+-- size is nil-tolerant: if a future build omits `size`, callers see nil.
+-- user_vars stays nil-tolerant (absent on this build).
 -- ---------------------------------------------------------------------------
 function M.cli_list(session)
   local out, code = run_capture(session.env .. " wezterm cli list --format json")
@@ -263,10 +266,48 @@ function M.cli_list(session)
         tab_id = e.tab_id,
         cwd = e.cwd,
         user_vars = e.user_vars,
+        window_id = e.window_id,
+        is_active = e.is_active,
+        is_zoomed = e.is_zoomed,
+        size = e.size and { rows = e.size.rows, cols = e.size.cols } or nil,
       }
     end
   end
   return panes
+end
+
+-- ---------------------------------------------------------------------------
+-- M.active_pane(panes) -> the first entry with is_active == true, or nil.
+-- Pure function over an already-fetched panes array; no mux call.
+-- is_active is per-tab (the active pane of THAT tab), not window-level focus:
+-- a 3-tab session of 1-pane tabs has three is_active=true rows. Within one
+-- tab that has 2+ panes, exactly one row is is_active.
+-- ---------------------------------------------------------------------------
+function M.active_pane(panes)
+  for _, p in ipairs(panes or {}) do
+    if p.is_active == true then
+      return p
+    end
+  end
+  return nil
+end
+
+-- ---------------------------------------------------------------------------
+-- M.activate_tab(session, tab_id) wraps `wezterm cli activate-tab --tab-id`.
+-- ---------------------------------------------------------------------------
+function M.activate_tab(session, tab_id)
+  os.execute(string.format(
+    "%s wezterm cli activate-tab --tab-id %d",
+    session.env, tonumber(tab_id) or -1))
+end
+
+-- ---------------------------------------------------------------------------
+-- M.activate_pane(session, pane_id) wraps `wezterm cli activate-pane --pane-id`.
+-- ---------------------------------------------------------------------------
+function M.activate_pane(session, pane_id)
+  os.execute(string.format(
+    "%s wezterm cli activate-pane --pane-id %d",
+    session.env, tonumber(pane_id) or -1))
 end
 
 -- ---------------------------------------------------------------------------
@@ -313,14 +354,28 @@ function M.spawn_pane(session)
 end
 
 -- ---------------------------------------------------------------------------
--- M.split_pane(session, pane_id) -> new pane id splitting the given pane to the
--- right, opened in the launch dir. Used to BUILD a multi-pane precondition tab
+-- M.split_pane(session, pane_id, opts) -> new pane id splitting the given pane,
+-- opened in the launch dir. Used to BUILD a multi-pane precondition tab
 -- (e.g. the 2-pane tab the Plan 02 new-tab case needs).
+--
+-- opts (optional): { direction = "right"|"left"|"top"|"bottom" (default
+-- "right"), percent = <int> (default 50) }. When omitted, behavior is
+-- identical to the original `--right --percent 50` (existing callers unchanged).
 -- ---------------------------------------------------------------------------
-function M.split_pane(session, pane_id)
+function M.split_pane(session, pane_id, opts)
+  opts = opts or {}
+  local flags = {
+    right = "--right",
+    left = "--left",
+    top = "--top",
+    bottom = "--bottom",
+  }
+  local dirflag = flags[opts.direction or "right"] or flags.right
+  local percent = tonumber(opts.percent) or 50
   return capture_pane_id(string.format(
-    "%s wezterm cli split-pane --pane-id %d --right --percent 50 --cwd %s",
-    session.env, tonumber(pane_id) or -1, shquote(session.launch_dir)))
+    "%s wezterm cli split-pane --pane-id %d %s --percent %d --cwd %s",
+    session.env, tonumber(pane_id) or -1, dirflag, percent,
+    shquote(session.launch_dir)))
 end
 
 -- ---------------------------------------------------------------------------

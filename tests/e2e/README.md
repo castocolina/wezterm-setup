@@ -41,13 +41,19 @@ unit/battery boundary (and Plan 04's `make test exits 0` acceptance).
 | 1 | Subcommands | nothing (deterministic, headless) | M (must-pass) | 06.6 |
 | 2 | Scenes | live mux | M | **06.7 (landed)** |
 | 3 | Registration | live mux | M | **06.7 (landed)** |
-| 3 | Firing | OS input injection (`WEZ_E2E_INPUT=1`) | B (best-effort, self-skip) | 06.9 |
+| 3 | Firing | OS input injection (`WEZ_E2E_INPUT=1`) | B (best-effort, self-skip) | **06.9 (landed)** |
 | 4 | Visuals | screenshot + vision (`WEZ_E2E_VISUAL=1`) | B (best-effort, self-skip) | 06.9 |
 
 `M` = must-pass (gates CI — wired in `.github/workflows/ci.yml`, 06.8). `B` = best-effort: self-skips
 **loudly and logged** when its dependency (mux / input tool / permission) is
 absent — never a silent pass, never a hang. On a host that DOES have the
 dependency, a skip is a **failure** (the gate prints a `LIVE-ASSERTED` marker).
+
+Linux Firing uses a forced-XWayland (`enable_wayland = false`) `--class`-tagged
+window that loads the real product config, then `xdotool windowactivate` /
+`getactivewindow` focus-verify before AND after every `xdotool key` — see
+`tests/e2e/lib/gui.lua`. ydotool is never used for firing: it has no
+window-targeting concept on Wayland.
 
 ### Tier 2 mux gate
 
@@ -75,16 +81,16 @@ failure.
 | `tests/e2e/tier2/*_e2e_test.lua` | Tier 2 live-mux scene drivers — reuse + new-tab mode (06.7); `scene_motd_race_e2e_test.lua` is the scene-launch-motd-race regression (a slow-starting `bash --rcfile` pane, driving the readiness-gate fix) |
 | `tests/e2e/tier3/*_e2e_test.lua` | Tier 3 live-mux registration contracts (06.7) |
 
-## Per-platform tools / permissions (placeholder — wired in 06.9)
+## Per-platform tools / permissions (Firing landed in 06.9 — Screenshot: see 06.9-04)
 
-Tier 1 needs none of these. Filled in when Tier 3 (firing) / Tier 4 (visuals)
-land in **06.9**.
+Tier 1 needs none of these. Input-injection and OS-permission rows are filled
+for the landed Firing path; Screenshot stays Plan 04.
 
 | Concern | macOS | Linux |
 |---------|-------|-------|
-| Input injection | `cliclick` | `xdotool` (X11) / `ydotool` (Wayland) |
-| Screenshot | _TBD (06.9)_ | _TBD (06.9)_ |
-| OS permission | Accessibility + Screen Recording grant | _TBD (06.9)_ |
+| Input injection | `cliclick` | `xdotool` (firing, forced-XWayland windows only; `enable_wayland = false`) + `ydotool`/`ydotoold` (provisioned by `make e2e-setup` for completeness/future compositor coverage per D-08, but **not** the mechanism Tier 3 Firing fires through today — ydotool has no Wayland window-targeting, which is why xdotool+forced-XWayland is used instead) |
+| Screenshot | _TBD (06.9-04)_ | _TBD (06.9-04)_ |
+| OS permission | Accessibility + Screen Recording grant, documented manual step (D-09) | `/dev/uinput` access via `make e2e-setup`: systemd-udev uaccess ACL check first, allowlisted group + udev-rule second (never an unsafe root-group grant, D-08); honest re-login-required report when a fresh grant is needed. No manual permission dialog on Linux. |
 
 ## Manual visual-baseline approval flow (placeholder — 06.9)
 

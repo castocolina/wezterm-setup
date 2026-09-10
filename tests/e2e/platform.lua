@@ -193,14 +193,60 @@ M.expectations = {
     linux = {
       ClearScreenAndScrollback = "ctrl+shift+k",
       SpawnTab = "ctrl+shift+t",
+      CloseCurrentTab = "ctrl+shift+w",
+      -- R6 probe 02: xdotool keysym for Tab is `Tab` (not ASCII). PageUp/PageDown
+      -- are NOT valid xdotool names (`No such key name`); use Prior/Next.
+      ActivateTabRelative = { next = "ctrl+Tab", prev = "ctrl+shift+Tab" },
+      MoveTabRelative = { left = "ctrl+shift+Prior", right = "ctrl+shift+Next" },
+      SplitHorizontal = "alt+shift+h",
+      SplitVertical = "alt+shift+v",
+      CloseCurrentPane = "alt+shift+x",
+      TogglePaneZoomState = "alt+shift+z",
+      RotatePanes = { clockwise = "alt+shift+r", counterclockwise = "alt+shift+e" },
+      ActivatePaneDirection = {
+        left = "alt+Left",
+        right = "alt+Right",
+        up = "alt+Up",
+        down = "alt+Down",
+      },
+      -- WezTerm DEFAULT Ctrl+=/-/0 (managed SUPER+/-/0 is WM-shadowed on Linux).
+      -- R6 probe 02: xdotool keysyms are `equal`/`minus`/`0`, not ASCII `+`/`-`.
+      IncreaseFontSize = "ctrl+equal",
+      DecreaseFontSize = "ctrl+minus",
+      ResetFontSize = "ctrl+0",
     },
-    mac = {}, -- Phase-7 macOS-parity follow-on; documented, not built or verified here.
+    -- Phase-7 macOS-parity follow-on; documented, not built or verified here.
+    mac = {
+      ClearScreenAndScrollback = "cmd+k",
+      SpawnTab = "cmd+t",
+      CloseCurrentTab = "cmd+w",
+      ActivateTabRelative = { next = "ctrl+Tab", prev = "ctrl+shift+Tab" },
+      MoveTabRelative = { left = "ctrl+shift+Prior", right = "ctrl+shift+Next" },
+      SplitHorizontal = "alt+shift+h",
+      SplitVertical = "alt+shift+v",
+      CloseCurrentPane = "alt+shift+x",
+      TogglePaneZoomState = "alt+shift+z",
+      RotatePanes = { clockwise = "alt+shift+r", counterclockwise = "alt+shift+e" },
+      ActivatePaneDirection = {
+        left = "alt+Left",
+        right = "alt+Right",
+        up = "alt+Up",
+        down = "alt+Down",
+      },
+      IncreaseFontSize = "cmd+equal",
+      DecreaseFontSize = "cmd+minus",
+      ResetFontSize = "cmd+0",
+    },
     note = "Linux values are xdotool `key` chord strings, derived from keybindings.lua's live-"
-      .. "registering CTRL-family chords (matching chord_families.linux). Populated by the "
-      .. "06.9-01 tracer: ClearScreenAndScrollback, SpawnTab. The remaining ten PRD Appendix "
-      .. "A.3 fire(B) actions are Plan 03's scope. macOS firing is a documented Phase 7 "
-      .. "macOS-parity follow-on per this project's established Linux-first/macOS-deferred "
-      .. "pattern — not built or verified here.",
+      .. "registering CTRL/ALT-family chords (matching chord_families.linux). Complete for "
+      .. "all 12 PRD Appendix A.3 fire(B)-eligible actions (ClearScreenAndScrollback, SpawnTab, "
+      .. "CloseCurrentTab, ActivateTabRelative, MoveTabRelative, SplitHorizontal, SplitVertical, "
+      .. "CloseCurrentPane, TogglePaneZoomState, RotatePanes, ActivatePaneDirection, and the "
+      .. "Increase/Decrease/ResetFontSize family). WordNav/SendString is reg(M)-only and has no "
+      .. "fire_chords entry. Font-size fires WezTerm's DEFAULT Ctrl+=/-/0 (xdotool equal/minus/0) "
+      .. "because the managed SUPER rows are WM-shadowed on Linux. macOS firing is a documented "
+      .. "Phase 7 macOS-parity follow-on per this project's established Linux-first/macOS-deferred "
+      .. "pattern — structurally mirrored here, not built or verified here.",
   },
 }
 
