@@ -107,7 +107,7 @@ end
 -- targets THIS scratch mux and NEVER the user's real session (T-06.7-03). Each
 -- value is shquoted (T-06.7-01).
 -- ---------------------------------------------------------------------------
-local function env_prefix(dir)
+function M.env_prefix(dir)
   return table.concat({
     "HOME=" .. shquote(dir .. "/home"),
     "XDG_RUNTIME_DIR=" .. shquote(dir .. "/runtime"),
@@ -185,7 +185,7 @@ function M.spin(tag, opts)
   fh:write(cfg)
   fh:close()
 
-  local env = env_prefix(dir)
+  local env = M.env_prefix(dir)
 
   -- Background launch; capture the bg PID into a pid file (the `& echo $!` runs in
   -- the same /bin/sh -c that backgrounded the server).

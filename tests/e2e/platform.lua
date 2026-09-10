@@ -100,14 +100,23 @@ M.expectations = {
       .. "shipped orchestration avoids bash-4 constructs so it runs on both.",
   },
 
-  -- Input tools (Tier 3 firing, 06.9): macOS uses cliclick; Linux uses xdotool on
-  -- X11 and ydotool on Wayland. Named here so 06.9 asserts against this row.
+  -- Input tools (Tier 3 firing, 06.9): macOS uses cliclick. Linux Wayland FIRING
+  -- in this phase uses xdotool against a forced-XWayland window — never ydotool.
+  -- ydotool is still provisioned by `make e2e-setup` (Plan 02) for completeness /
+  -- future-compositor coverage, but it is NOT the mechanism Tier 3 Firing fires
+  -- through today.
   input_tools = {
     mac = { "cliclick" },
-    linux = { "xdotool (X11)", "ydotool (Wayland)" },
-    note = "OS input injection (06.9): macOS uses cliclick; Linux uses xdotool "
-      .. "under X11 and ydotool under Wayland. Tier 3 firing self-skips when the "
-      .. "platform-appropriate tool is absent.",
+    linux = {
+      "xdotool (X11)",
+      "ydotool (Wayland, provisioned only — Tier 3 fires via xdotool+forced-XWayland, see note)",
+    },
+    note = "OS input injection (06.9): macOS uses cliclick. Linux Wayland FIRING "
+      .. "uses xdotool against a forced-XWayland WezTerm window (enable_wayland = "
+      .. "false), never ydotool. ydotool is provisioned only for completeness / "
+      .. "future-compositor coverage. Tier 3 firing self-skips when xdotool cannot "
+      .. "resolve that forced-XWayland test window, or when a canary keystroke "
+      .. "does not mutate pane text on this compositor.",
   },
 
   -- ---------------------------------------------------------------------------
@@ -178,6 +187,20 @@ M.expectations = {
       .. "so the SpawnTab catch is on its CTRL-family chord (the Ctrl+Shift+T "
       .. "default fold), NOT the absent SUPER one — this is exactly the registration "
       .. "the Plan 04 break harness drops to prove the dead-new-tab catch.",
+  },
+
+  fire_chords = {
+    linux = {
+      ClearScreenAndScrollback = "ctrl+shift+k",
+      SpawnTab = "ctrl+shift+t",
+    },
+    mac = {}, -- Phase-7 macOS-parity follow-on; documented, not built or verified here.
+    note = "Linux values are xdotool `key` chord strings, derived from keybindings.lua's live-"
+      .. "registering CTRL-family chords (matching chord_families.linux). Populated by the "
+      .. "06.9-01 tracer: ClearScreenAndScrollback, SpawnTab. The remaining ten PRD Appendix "
+      .. "A.3 fire(B) actions are Plan 03's scope. macOS firing is a documented Phase 7 "
+      .. "macOS-parity follow-on per this project's established Linux-first/macOS-deferred "
+      .. "pattern — not built or verified here.",
   },
 }
 
