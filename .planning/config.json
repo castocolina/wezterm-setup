@@ -74,6 +74,9 @@
     ],
     "effort": {
       "opencode": "high"
+    },
+    "timeouts": {
+      "opencode": 1800
     }
   }
 }

@@ -206,11 +206,25 @@ Plans:
 **Goal:** Close the GUI/visual gap locally (PRD Phase 4). `make e2e-setup` installs OS input tools (cliclick / xdotool / ydotool) + screenshot tools and documents the macOS Accessibility + Screen-Recording permissions; Tier 3 *firing* injects real chords at the OS layer and asserts the mux effect (opt-in via `WEZ_E2E_INPUT=1`, clean self-skip when absent); Tier 4 is a hybrid AI-vision (semantic rubric, Haiku-class) + snapshot-diff (stable chrome) check against committed per-platform baselines with a manual-approve flow. Best-effort/local, non-blocking.
 **Requirements**: PRD `docs/prds/e2e-testing-battery-v1.0-prd.md` (Tier 3 firing + Tier 4; Appendix A.3 fire(B)/A.4)
 **Depends on:** Phase 06.6 (battery scaffold) + 06.7 (scenes/registration)
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
+**Wave 1** *(independent: the firing tracer and the setup automation touch disjoint files)*
 
-- [ ] TBD (run /gsd-plan-phase 06.9 to break down)
+- [ ] 06.9-01-PLAN.md — Tier 3 Firing tracer: gui.lua focus-verify-then-fire pipeline (forced-XWayland + xdotool, resolving the ydotool-has-no-window-targeting gap) + ClearScreenAndScrollback/SpawnTab [wave 1]
+- [ ] 06.9-02-PLAN.md — `make e2e-setup` real automation: brew-first installs, ydotoold/uinput group automation + honest re-login reporting, Wayland compositor-aware screenshot tool (D-06/D-07/D-08/D-09) [wave 1]
+
+**Wave 2** *(blocked on 06.9-01's gui.lua + 06.9-02's provisioning)*
+
+- [ ] 06.9-03-PLAN.md — Tier 3 Firing: remaining 10 PRD Appendix A.3 fire(B) actions + README tools/permissions + tier-matrix fill [wave 2]
+
+**Wave 3** *(blocked on 06.9-01's gui.lua reuse + 06.9-03's README ownership)*
+
+- [ ] 06.9-04-PLAN.md — Tier 4 Visuals: `make e2e-visual` / `make e2e-visual APPROVE=1 SCENARIOS=...` (ImageMagick RMSE similarity-diff vs. committed per-OS baselines, D-01/D-04/D-05) + README baseline-approval-flow fill [wave 3]
+
+**Wave 4** *(blocked on 06.9-04's `make e2e-visual` existing)*
+
+- [ ] 06.9-05-PLAN.md — `e2e-visual-review` skill: mandatory ask-the-user model enumeration (D-02) + agent-performed PRD A.4 checklist judgment (D-01) + skill-judge >=90% (D-03) [wave 4]
 
 ### Phase 06.8: E2E Linux CI Gate (phased CI) (INSERTED)
 
