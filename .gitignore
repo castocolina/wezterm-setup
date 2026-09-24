@@ -6,3 +6,8 @@ tmp/
 
 # Build output — produced by tools/build.sh, never committed
 dist/
+
+# gsd-tools runtime state — a process lock and a derived cache regenerated
+# from STATE.md on demand, never project source
+.planning/milestone.lock
+.planning/state.json

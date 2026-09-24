@@ -208,6 +208,7 @@ Phase 5  [░░░░░░░░░░]  Not started
 | 260908-fav | Reconcile .planning/ tracking artifacts with reality per gsd-progress/gsd-health audit (frontmatter on 02/03 VERIFICATION.md, 04 rename, 06 status normalization, 06.1-07 retroactive SUMMARY.md, STATE.md progress refresh) | 2026-09-08 | e606d09 | [260908-fav-reconcile-planning-tracking-artifacts-wi](./quick/260908-fav-reconcile-planning-tracking-artifacts-wi/) |
 | 260908-g6b | Write missing 06.1-VERIFICATION.md (retroactive close-out from 06.1-UAT.md) — closes the last gap keeping cross-tool current_phase state out of sync with STATE.md | 2026-09-08 | b80a03e | [260908-g6b-write-missing-06-1-verification-md-retro](./quick/260908-g6b-write-missing-06-1-verification-md-retro/) |
 | 260908-i9j | Annotate 06.3/06.5 deferred-items.md as RESOLVED — same recipe_test.lua ai.toml fixture drift 06.4 already fixed 2026-06-19; stale tracking only | 2026-09-08 | d0dc995 | [260908-i9j-annotate-06-3-and-06-5-deferred-items-md](./quick/260908-i9j-annotate-06-3-and-06-5-deferred-items-md/) |
+| 260923-jdt | Fix release CI glibc floor: pin Linux build leg to ubuntu-22.04 (was ubuntu-latest/24.04, silently required GLIBC_2.38+, broke debian:12/debian:11/ubuntu:22.04 — confirmed + fixed via local podman cross-testing before touching CI; also fixed a leg-identity string-match bug the pin would otherwise have introduced in the nightly-prune step) | 2026-09-23 | c7b79a8 | [260923-jdt-fix-release-ci-glibc-floor-pin-linux-bui](./quick/260923-jdt-fix-release-ci-glibc-floor-pin-linux-bui/) |
 
 ### Discoveries
 

@@ -39,8 +39,11 @@ err() { printf '[ci-toolchain] ERROR: %s\n' "$*" >&2; }
 # --- per-OS toolchain install ------------------------------------------------
 
 install_linux() {
-  # GitHub Actions ubuntu-latest: apt with sudo is the runner's sanctioned
-  # provisioning path (see SUDO SCOPE NOTE above — not the user install path).
+  # GitHub Actions Ubuntu runner (pinned to ubuntu-22.04 for the release build
+  # leg, see release.yml — NOT ubuntu-latest, to keep the published binary's
+  # glibc floor low enough for non-bleeding-edge distros): apt with sudo is the
+  # runner's sanctioned provisioning path (see SUDO SCOPE NOTE above — not the
+  # user install path).
   log "linux runner -> apt-get install lua5.4 + headers + luarocks, then luastatic"
   sudo apt-get update
   sudo apt-get install -y lua5.4 liblua5.4-dev luarocks
